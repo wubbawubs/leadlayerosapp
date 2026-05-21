@@ -318,11 +318,12 @@ function BusinessProfilePage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <button
-                disabled
-                className="rounded-md border border-dashed border-border bg-background px-3 py-2 text-xs font-medium text-muted-foreground opacity-70"
-                title="Komt in BP-2"
+                onClick={() => analyzeMutation.mutate()}
+                disabled={analyzeMutation.isPending || !tenantId}
+                className="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
+                title="AI analyseert geauditeerde pagina's en stelt invullingen voor"
               >
-                Generate from website (binnenkort)
+                {analyzeMutation.isPending ? "Analyseren…" : "Generate from website"}
               </button>
               <button
                 onClick={() => saveMutation.mutate(undefined)}
