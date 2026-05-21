@@ -10,6 +10,7 @@
  *     metadata on business_profiles_v2 (NEVER overwrites core fields).
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { jsonrepair } from "jsonrepair";
 import { llmComplete } from "@/lib/shared/llm/router.server";
 import {
   discoverSitemapUrls,
@@ -71,7 +72,7 @@ type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 // Helpers
 // ----------------------------------------------------------------------------
 
-async function extractJson(text: string): Promise<unknown> {
+function extractJson(text: string): unknown {
   if (!text || !text.trim()) throw new Error("LLM returned empty response");
   let cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
   const first = cleaned.search(/[{[]/);
@@ -90,7 +91,6 @@ async function extractJson(text: string): Promise<unknown> {
     } catch {
       // Last resort: jsonrepair handles unescaped quotes, trailing commas,
       // missing closers, control chars in strings, truncation, etc.
-      const { jsonrepair } = await import("jsonrepair");
       return JSON.parse(jsonrepair(cleaned));
     }
   }
@@ -514,7 +514,7 @@ export async function analyzeBusinessProfileFromWebsite(input: {
 
   let parsed: AnalysisResult;
   try {
-    parsed = AnalysisResultSchema.parse(await extractJson(llm.text));
+    parsed = AnalysisResultSchema.parse(extractJson(llm.text));
   } catch (e) {
     console.error("[bp-2] parse failed, raw:", llm.text?.slice(0, 1000));
     throw new Error(`Analyzer JSON ongeldig: ${(e as Error).message}`);
