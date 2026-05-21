@@ -201,6 +201,126 @@ export type Database = {
         }
         Relationships: []
       }
+      business_profile_feedback: {
+        Row: {
+          after_value: Json | null
+          before_value: Json | null
+          created_at: string
+          created_by: string | null
+          feedback_type: string
+          field_path: string | null
+          id: string
+          reason: string | null
+          suggestion_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          after_value?: Json | null
+          before_value?: Json | null
+          created_at?: string
+          created_by?: string | null
+          feedback_type: string
+          field_path?: string | null
+          id?: string
+          reason?: string | null
+          suggestion_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          after_value?: Json | null
+          before_value?: Json | null
+          created_at?: string
+          created_by?: string | null
+          feedback_type?: string
+          field_path?: string | null
+          id?: string
+          reason?: string | null
+          suggestion_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_profile_feedback_suggestion_id_fkey"
+            columns: ["suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "business_profile_suggestions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_profile_feedback_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_profile_suggestions: {
+        Row: {
+          business_profile_id: string | null
+          confidence: number
+          created_at: string
+          current_value: Json | null
+          decided_at: string | null
+          decided_by: string | null
+          field_path: string
+          id: string
+          rationale: string | null
+          section: string
+          source_evidence: Json
+          status: string
+          suggested_value: Json
+          tenant_id: string
+        }
+        Insert: {
+          business_profile_id?: string | null
+          confidence?: number
+          created_at?: string
+          current_value?: Json | null
+          decided_at?: string | null
+          decided_by?: string | null
+          field_path: string
+          id?: string
+          rationale?: string | null
+          section: string
+          source_evidence?: Json
+          status?: string
+          suggested_value: Json
+          tenant_id: string
+        }
+        Update: {
+          business_profile_id?: string | null
+          confidence?: number
+          created_at?: string
+          current_value?: Json | null
+          decided_at?: string | null
+          decided_by?: string | null
+          field_path?: string
+          id?: string
+          rationale?: string | null
+          section?: string
+          source_evidence?: Json
+          status?: string
+          suggested_value?: Json
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_profile_suggestions_business_profile_id_fkey"
+            columns: ["business_profile_id"]
+            isOneToOne: false
+            referencedRelation: "business_profiles_v2"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_profile_suggestions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_profiles: {
         Row: {
           avoid_claims: Json
@@ -260,6 +380,77 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      business_profiles_v2: {
+        Row: {
+          business_identity: Json
+          claim_guardrails: Json
+          confidence_map: Json
+          confidence_score: number
+          conversion_profile: Json
+          created_at: string
+          icp_profile: Json
+          id: string
+          location_profile: Json
+          locked_fields: Json
+          missing_context: Json
+          offer_profile: Json
+          proof_profile: Json
+          source_map: Json
+          status: string
+          strategy_angles: Json
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          business_identity?: Json
+          claim_guardrails?: Json
+          confidence_map?: Json
+          confidence_score?: number
+          conversion_profile?: Json
+          created_at?: string
+          icp_profile?: Json
+          id?: string
+          location_profile?: Json
+          locked_fields?: Json
+          missing_context?: Json
+          offer_profile?: Json
+          proof_profile?: Json
+          source_map?: Json
+          status?: string
+          strategy_angles?: Json
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          business_identity?: Json
+          claim_guardrails?: Json
+          confidence_map?: Json
+          confidence_score?: number
+          conversion_profile?: Json
+          created_at?: string
+          icp_profile?: Json
+          id?: string
+          location_profile?: Json
+          locked_fields?: Json
+          missing_context?: Json
+          offer_profile?: Json
+          proof_profile?: Json
+          source_map?: Json
+          status?: string
+          strategy_angles?: Json
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_profiles_v2_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       change_groups: {
         Row: {
