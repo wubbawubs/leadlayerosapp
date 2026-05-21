@@ -185,6 +185,17 @@
   .font-display {
     font-family: var(--font-display);
   }
+  .font-hero {
+    font-family: var(--font-hero);
+    font-style: italic;
+    letter-spacing: -0.01em;
+    line-height: 0.9;
+  }
+  .bg-blueprint {
+    background-image:
+      radial-gradient(oklch(46% 0.22 260 / 0.06) 1px, transparent 1px);
+    background-size: 26px 26px;
+  }
 
   .text-balance { text-wrap: balance; }
 
