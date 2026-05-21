@@ -600,6 +600,39 @@ export type Database = {
         }
         Relationships: []
       }
+      project_docs: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          id: string
+          slug: string
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          category?: string
+          content: string
+          created_at?: string
+          id?: string
+          slug: string
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          id?: string
+          slug?: string
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       raw_events: {
         Row: {
           id: string
