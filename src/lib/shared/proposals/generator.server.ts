@@ -36,10 +36,22 @@ type AuditPageRow = {
   schema: unknown;
 };
 
-function buildPrompt(p: AuditPageRow): string {
+function buildPrompt(p: AuditPageRow, contextBlock: string): string {
   const issues = (p.issues ?? [])
     .map((i) => `- ${i.code}${i.message ? `: ${i.message}` : ""}`)
     .join("\n");
+  const ctx = contextBlock
+    ? [
+        "",
+        "=== CONTEXT (gebruik dit om voorstellen te personaliseren) ===",
+        contextBlock,
+        "=== EINDE CONTEXT ===",
+        "",
+      ].join("\n")
+    : "";
+  // TODO(S4c): Full prompt rewrite — produce structured output with
+  // qualityScore, riskFlags, brandFitScore, etc. and gate via
+  // proposal_quality_checks before showing as draft.
   return [
     `URL: ${p.url}`,
     `Title: ${p.title ?? "(none)"}`,
@@ -48,7 +60,7 @@ function buildPrompt(p: AuditPageRow): string {
     `Word count: ${p.word_count}`,
     `Images without alt: ${p.images_without_alt}`,
     `Has JSON-LD schema: ${p.schema ? "yes" : "no"}`,
-    "",
+    ctx,
     "Issues detected:",
     issues || "(none)",
     "",
@@ -61,6 +73,7 @@ function buildPrompt(p: AuditPageRow): string {
     'Respond ONLY with valid JSON: {"proposals":[{...}]}. No prose, no markdown.',
   ].join("\n");
 }
+
 
 function extractJson(text: string): unknown {
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
