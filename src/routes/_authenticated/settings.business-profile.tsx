@@ -374,6 +374,17 @@ function BusinessProfilePage() {
           </div>
         )}
 
+        {/* BP-2: AI Suggestions */}
+        <SuggestionsPanel
+          suggestions={suggestions}
+          onAccept={(id, lockAfter) => acceptMutation.mutate({ suggestionId: id, lockAfter })}
+          onReject={(id) => rejectMutation.mutate(id)}
+          onEditAccept={(id, v) => editAcceptMutation.mutate({ suggestionId: id, editedValue: v })}
+          pending={
+            acceptMutation.isPending || rejectMutation.isPending || editAcceptMutation.isPending
+          }
+        />
+
         {/* 1. Identity */}
         <Section
           title="1. Business identity"
