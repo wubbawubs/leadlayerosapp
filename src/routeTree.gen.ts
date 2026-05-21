@@ -23,6 +23,7 @@ import { Route as AuthenticatedOnboardingSiteRouteImport } from './routes/_authe
 import { Route as AuthenticatedOnboardingDoneRouteImport } from './routes/_authenticated/onboarding.done'
 import { Route as AuthenticatedOnboardingBusinessRouteImport } from './routes/_authenticated/onboarding.business'
 import { Route as ApiPublicWpcomCallbackRouteImport } from './routes/api/public/wpcom/callback'
+import { Route as AuthenticatedSitesSiteIdAuditsRouteImport } from './routes/_authenticated/sites.$siteId.audits'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -97,6 +98,12 @@ const ApiPublicWpcomCallbackRoute = ApiPublicWpcomCallbackRouteImport.update({
   path: '/api/public/wpcom/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSitesSiteIdAuditsRoute =
+  AuthenticatedSitesSiteIdAuditsRouteImport.update({
+    id: '/$siteId/audits',
+    path: '/$siteId/audits',
+    getParentRoute: () => AuthenticatedSitesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -111,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
+  '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -126,6 +134,7 @@ export interface FileRoutesByTo {
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
+  '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
 export interface FileRoutesById {
@@ -143,6 +152,7 @@ export interface FileRoutesById {
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/_authenticated/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
+  '/_authenticated/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +170,7 @@ export interface FileRouteTypes {
     | '/onboarding/site'
     | '/onboarding/welcome'
     | '/sites/new'
+    | '/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -175,6 +186,7 @@ export interface FileRouteTypes {
     | '/onboarding/site'
     | '/onboarding/welcome'
     | '/sites/new'
+    | '/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
   id:
     | '__root__'
@@ -191,6 +203,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding/site'
     | '/_authenticated/onboarding/welcome'
     | '/_authenticated/sites/new'
+    | '/_authenticated/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
   fileRoutesById: FileRoutesById
 }
@@ -303,6 +316,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWpcomCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/sites/$siteId/audits': {
+      id: '/_authenticated/sites/$siteId/audits'
+      path: '/$siteId/audits'
+      fullPath: '/sites/$siteId/audits'
+      preLoaderRoute: typeof AuthenticatedSitesSiteIdAuditsRouteImport
+      parentRoute: typeof AuthenticatedSitesRoute
+    }
   }
 }
 
@@ -328,10 +348,12 @@ const AuthenticatedOnboardingRouteWithChildren =
 
 interface AuthenticatedSitesRouteChildren {
   AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
+  AuthenticatedSitesSiteIdAuditsRoute: typeof AuthenticatedSitesSiteIdAuditsRoute
 }
 
 const AuthenticatedSitesRouteChildren: AuthenticatedSitesRouteChildren = {
   AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
+  AuthenticatedSitesSiteIdAuditsRoute: AuthenticatedSitesSiteIdAuditsRoute,
 }
 
 const AuthenticatedSitesRouteWithChildren =
@@ -364,3 +386,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
