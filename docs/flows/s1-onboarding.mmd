@@ -1,0 +1,42 @@
+sequenceDiagram
+    autonumber
+    actor U as Operator
+    participant UI as /app/onboarding
+    participant SF as ServerFn (auth)
+    participant DB as Supabase (RLS)
+    participant V as Vault (AES-GCM)
+    participant G as Google OAuth
+    participant WP as WordPress REST
+
+    U->>UI: Step 1 — tenant details
+    UI->>SF: tenants.createTenant({name, geo, vertical})
+    SF->>DB: insert tenants + memberships(owner) + onboarding_sessions
+    DB-->>SF: tenant_id
+    SF-->>UI: ok
+
+    U->>UI: Step 2 — WordPress URL
+    UI->>SF: siteConnections.startWpConnect
+    SF-->>UI: instructions + connection_id
+
+    U->>WP: create application password
+    U->>UI: paste username + app password
+    UI->>SF: verifyWpConnect
+    SF->>WP: GET /wp-json/wp/v2/users/me (basic auth)
+    WP-->>SF: 200 user
+    SF->>V: encrypt(appPassword)
+    SF->>DB: tenant_secrets + site_connections(status=connected)
+
+    U->>UI: Step 3 — Connect GSC
+    UI->>SF: startOAuth(gsc)
+    SF-->>UI: redirect URL
+    U->>G: consent
+    G->>SF: /api/public/oauth/google/callback?code&state
+    SF->>G: exchange code
+    SF->>V: encrypt(refresh_token)
+    SF->>DB: site_connections(gsc, connected)
+
+    Note over UI: Step 4 identical for GA4
+
+    UI->>SF: onboarding.complete
+    SF->>DB: onboarding_sessions.status = 'connected'
+    SF-->>UI: redirect /app

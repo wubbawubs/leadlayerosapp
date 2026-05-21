@@ -1,0 +1,46 @@
+erDiagram
+    profiles ||--o{ memberships : has
+    tenants  ||--o{ memberships : has
+    tenants  ||--o{ onboarding_sessions : has
+    tenants  ||--o{ site_connections : has
+    tenants  ||--o{ tenant_secrets : has
+    tenants  ||--o{ master_plans : has
+    master_plans ||--o{ monthly_plans : has
+    tenants  ||--o{ pages : has
+    pages    ||--o{ page_snapshots : has
+    monthly_plans ||--o{ change_groups : has
+    change_groups ||--o{ changes : has
+    changes  ||--o{ wp_write_operations : produces
+    tenants  ||--o{ scans : has
+    scans    ||--o{ issues : has
+    tenants  ||--o{ health_scores : has
+    tenants  ||--o{ raw_events : receives
+    raw_events ||--o| leads : dedupes_to
+    leads    ||--o{ lead_events : has
+    tenants  ||--o{ workflow_runs : tracks
+    tenant_secrets ||--o{ secret_audit_log : audited
+
+    tenants {
+      uuid id PK
+      text name
+      geo_code geo
+      vertical_code vertical
+    }
+    memberships {
+      uuid user_id FK
+      uuid tenant_id FK
+      app_role role
+    }
+    site_connections {
+      uuid id PK
+      uuid tenant_id FK
+      connection_type type
+      connection_status status
+    }
+    tenant_secrets {
+      uuid id PK
+      uuid tenant_id FK
+      text key
+      bytea ciphertext
+      int version
+    }
