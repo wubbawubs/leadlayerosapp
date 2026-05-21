@@ -75,27 +75,33 @@ export const createSiteConnection = createServerFn({ method: "POST" })
       .single();
     if (insErr) throw insErr;
 
-    // Encrypt + store credential via service-role (tenant_secrets has no RLS policies).
-    const { ciphertext, version } = encrypt(data.appPassword);
-    const key = `site:${created.id}:app_password`;
-    const { error: secErr } = await supabaseAdmin.from("tenant_secrets").upsert(
-      {
-        tenant_id: data.tenantId,
-        key,
-        value_encrypted: ciphertext,
-        encryption_version: version,
-      },
-      { onConflict: "tenant_id,key" },
-    );
-    if (secErr) throw secErr;
+    // Encrypt + store credential via service-role. If anything fails, roll back
+    // the row insert so we never leave an orphaned connection with no secret.
+    try {
+      const { ciphertext, version } = encrypt(data.appPassword);
+      const key = `site:${created.id}:app_password`;
+      const { error: secErr } = await supabaseAdmin.from("tenant_secrets").upsert(
+        {
+          tenant_id: data.tenantId,
+          key,
+          value_encrypted: ciphertext,
+          encryption_version: version,
+        },
+        { onConflict: "tenant_id,key" },
+      );
+      if (secErr) throw secErr;
 
-    await supabaseAdmin.from("secret_audit_log").insert({
-      tenant_id: data.tenantId,
-      actor_id: userId,
-      actor_type: "user",
-      action: "create",
-      secret_key: key,
-    });
+      await supabaseAdmin.from("secret_audit_log").insert({
+        tenant_id: data.tenantId,
+        actor_id: userId,
+        actor_type: "user",
+        action: "create",
+        secret_key: key,
+      });
+    } catch (e) {
+      await supabaseAdmin.from("site_connections").delete().eq("id", created.id);
+      throw e;
+    }
 
     return { siteConnectionId: created.id as string };
   });
