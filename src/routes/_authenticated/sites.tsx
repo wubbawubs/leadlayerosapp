@@ -1,15 +1,24 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { Logo } from "@/components/brand/Logo";
 import { TenantSwitcher } from "@/components/app/TenantSwitcher";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { listMyTenants } from "@/lib/shared/db/repos/tenants.functions";
 import {
+  createSiteConnection,
   listSiteConnections,
   probeSiteConnection,
 } from "@/lib/shared/db/repos/siteConnections.functions";
+import { CreateSiteConnectionSchema } from "@/lib/shared/db/repos/siteConnections.schemas";
 
 export const Route = createFileRoute("/_authenticated/sites")({
   component: SitesPage,
@@ -20,6 +29,7 @@ function SitesPage() {
   const qc = useQueryClient();
   const fetchTenants = useServerFn(listMyTenants);
   const fetchSites = useServerFn(listSiteConnections);
+  const create = useServerFn(createSiteConnection);
   const probe = useServerFn(probeSiteConnection);
 
   const tenantsQuery = useQuery({
@@ -51,6 +61,56 @@ function SitesPage() {
       qc.invalidateQueries({ queryKey: ["site-connections", tenantId] }),
   });
 
+  const [connectOpen, setConnectOpen] = useState(false);
+  const [baseUrl, setBaseUrl] = useState("");
+  const [username, setUsername] = useState("");
+  const [appPassword, setAppPassword] = useState("");
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [probeMsg, setProbeMsg] = useState<string | null>(null);
+
+  const connectMutation = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error("Pick a tenant first");
+      const parsed = CreateSiteConnectionSchema.safeParse({
+        tenantId,
+        baseUrl,
+        username,
+        appPassword,
+      });
+      if (!parsed.success) {
+        throw new Error(parsed.error.errors[0]?.message ?? "Invalid input");
+      }
+      const { siteConnectionId } = await create({ data: parsed.data });
+      const probeRes = await probe({ data: { siteConnectionId } });
+      return { probeRes };
+    },
+    onSuccess: ({ probeRes }) => {
+      qc.invalidateQueries({ queryKey: ["site-connections", tenantId] });
+      if (probeRes.status === "connected") {
+        setProbeMsg("Connected — probe succeeded");
+        window.setTimeout(() => {
+          setConnectOpen(false);
+          setBaseUrl("");
+          setUsername("");
+          setAppPassword("");
+          setProbeMsg(null);
+        }, 700);
+      } else {
+        setProbeMsg(
+          `Saved, but probe failed: ${(probeRes.probeResult as { error?: string }).error ?? "unknown"}`,
+        );
+      }
+    },
+    onError: (e) => setConnectError((e as Error).message),
+  });
+
+  function onConnectSubmit(e: FormEvent) {
+    e.preventDefault();
+    setConnectError(null);
+    setProbeMsg(null);
+    connectMutation.mutate();
+  }
+
   if (tenantsQuery.isLoading) {
     return <Shell><p className="text-muted-foreground">Loading…</p></Shell>;
   }
@@ -79,13 +139,37 @@ function SitesPage() {
             Connected sites
           </h1>
         </div>
-        <Link
-          to="/sites/new"
+        <button
+          type="button"
+          onClick={() => setConnectOpen(true)}
           className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
         >
           + Connect WordPress site
-        </Link>
+        </button>
       </div>
+
+      <ConnectSiteDialog
+        open={connectOpen}
+        onOpenChange={(open) => {
+          setConnectOpen(open);
+          if (open) return;
+          setConnectError(null);
+          setProbeMsg(null);
+        }}
+        tenants={tenants}
+        tenantId={tenantId}
+        onTenantChange={setTenantId}
+        baseUrl={baseUrl}
+        onBaseUrlChange={setBaseUrl}
+        username={username}
+        onUsernameChange={setUsername}
+        appPassword={appPassword}
+        onAppPasswordChange={setAppPassword}
+        error={connectError}
+        probeMsg={probeMsg}
+        isPending={connectMutation.isPending}
+        onSubmit={onConnectSubmit}
+      />
 
       {sitesQuery.isLoading && <p className="text-muted-foreground">Loading sites…</p>}
       {sitesQuery.error && (
