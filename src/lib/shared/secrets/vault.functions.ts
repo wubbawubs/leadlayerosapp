@@ -24,7 +24,8 @@ const getInput = z.object({
   key: z.string().min(1).max(120).regex(/^[a-zA-Z0-9._-]+$/),
 });
 
-async function assertMember(supabase: ReturnType<typeof requireSupabaseAuth> extends never ? never : any, userId: string, tenantId: string) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function assertMember(supabase: any, userId: string, tenantId: string): Promise<string> {
   const { data, error } = await supabase
     .from("memberships")
     .select("role")
