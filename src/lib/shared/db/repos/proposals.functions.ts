@@ -162,7 +162,7 @@ export const decideProposal = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: prop, error } = await supabase
       .from("fix_proposals")
-      .select("id, tenant_id")
+      .select("id, tenant_id, after, rationale")
       .eq("id", data.proposalId)
       .maybeSingle();
     if (error) throw error;
@@ -178,5 +178,24 @@ export const decideProposal = createServerFn({ method: "POST" })
       })
       .eq("id", data.proposalId);
     if (uErr) throw uErr;
+
+    // Capture feedback for tone profile learning loop
+    const { data: tp } = await supabaseAdmin
+      .from("tone_profiles")
+      .select("id")
+      .eq("tenant_id", prop.tenant_id)
+      .maybeSingle();
+    const afterText =
+      typeof (prop.after as { text?: string })?.text === "string"
+        ? (prop.after as { text: string }).text
+        : JSON.stringify(prop.after ?? {}).slice(0, 400);
+    await supabaseAdmin.from("tone_feedback_examples").insert({
+      tenant_id: prop.tenant_id,
+      tone_profile_id: tp?.id ?? null,
+      example_type: data.decision === "approved" ? "approved" : "rejected",
+      after_text: afterText,
+      reason: prop.rationale ?? null,
+      proposal_id: data.proposalId,
+    });
     return { ok: true };
   });
