@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
@@ -42,9 +42,10 @@ function AppHome() {
           <Logo />
           <nav className="flex items-center gap-4 text-sm">
             <span className="text-foreground font-medium">Dashboard</span>
-            <a href="/sites" className="text-muted-foreground hover:text-foreground">
+            <Link to="/sites" className="text-muted-foreground hover:text-foreground">
               Sites
-            </a>
+            </Link>
+
           </nav>
         </div>
         <div className="flex items-center gap-2">
