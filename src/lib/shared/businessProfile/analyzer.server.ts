@@ -457,6 +457,7 @@ export interface AnalyzerResult {
 export async function analyzeBusinessProfileFromWebsite(input: {
   tenantId: string;
 }): Promise<AnalyzerResult> {
+  try {
   const { tenantId } = input;
 
   // 1. Load current profile + locks
@@ -685,6 +686,10 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     observedPages: observed.length,
     overallConfidence: parsed.overallConfidence,
   };
+  } catch (error) {
+    console.error("[bp-2] analyze failed", error);
+    throw normalizeAnalyzerError(error);
+  }
 }
 
 // ----------------------------------------------------------------------------
