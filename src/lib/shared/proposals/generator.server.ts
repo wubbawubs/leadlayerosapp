@@ -88,9 +88,12 @@ export async function generateProposalsForAudit(auditId: string): Promise<{
     .eq("audit_id", auditId);
   if (pErr) throw pErr;
 
-  const eligible = ((pages ?? []) as AuditPageRow[]).filter(
-    (p) => (p.issues ?? []).length > 0,
-  );
+  const eligible = ((pages ?? []) as AuditPageRow[])
+    .filter((p) => (p.issues ?? []).length > 0)
+    .sort((a, b) => (b.issues?.length ?? 0) - (a.issues?.length ?? 0))
+    .slice(0, 3); // cap to stay within worker request budget
+
+  console.log(`[proposals] audit=${auditId} eligible=${eligible.length}`);
 
   // Run LLM calls in parallel so the request fits inside the worker budget.
   const results = await Promise.all(
@@ -102,12 +105,13 @@ export async function generateProposalsForAudit(auditId: string): Promise<{
             "You are an expert SEO consultant. Output ONLY valid JSON matching the requested schema. Never include explanatory text.",
           prompt: buildPrompt(page),
           temperature: 0.3,
-          maxTokens: 1200,
+          maxTokens: 900,
         });
         const parsed = ResponseSchema.parse(extractJson(result.text));
+        console.log(`[proposals] page=${page.url} got=${parsed.proposals.length}`);
         return { page, proposals: parsed.proposals, llmError: null as unknown };
       } catch (e) {
-        console.error("Proposal LLM failed for", page.url, e);
+        console.error("[proposals] LLM failed for", page.url, e);
         return { page, proposals: [], llmError: e };
       }
     }),
@@ -163,5 +167,9 @@ export async function generateProposalsForAudit(auditId: string): Promise<{
     proposalsCreated += rows.length;
   }
 
+  const firstLlmErr = results.find((r) => r.llmError)?.llmError;
+  if (groupsCreated === 0 && firstLlmErr instanceof Error) {
+    throw new Error(`Proposal generation failed: ${firstLlmErr.message}`);
+  }
   return { groupsCreated, proposalsCreated, errors };
 }
