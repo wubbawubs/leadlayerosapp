@@ -258,6 +258,7 @@ function SitesPage() {
         {sitesQuery.data?.connections.map((c) => {
           const result = (c.probe_result ?? null) as null | {
             ok?: boolean;
+              via?: string;
             error?: string;
             user?: { name?: string; roles?: string[] };
             httpStatus?: number;
@@ -286,6 +287,8 @@ function SitesPage() {
                     <p className="mt-2 text-xs text-muted-foreground">
                       {result.ok && result.user
                         ? `OK · ${result.user.name} (${result.user.roles?.join(", ") || "no roles"}) · ${result.elapsedMs}ms`
+                        : result.ok && result.via === "oauth_callback"
+                          ? "OK · WordPress.com OAuth connected"
                         : result.error || "Unknown result"}
                     </p>
                   )}
