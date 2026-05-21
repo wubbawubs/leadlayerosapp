@@ -132,18 +132,15 @@ function NewSitePage() {
           >
             <input
               type="text"
-              required
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://example.com"
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
             />
-
           </Field>
 
           <Field label="WordPress username">
             <input
-              required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="admin"
@@ -157,7 +154,6 @@ function NewSitePage() {
             hint="Create one in WordPress → Users → Profile → Application Passwords. Spaces are OK."
           >
             <input
-              required
               type="password"
               value={appPassword}
               onChange={(e) => setAppPassword(e.target.value)}
