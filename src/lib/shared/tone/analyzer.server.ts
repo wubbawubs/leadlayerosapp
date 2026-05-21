@@ -115,7 +115,7 @@ async function pickSampleUrls(tenantId: string): Promise<Array<{ url: string; so
   // Diversity-aware pick: 1 homepage, up to 3 service, up to 2 blog, 1 about, 1 contact.
   const buckets: Record<SampleSource, number> = {
     homepage: 1, service: 3, blog: 2, about: 1, contact: 1,
-    other: 1, manual_paste: 0, approved_proposol: 0 as never, approved_proposal: 0,
+    other: 1, manual_paste: 0, approved_proposal: 0,
   };
   const picked: typeof classified = [];
   for (const c of classified) {
