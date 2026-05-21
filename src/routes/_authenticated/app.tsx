@@ -38,7 +38,15 @@ function AppHome() {
   return (
     <div className="min-h-screen bg-background bg-blueprint">
       <header className="container mx-auto flex items-center justify-between px-6 py-5">
-        <Logo />
+        <div className="flex items-center gap-6">
+          <Logo />
+          <nav className="flex items-center gap-4 text-sm">
+            <span className="text-foreground font-medium">Dashboard</span>
+            <a href="/sites" className="text-muted-foreground hover:text-foreground">
+              Sites
+            </a>
+          </nav>
+        </div>
         <div className="flex items-center gap-2">
           {tenantsQuery.data && tenantsQuery.data.tenants.length > 0 && (
             <TenantSwitcher tenants={tenantsQuery.data.tenants} />
@@ -51,6 +59,7 @@ function AppHome() {
           </button>
         </div>
       </header>
+
 
       <main className="container mx-auto px-6 pb-24 pt-8">
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
