@@ -791,6 +791,45 @@ export type Database = {
           },
         ]
       }
+      subscription_plans: {
+        Row: {
+          created_at: string
+          display_name: string
+          features: Json
+          max_pages: number
+          max_sites: number
+          monthly_ai_credits: number
+          monthly_leads: number
+          price_eur_monthly: number
+          tier: Database["public"]["Enums"]["plan_tier"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          features?: Json
+          max_pages: number
+          max_sites: number
+          monthly_ai_credits: number
+          monthly_leads: number
+          price_eur_monthly?: number
+          tier: Database["public"]["Enums"]["plan_tier"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          features?: Json
+          max_pages?: number
+          max_sites?: number
+          monthly_ai_credits?: number
+          monthly_leads?: number
+          price_eur_monthly?: number
+          tier?: Database["public"]["Enums"]["plan_tier"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tenant_secrets: {
         Row: {
           created_at: string
@@ -835,6 +874,7 @@ export type Database = {
           geo: Database["public"]["Enums"]["geo_code"]
           id: string
           name: string
+          plan: Database["public"]["Enums"]["plan_tier"]
           status: string
           updated_at: string
           vertical: Database["public"]["Enums"]["vertical_code"]
@@ -844,6 +884,7 @@ export type Database = {
           geo: Database["public"]["Enums"]["geo_code"]
           id?: string
           name: string
+          plan?: Database["public"]["Enums"]["plan_tier"]
           status?: string
           updated_at?: string
           vertical: Database["public"]["Enums"]["vertical_code"]
@@ -853,6 +894,7 @@ export type Database = {
           geo?: Database["public"]["Enums"]["geo_code"]
           id?: string
           name?: string
+          plan?: Database["public"]["Enums"]["plan_tier"]
           status?: string
           updated_at?: string
           vertical?: Database["public"]["Enums"]["vertical_code"]
@@ -1018,6 +1060,7 @@ export type Database = {
         | "wp_probe_ok"
         | "tenant_created"
         | "expired"
+      plan_tier: "free" | "starter" | "pro" | "enterprise"
       vertical_code:
         | "healthcare"
         | "legal"
@@ -1190,6 +1233,7 @@ export const Constants = {
         "tenant_created",
         "expired",
       ],
+      plan_tier: ["free", "starter", "pro", "enterprise"],
       vertical_code: [
         "healthcare",
         "legal",
