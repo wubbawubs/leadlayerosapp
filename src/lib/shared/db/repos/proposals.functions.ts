@@ -1,13 +1,12 @@
 /**
  * SEO Proposal repo — server functions to generate, list, and decide proposals.
- * Never writes to WordPress.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { generateProposalsForAudit } from "@/lib/shared/proposals/generator.server";
+import { generateProposalsForAuditPage } from "@/lib/shared/proposals/generator.server";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function assertOperator(supabase: any, userId: string, tenantId: string) {
@@ -24,27 +23,67 @@ async function assertOperator(supabase: any, userId: string, tenantId: string) {
   }
 }
 
-export const generateProposals = createServerFn({ method: "POST" })
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadAuditAndAuthorize(supabase: any, userId: string, auditId: string) {
+  const { data: audit, error } = await supabase
+    .from("audits")
+    .select("id, tenant_id, status")
+    .eq("id", auditId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!audit) throw new Error("Audit not found");
+  await assertOperator(supabase, userId, audit.tenant_id);
+  if (audit.status !== "succeeded") throw new Error("Audit is not finished");
+  return audit;
+}
+
+export const listEligibleAuditPages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { auditId: string }) =>
     z.object({ auditId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: audit, error } = await supabase
-      .from("audits")
-      .select("id, tenant_id, status")
-      .eq("id", data.auditId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!audit) throw new Error("Audit not found");
-    await assertOperator(supabase, userId, audit.tenant_id);
-    if (audit.status !== "succeeded") {
-      throw new Error("Audit is not finished");
-    }
+    await loadAuditAndAuthorize(supabase, userId, data.auditId);
 
-    const stats = await generateProposalsForAudit(data.auditId);
-    return stats;
+    const { data: pages, error } = await supabase
+      .from("audit_pages")
+      .select("id, url, issues")
+      .eq("audit_id", data.auditId);
+    if (error) throw error;
+
+    const eligible = (pages ?? [])
+      .map((p) => ({
+        id: p.id as string,
+        url: p.url as string,
+        issueCount: Array.isArray(p.issues) ? p.issues.length : 0,
+      }))
+      .filter((p) => p.issueCount > 0)
+      .sort((a, b) => b.issueCount - a.issueCount);
+    return { pages: eligible };
+  });
+
+export const generateProposalsForPage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { auditId: string; auditPageId: string }) =>
+    z
+      .object({
+        auditId: z.string().uuid(),
+        auditPageId: z.string().uuid(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await loadAuditAndAuthorize(supabase, userId, data.auditId);
+    try {
+      const r = await generateProposalsForAuditPage(data.auditId, data.auditPageId);
+      return { ok: true as const, ...r };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.error("[proposals] page generation failed", data.auditPageId, message);
+      return { ok: false as const, error: message, proposalsCreated: 0, pageUrl: "" };
+    }
   });
 
 export const listProposals = createServerFn({ method: "POST" })
@@ -88,8 +127,6 @@ export const listProposals = createServerFn({ method: "POST" })
     }
     proposals.sort((a, b) => b.confidence - a.confidence);
 
-
-    // Page URL lookup
     const pageIds = Array.from(
       new Set((groups ?? []).map((g) => g.audit_page_id).filter(Boolean) as string[]),
     );
@@ -110,9 +147,6 @@ export const listProposals = createServerFn({ method: "POST" })
     }));
     return { groups: groups ?? [], proposals: serializable, pageMap };
   });
-
-
-
 
 export const decideProposal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
