@@ -18,6 +18,7 @@ import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedSitesIndexRouteImport } from './routes/_authenticated/sites.index'
 import { Route as AuthenticatedSitesNewRouteImport } from './routes/_authenticated/sites.new'
+import { Route as AuthenticatedSettingsBusinessProfileRouteImport } from './routes/_authenticated/settings.business-profile'
 import { Route as AuthenticatedOnboardingWelcomeRouteImport } from './routes/_authenticated/onboarding.welcome'
 import { Route as AuthenticatedOnboardingSiteRouteImport } from './routes/_authenticated/onboarding.site'
 import { Route as AuthenticatedOnboardingDoneRouteImport } from './routes/_authenticated/onboarding.done'
@@ -71,6 +72,12 @@ const AuthenticatedSitesNewRoute = AuthenticatedSitesNewRouteImport.update({
   path: '/sites/new',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSettingsBusinessProfileRoute =
+  AuthenticatedSettingsBusinessProfileRouteImport.update({
+    id: '/settings/business-profile',
+    path: '/settings/business-profile',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedOnboardingWelcomeRoute =
   AuthenticatedOnboardingWelcomeRouteImport.update({
     id: '/welcome',
@@ -131,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
+  '/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/sites/': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
@@ -149,6 +157,7 @@ export interface FileRoutesByTo {
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
+  '/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/sites': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
@@ -169,6 +178,7 @@ export interface FileRoutesById {
   '/_authenticated/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/_authenticated/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
+  '/_authenticated/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
   '/_authenticated/sites/': typeof AuthenticatedSitesIndexRoute
   '/_authenticated/audits/$auditId_/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
@@ -189,6 +199,7 @@ export interface FileRouteTypes {
     | '/onboarding/done'
     | '/onboarding/site'
     | '/onboarding/welcome'
+    | '/settings/business-profile'
     | '/sites/new'
     | '/sites/'
     | '/audits/$auditId/proposals'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/onboarding/done'
     | '/onboarding/site'
     | '/onboarding/welcome'
+    | '/settings/business-profile'
     | '/sites/new'
     | '/sites'
     | '/audits/$auditId/proposals'
@@ -226,6 +238,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding/done'
     | '/_authenticated/onboarding/site'
     | '/_authenticated/onboarding/welcome'
+    | '/_authenticated/settings/business-profile'
     | '/_authenticated/sites/new'
     | '/_authenticated/sites/'
     | '/_authenticated/audits/$auditId_/proposals'
@@ -305,6 +318,13 @@ declare module '@tanstack/react-router' {
       path: '/sites/new'
       fullPath: '/sites/new'
       preLoaderRoute: typeof AuthenticatedSitesNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings/business-profile': {
+      id: '/_authenticated/settings/business-profile'
+      path: '/settings/business-profile'
+      fullPath: '/settings/business-profile'
+      preLoaderRoute: typeof AuthenticatedSettingsBusinessProfileRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/onboarding/welcome': {
@@ -390,6 +410,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRouteWithChildren
   AuthenticatedAuditsAuditIdRoute: typeof AuthenticatedAuditsAuditIdRoute
+  AuthenticatedSettingsBusinessProfileRoute: typeof AuthenticatedSettingsBusinessProfileRoute
   AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
   AuthenticatedSitesIndexRoute: typeof AuthenticatedSitesIndexRoute
   AuthenticatedAuditsAuditIdProposalsRoute: typeof AuthenticatedAuditsAuditIdProposalsRoute
@@ -400,6 +421,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRouteWithChildren,
   AuthenticatedAuditsAuditIdRoute: AuthenticatedAuditsAuditIdRoute,
+  AuthenticatedSettingsBusinessProfileRoute:
+    AuthenticatedSettingsBusinessProfileRoute,
   AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
   AuthenticatedSitesIndexRoute: AuthenticatedSitesIndexRoute,
   AuthenticatedAuditsAuditIdProposalsRoute:
@@ -422,13 +445,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

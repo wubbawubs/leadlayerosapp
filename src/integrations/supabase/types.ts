@@ -147,6 +147,120 @@ export type Database = {
           },
         ]
       }
+      brand_voice_profiles: {
+        Row: {
+          analyzed_at: string | null
+          created_at: string
+          example_phrases: Json
+          forbidden_words: Json
+          id: string
+          job_error: string | null
+          job_status: Database["public"]["Enums"]["brand_voice_job_status"]
+          language: string
+          preferred_words: Json
+          reading_level: string | null
+          source_urls: Json
+          tenant_id: string
+          tone_summary: string | null
+          updated_at: string
+          writing_style: Json
+        }
+        Insert: {
+          analyzed_at?: string | null
+          created_at?: string
+          example_phrases?: Json
+          forbidden_words?: Json
+          id?: string
+          job_error?: string | null
+          job_status?: Database["public"]["Enums"]["brand_voice_job_status"]
+          language?: string
+          preferred_words?: Json
+          reading_level?: string | null
+          source_urls?: Json
+          tenant_id: string
+          tone_summary?: string | null
+          updated_at?: string
+          writing_style?: Json
+        }
+        Update: {
+          analyzed_at?: string | null
+          created_at?: string
+          example_phrases?: Json
+          forbidden_words?: Json
+          id?: string
+          job_error?: string | null
+          job_status?: Database["public"]["Enums"]["brand_voice_job_status"]
+          language?: string
+          preferred_words?: Json
+          reading_level?: string | null
+          source_urls?: Json
+          tenant_id?: string
+          tone_summary?: string | null
+          updated_at?: string
+          writing_style?: Json
+        }
+        Relationships: []
+      }
+      business_profiles: {
+        Row: {
+          avoid_claims: Json
+          business_name: string | null
+          created_at: string
+          id: string
+          industry: string | null
+          language: string
+          main_promise: string | null
+          preferred_cta: string | null
+          primary_offer: string | null
+          proof_points: Json
+          secondary_offers: Json
+          service_areas: Json
+          target_audience: Json
+          tenant_id: string
+          tone_preference: string | null
+          unique_value_proposition: string | null
+          updated_at: string
+        }
+        Insert: {
+          avoid_claims?: Json
+          business_name?: string | null
+          created_at?: string
+          id?: string
+          industry?: string | null
+          language?: string
+          main_promise?: string | null
+          preferred_cta?: string | null
+          primary_offer?: string | null
+          proof_points?: Json
+          secondary_offers?: Json
+          service_areas?: Json
+          target_audience?: Json
+          tenant_id: string
+          tone_preference?: string | null
+          unique_value_proposition?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avoid_claims?: Json
+          business_name?: string | null
+          created_at?: string
+          id?: string
+          industry?: string | null
+          language?: string
+          main_promise?: string | null
+          preferred_cta?: string | null
+          primary_offer?: string | null
+          proof_points?: Json
+          secondary_offers?: Json
+          service_areas?: Json
+          target_audience?: Json
+          tenant_id?: string
+          tone_preference?: string | null
+          unique_value_proposition?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       change_groups: {
         Row: {
           action_type: Database["public"]["Enums"]["action_type"]
@@ -702,6 +816,57 @@ export type Database = {
           },
         ]
       }
+      page_intelligence: {
+        Row: {
+          audit_page_id: string | null
+          commercial_priority: Database["public"]["Enums"]["commercial_priority"]
+          created_at: string
+          desired_action: string | null
+          funnel_stage: string | null
+          id: string
+          intent: Database["public"]["Enums"]["page_intent"]
+          page_id: string | null
+          page_type: Database["public"]["Enums"]["page_type"]
+          summary: string | null
+          target_audience: string | null
+          target_keyword: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          audit_page_id?: string | null
+          commercial_priority?: Database["public"]["Enums"]["commercial_priority"]
+          created_at?: string
+          desired_action?: string | null
+          funnel_stage?: string | null
+          id?: string
+          intent?: Database["public"]["Enums"]["page_intent"]
+          page_id?: string | null
+          page_type?: Database["public"]["Enums"]["page_type"]
+          summary?: string | null
+          target_audience?: string | null
+          target_keyword?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          audit_page_id?: string | null
+          commercial_priority?: Database["public"]["Enums"]["commercial_priority"]
+          created_at?: string
+          desired_action?: string | null
+          funnel_stage?: string | null
+          id?: string
+          intent?: Database["public"]["Enums"]["page_intent"]
+          page_id?: string | null
+          page_type?: Database["public"]["Enums"]["page_type"]
+          summary?: string | null
+          target_audience?: string | null
+          target_keyword?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       page_snapshots: {
         Row: {
           created_at: string
@@ -870,6 +1035,51 @@ export type Database = {
           title?: string
           updated_at?: string
           version?: number
+        }
+        Relationships: []
+      }
+      proposal_quality_checks: {
+        Row: {
+          brand_fit_score: number | null
+          clarity_score: number | null
+          commercial_fit_score: number | null
+          created_at: string
+          id: string
+          proposal_id: string
+          publishable: boolean
+          quality_score: number | null
+          risk_flags: Json
+          seo_fit_score: number | null
+          tenant_id: string
+          verdict: Database["public"]["Enums"]["quality_verdict"]
+        }
+        Insert: {
+          brand_fit_score?: number | null
+          clarity_score?: number | null
+          commercial_fit_score?: number | null
+          created_at?: string
+          id?: string
+          proposal_id: string
+          publishable?: boolean
+          quality_score?: number | null
+          risk_flags?: Json
+          seo_fit_score?: number | null
+          tenant_id: string
+          verdict?: Database["public"]["Enums"]["quality_verdict"]
+        }
+        Update: {
+          brand_fit_score?: number | null
+          clarity_score?: number | null
+          commercial_fit_score?: number | null
+          created_at?: string
+          id?: string
+          proposal_id?: string
+          publishable?: boolean
+          quality_score?: number | null
+          risk_flags?: Json
+          seo_fit_score?: number | null
+          tenant_id?: string
+          verdict?: Database["public"]["Enums"]["quality_verdict"]
         }
         Relationships: []
       }
@@ -1287,12 +1497,14 @@ export type Database = {
       app_role: "owner" | "operator" | "client_approver" | "client_viewer"
       approval_state: "pending" | "approved" | "rejected" | "auto_approved"
       audit_status: "queued" | "running" | "succeeded" | "failed"
+      brand_voice_job_status: "queued" | "running" | "done" | "failed"
       change_status:
         | "proposed"
         | "approved"
         | "published"
         | "rejected"
         | "rolled_back"
+      commercial_priority: "low" | "medium" | "high"
       connection_status: "pending" | "connected" | "error" | "revoked"
       connection_type: "wordpress" | "gbp" | "gsc" | "ga4" | "wordpress_com"
       geo_code: "NL" | "US"
@@ -1304,6 +1516,23 @@ export type Database = {
         | "wp_probe_ok"
         | "tenant_created"
         | "expired"
+      page_intent:
+        | "informational"
+        | "commercial"
+        | "local"
+        | "trust"
+        | "conversion"
+        | "navigational"
+      page_type:
+        | "homepage"
+        | "service"
+        | "blog"
+        | "location"
+        | "contact"
+        | "landing"
+        | "category"
+        | "about"
+        | "other"
       plan_tier: "free" | "starter" | "pro" | "enterprise"
       proposal_status: "draft" | "approved" | "rejected" | "partial"
       proposal_type:
@@ -1313,6 +1542,7 @@ export type Database = {
         | "title"
         | "h1"
         | "other"
+      quality_verdict: "publishable" | "needs_review" | "rejected"
       vertical_code:
         | "healthcare"
         | "legal"
@@ -1467,6 +1697,7 @@ export const Constants = {
       app_role: ["owner", "operator", "client_approver", "client_viewer"],
       approval_state: ["pending", "approved", "rejected", "auto_approved"],
       audit_status: ["queued", "running", "succeeded", "failed"],
+      brand_voice_job_status: ["queued", "running", "done", "failed"],
       change_status: [
         "proposed",
         "approved",
@@ -1474,6 +1705,7 @@ export const Constants = {
         "rejected",
         "rolled_back",
       ],
+      commercial_priority: ["low", "medium", "high"],
       connection_status: ["pending", "connected", "error", "revoked"],
       connection_type: ["wordpress", "gbp", "gsc", "ga4", "wordpress_com"],
       geo_code: ["NL", "US"],
@@ -1486,6 +1718,25 @@ export const Constants = {
         "tenant_created",
         "expired",
       ],
+      page_intent: [
+        "informational",
+        "commercial",
+        "local",
+        "trust",
+        "conversion",
+        "navigational",
+      ],
+      page_type: [
+        "homepage",
+        "service",
+        "blog",
+        "location",
+        "contact",
+        "landing",
+        "category",
+        "about",
+        "other",
+      ],
       plan_tier: ["free", "starter", "pro", "enterprise"],
       proposal_status: ["draft", "approved", "rejected", "partial"],
       proposal_type: [
@@ -1496,6 +1747,7 @@ export const Constants = {
         "h1",
         "other",
       ],
+      quality_verdict: ["publishable", "needs_review", "rejected"],
       vertical_code: [
         "healthcare",
         "legal",

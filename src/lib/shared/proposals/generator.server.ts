@@ -5,6 +5,11 @@
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { llmComplete } from "@/lib/shared/llm/router.server";
+import {
+  getProposalContext,
+  renderContextForPrompt,
+} from "@/lib/shared/proposals/context.server";
+
 
 const ProposalSchema = z.object({
   proposal_type: z.enum(["meta_description", "alt_text", "schema", "title", "h1", "other"]),
@@ -31,10 +36,22 @@ type AuditPageRow = {
   schema: unknown;
 };
 
-function buildPrompt(p: AuditPageRow): string {
+function buildPrompt(p: AuditPageRow, contextBlock: string): string {
   const issues = (p.issues ?? [])
     .map((i) => `- ${i.code}${i.message ? `: ${i.message}` : ""}`)
     .join("\n");
+  const ctx = contextBlock
+    ? [
+        "",
+        "=== CONTEXT (gebruik dit om voorstellen te personaliseren) ===",
+        contextBlock,
+        "=== EINDE CONTEXT ===",
+        "",
+      ].join("\n")
+    : "";
+  // TODO(S4c): Full prompt rewrite — produce structured output with
+  // qualityScore, riskFlags, brandFitScore, etc. and gate via
+  // proposal_quality_checks before showing as draft.
   return [
     `URL: ${p.url}`,
     `Title: ${p.title ?? "(none)"}`,
@@ -43,7 +60,7 @@ function buildPrompt(p: AuditPageRow): string {
     `Word count: ${p.word_count}`,
     `Images without alt: ${p.images_without_alt}`,
     `Has JSON-LD schema: ${p.schema ? "yes" : "no"}`,
-    "",
+    ctx,
     "Issues detected:",
     issues || "(none)",
     "",
@@ -56,6 +73,7 @@ function buildPrompt(p: AuditPageRow): string {
     'Respond ONLY with valid JSON: {"proposals":[{...}]}. No prose, no markdown.',
   ].join("\n");
 }
+
 
 function extractJson(text: string): unknown {
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
@@ -99,14 +117,18 @@ export async function generateProposalsForAuditPage(
     .eq("audit_page_id", auditPageId)
     .eq("status", "draft");
 
+  const ctx = await getProposalContext(audit.tenant_id, pageRow.id);
+  const contextBlock = renderContextForPrompt(ctx);
+
   const result = await llmComplete({
     task: "cheap",
     system:
       "You are an expert SEO consultant. Output ONLY valid JSON matching the requested schema. Never include explanatory text.",
-    prompt: buildPrompt(pageRow),
+    prompt: buildPrompt(pageRow, contextBlock),
     temperature: 0.3,
     maxTokens: 1200,
   });
+
   const parsed = ResponseSchema.parse(extractJson(result.text));
   console.log(`[proposals] page=${pageRow.url} got=${parsed.proposals.length}`);
 
