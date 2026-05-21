@@ -26,7 +26,7 @@ function LoginPage() {
       setError(error.message);
       return;
     }
-    navigate({ to: "/app" });
+    window.location.assign("/app");
   }
 
   async function handleGoogle() {
