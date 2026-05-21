@@ -119,6 +119,7 @@ export async function generateProposalsForAuditPage(
 
   const ctx = await getProposalContext(audit.tenant_id, pageRow.id);
   const contextBlock = renderContextForPrompt(ctx);
+  const hasToneProfile = !!ctx.toneProfile;
 
   const result = await llmComplete({
     task: "cheap",
@@ -130,7 +131,7 @@ export async function generateProposalsForAuditPage(
   });
 
   const parsed = ResponseSchema.parse(extractJson(result.text));
-  console.log(`[proposals] page=${pageRow.url} got=${parsed.proposals.length}`);
+  console.log(`[proposals] page=${pageRow.url} got=${parsed.proposals.length} tone=${hasToneProfile}`);
 
   if (parsed.proposals.length === 0) {
     return { proposalsCreated: 0, pageUrl: pageRow.url };
@@ -149,20 +150,84 @@ export async function generateProposalsForAuditPage(
     .single();
   if (gErr || !group) throw gErr ?? new Error("Group insert failed");
 
-  const rows = parsed.proposals.map((pr) => ({
-    tenant_id: audit.tenant_id,
-    group_id: group.id,
-    audit_page_id: pageRow.id,
-    issue_code: pr.issue_code,
-    proposal_type: pr.proposal_type,
-    before: pr.before as never,
-    after: pr.after as never,
-    rationale: pr.rationale,
-    confidence: pr.confidence,
-    status: "draft" as const,
-  }));
-  const { error: iErr } = await supabaseAdmin.from("fix_proposals").insert(rows);
+  // Evaluate each proposal against the tone profile (if any) and apply gate.
+  const { evaluateText } = await import("@/lib/shared/tone/evaluator.server");
+  const rows: Array<Record<string, unknown>> = [];
+  const qualityChecks: Array<Record<string, unknown>> = [];
+
+  for (const pr of parsed.proposals) {
+    let status: "draft" | "needs_review" | "rejected" | "needs_context" = "draft";
+    let weighted: number | null = null;
+    const riskFlags: string[] = [];
+    let evalScore: Record<string, number> | null = null;
+
+    if (!hasToneProfile) {
+      status = "needs_context";
+    } else if (ctx.toneProfile) {
+      // Evaluate the "after" text — meta-description / h1 / title text.
+      const afterText =
+        typeof (pr.after as { text?: string }).text === "string"
+          ? ((pr.after as { text: string }).text)
+          : JSON.stringify(pr.after).slice(0, 400);
+      try {
+        const ev = await evaluateText(afterText, ctx.toneProfile);
+        weighted = ev.weighted;
+        riskFlags.push(...ev.riskFlags);
+        evalScore = ev.score as unknown as Record<string, number>;
+        if (ev.verdict === "rejected") status = "rejected";
+        else if (ev.verdict === "publishable") status = "draft";
+        else status = "needs_review";
+      } catch (e) {
+        console.error("[proposals] eval failed", (e as Error).message);
+      }
+    }
+
+    rows.push({
+      tenant_id: audit.tenant_id,
+      group_id: group.id,
+      audit_page_id: pageRow.id,
+      issue_code: pr.issue_code,
+      proposal_type: pr.proposal_type,
+      before: pr.before as never,
+      after: pr.after as never,
+      rationale: pr.rationale,
+      confidence: pr.confidence,
+      status,
+    });
+
+    if (evalScore) {
+      qualityChecks.push({
+        tenant_id: audit.tenant_id,
+        // proposal_id filled in after insert
+        brand_fit_score: evalScore.voiceFit,
+        seo_fit_score: evalScore.vocabularyFit,
+        commercial_fit_score: evalScore.ctaFit,
+        clarity_score: evalScore.sentenceRhythmFit,
+        quality_score: weighted,
+        risk_flags: riskFlags,
+        verdict:
+          status === "draft" ? "publishable" : status === "rejected" ? "rejected" : "needs_review",
+        publishable: status === "draft",
+        _idx: rows.length - 1,
+      });
+    }
+  }
+
+  const { data: inserted, error: iErr } = await supabaseAdmin
+    .from("fix_proposals")
+    .insert(rows as never)
+    .select("id");
   if (iErr) throw iErr;
+
+  if (qualityChecks.length > 0 && inserted) {
+    const checkRows = qualityChecks.map((c) => {
+      const idx = c._idx as number;
+      const { _idx, ...rest } = c;
+      void _idx;
+      return { ...rest, proposal_id: inserted[idx].id };
+    });
+    await supabaseAdmin.from("proposal_quality_checks").insert(checkRows as never);
+  }
 
   return { proposalsCreated: rows.length, pageUrl: pageRow.url };
 }
