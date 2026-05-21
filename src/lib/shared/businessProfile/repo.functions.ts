@@ -189,24 +189,110 @@ export const listBusinessProfileSuggestions = createServerFn({ method: "POST" })
 
 export const acceptBusinessProfileSuggestion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { tenantId: string; suggestionId: string }) =>
+  .inputValidator((input: { tenantId: string; suggestionId: string; lockAfter?: boolean }) =>
     z
-      .object({ tenantId: z.string().uuid(), suggestionId: z.string().uuid() })
+      .object({
+        tenantId: z.string().uuid(),
+        suggestionId: z.string().uuid(),
+        lockAfter: z.boolean().optional(),
+      })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertOperator(supabase, userId, data.tenantId);
-    const { error } = await admin
+
+    // Load suggestion
+    const { data: sug, error: sErr } = await admin
+      .from("business_profile_suggestions")
+      .select("*")
+      .eq("id", data.suggestionId)
+      .eq("tenant_id", data.tenantId)
+      .single();
+    if (sErr || !sug) throw new Error("Suggestie niet gevonden.");
+
+    // Apply value into profile (throws if locked)
+    await applySuggestionValue({
+      tenantId: data.tenantId,
+      fieldPath: sug.field_path as string,
+      value: sug.suggested_value,
+    });
+
+    // Optionally lock the field
+    if (data.lockAfter) {
+      const { data: row } = await admin
+        .from("business_profiles_v2")
+        .select("locked_fields")
+        .eq("tenant_id", data.tenantId)
+        .maybeSingle();
+      const current: string[] = Array.isArray(row?.locked_fields)
+        ? (row!.locked_fields as string[])
+        : [];
+      const next = Array.from(new Set([...current, sug.field_path as string]));
+      await admin
+        .from("business_profiles_v2")
+        .update({ locked_fields: next })
+        .eq("tenant_id", data.tenantId);
+    }
+
+    await admin
       .from("business_profile_suggestions")
       .update({ status: "accepted", decided_at: new Date().toISOString(), decided_by: userId })
       .eq("id", data.suggestionId)
       .eq("tenant_id", data.tenantId);
-    if (error) throw error;
     await admin.from("business_profile_feedback").insert({
       tenant_id: data.tenantId,
       suggestion_id: data.suggestionId,
       feedback_type: "accepted",
+      field_path: sug.field_path,
+      before_value: sug.current_value,
+      after_value: sug.suggested_value,
+      created_by: userId,
+    });
+    return { ok: true };
+  });
+
+export const editAndAcceptBusinessProfileSuggestion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { tenantId: string; suggestionId: string; editedValue: unknown }) =>
+      z
+        .object({
+          tenantId: z.string().uuid(),
+          suggestionId: z.string().uuid(),
+          editedValue: z.unknown(),
+        })
+        .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+    const { data: sug, error: sErr } = await admin
+      .from("business_profile_suggestions")
+      .select("*")
+      .eq("id", data.suggestionId)
+      .eq("tenant_id", data.tenantId)
+      .single();
+    if (sErr || !sug) throw new Error("Suggestie niet gevonden.");
+
+    await applySuggestionValue({
+      tenantId: data.tenantId,
+      fieldPath: sug.field_path as string,
+      value: data.editedValue,
+    });
+
+    await admin
+      .from("business_profile_suggestions")
+      .update({ status: "edited", decided_at: new Date().toISOString(), decided_by: userId })
+      .eq("id", data.suggestionId)
+      .eq("tenant_id", data.tenantId);
+    await admin.from("business_profile_feedback").insert({
+      tenant_id: data.tenantId,
+      suggestion_id: data.suggestionId,
+      feedback_type: "edited",
+      field_path: sug.field_path,
+      before_value: sug.current_value,
+      after_value: data.editedValue,
       created_by: userId,
     });
     return { ok: true };
@@ -227,6 +313,12 @@ export const rejectBusinessProfileSuggestion = createServerFn({ method: "POST" }
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertOperator(supabase, userId, data.tenantId);
+    const { data: sug } = await admin
+      .from("business_profile_suggestions")
+      .select("field_path, current_value, suggested_value")
+      .eq("id", data.suggestionId)
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
     const { error } = await admin
       .from("business_profile_suggestions")
       .update({ status: "rejected", decided_at: new Date().toISOString(), decided_by: userId })
@@ -237,8 +329,23 @@ export const rejectBusinessProfileSuggestion = createServerFn({ method: "POST" }
       tenant_id: data.tenantId,
       suggestion_id: data.suggestionId,
       feedback_type: "rejected",
+      field_path: sug?.field_path ?? null,
+      before_value: sug?.current_value ?? null,
+      after_value: sug?.suggested_value ?? null,
       reason: data.reason ?? null,
       created_by: userId,
     });
     return { ok: true };
+  });
+
+export const analyzeBusinessProfileFromWebsiteFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { tenantId: string }) =>
+    z.object({ tenantId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+    const result = await analyzeBusinessProfileFromWebsite({ tenantId: data.tenantId });
+    return result;
   });
