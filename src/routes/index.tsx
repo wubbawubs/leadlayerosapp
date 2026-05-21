@@ -33,7 +33,7 @@ function Index() {
           <p className="mb-6 text-xs font-semibold uppercase tracking-[0.22em] text-accent">
             Operator console · S0 ready
           </p>
-          <h1 className="max-w-3xl text-4xl font-bold leading-tight text-white md:text-5xl">
+          <h1 className="max-w-3xl text-4xl font-bold leading-tight text-foreground md:text-5xl">
             Right now,<br />every single day,
           </h1>
           <h2 className="font-hero mt-4 text-6xl text-accent md:text-[7.5rem]">
