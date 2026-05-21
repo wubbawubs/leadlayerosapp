@@ -188,7 +188,8 @@ async function scoreSample(sample: RawSample): Promise<ScoredSample | null> {
       system: "Je beoordeelt teksten kort en mild. Output uitsluitend valide JSON.",
       prompt,
       temperature: 0.1,
-      maxTokens: 200,
+      maxTokens: 300,
+      jsonMode: true,
     });
     const j = extractJson(r.text) as {
       quality?: number;
