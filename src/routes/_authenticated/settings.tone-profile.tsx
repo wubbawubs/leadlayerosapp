@@ -13,8 +13,12 @@ import {
   setToneStatus,
   testToneOutput,
   listToneFeedback,
+  addManualSample,
+  listToneSamples,
+  deleteToneSample,
 } from "@/lib/shared/tone/repo.functions";
 import { ToneProfileSchema, type ToneProfile } from "@/lib/shared/tone/schemas";
+
 
 export const Route = createFileRoute("/_authenticated/settings/tone-profile")({
   component: ToneProfilePage,
