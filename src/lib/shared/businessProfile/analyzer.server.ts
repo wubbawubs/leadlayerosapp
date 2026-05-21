@@ -72,7 +72,7 @@ type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 // Helpers
 // ----------------------------------------------------------------------------
 
-async function extractJson(text: string): Promise<unknown> {
+function extractJson(text: string): unknown {
   if (!text || !text.trim()) throw new Error("LLM returned empty response");
   let cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
   const first = cleaned.search(/[{[]/);
@@ -91,7 +91,6 @@ async function extractJson(text: string): Promise<unknown> {
     } catch {
       // Last resort: jsonrepair handles unescaped quotes, trailing commas,
       // missing closers, control chars in strings, truncation, etc.
-      const { jsonrepair } = await import("jsonrepair");
       return JSON.parse(jsonrepair(cleaned));
     }
   }
