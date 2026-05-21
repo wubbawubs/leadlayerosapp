@@ -96,7 +96,19 @@ function AuditDetailPage() {
             {audit.error}
           </p>
         )}
+        {audit.status === "succeeded" && (
+          <div className="mt-4">
+            <Link
+              to="/audits/$auditId/proposals"
+              params={{ auditId }}
+              className="inline-flex items-center rounded-md border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20"
+            >
+              View SEO fix proposals →
+            </Link>
+          </div>
+        )}
       </div>
+
 
       {/* Summary cards */}
       <div className="mb-8 grid gap-3 sm:grid-cols-4">
