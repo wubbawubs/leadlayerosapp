@@ -9,7 +9,7 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   return (
-    <div className="min-h-screen bg-background bg-blueprint text-foreground">
+    <div className="min-h-screen bg-background text-foreground">
       <header className="container mx-auto flex items-center justify-between px-6 py-5">
         <Logo />
         <nav className="flex items-center gap-3 text-sm">
@@ -21,44 +21,49 @@ function Index() {
           </Link>
           <Link
             to="/signup"
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground hover:opacity-90"
+            className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 font-semibold text-accent-foreground shadow-elegant hover:opacity-90"
           >
             Get started <ArrowRight className="h-4 w-4" />
           </Link>
         </nav>
       </header>
 
-      <main className="container mx-auto px-6 pb-24 pt-12 md:pt-20">
-        <div className="max-w-3xl">
-          <p className="mb-6 text-sm font-semibold uppercase tracking-[0.18em] text-primary">
-            Foundation · S0 ready
+      <main className="container mx-auto px-6 pb-24 pt-10">
+        <section className="relative overflow-hidden rounded-[2rem] bg-hero bg-dots px-8 py-20 md:px-16 md:py-28">
+          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.22em] text-accent">
+            Operator console · S0 ready
           </p>
-          <h1 className="font-display text-5xl leading-[0.95] text-foreground md:text-7xl">
-            Lead infrastructure for{" "}
-            <span className="text-primary">service businesses.</span>
+          <h1 className="max-w-3xl text-4xl font-bold leading-tight text-white md:text-5xl">
+            Right now,<br />every single day,
           </h1>
-          <p className="mt-8 max-w-2xl text-lg text-muted-foreground">
-            LeadLayer OS connects search, your website and tracking into one
-            system, built to deliver qualified enquiries every single month.
-          </p>
-          <div className="mt-10 flex flex-wrap gap-3">
-            <Link
-              to="/signup"
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-3 font-semibold text-primary-foreground hover:opacity-90"
-            >
-              Create operator account <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              to="/login"
-              className="inline-flex items-center rounded-md border border-border bg-card px-5 py-3 font-medium text-foreground hover:bg-secondary"
-            >
-              Sign in
-            </Link>
+          <h2 className="font-hero mt-4 text-6xl text-accent md:text-[7.5rem]">
+            YOU'RE LEAKING LEADS.
+          </h2>
+
+          <div className="mt-12 grid gap-10 md:grid-cols-2 md:items-end">
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-accent">
+                Plug the leak.
+              </p>
+              <p className="max-w-md text-base text-white/80">
+                LeadLayer OS connects search, your website and tracking into
+                one system, built to deliver qualified enquiries every single
+                month.
+              </p>
+            </div>
+            <div className="flex flex-col items-start gap-3 md:items-end">
+              <Link
+                to="/signup"
+                className="inline-flex items-center gap-2 rounded-md bg-accent px-7 py-4 font-semibold uppercase tracking-wide text-accent-foreground shadow-glow hover:opacity-90"
+              >
+                Create operator account <ArrowRight className="h-4 w-4" />
+              </Link>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-white/60">
+                Multi-tenant · WordPress · NL + US · AES-GCM secrets
+              </p>
+            </div>
           </div>
-          <p className="mt-6 text-xs uppercase tracking-widest text-muted-foreground">
-            Multi-tenant · WordPress · NL + US · AES-GCM secrets
-          </p>
-        </div>
+        </section>
       </main>
     </div>
   );
