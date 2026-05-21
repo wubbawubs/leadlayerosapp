@@ -13,6 +13,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { encrypt } from "@/lib/shared/secrets/crypto.server";
 import {
   exchangeCode,
+  getPublicOrigin,
   getRedirectUri,
   verifyState,
   wpcomFetch,
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/api/public/wpcom/callback")({
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);
-        const origin = url.origin;
+        const origin = getPublicOrigin(request);
         const code = url.searchParams.get("code");
         const state = url.searchParams.get("state");
         const errorParam = url.searchParams.get("error");
