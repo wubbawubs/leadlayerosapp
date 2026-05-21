@@ -25,6 +25,7 @@ import { Route as AuthenticatedOnboardingBusinessRouteImport } from './routes/_a
 import { Route as AuthenticatedAuditsAuditIdRouteImport } from './routes/_authenticated/audits.$auditId'
 import { Route as ApiPublicWpcomCallbackRouteImport } from './routes/api/public/wpcom/callback'
 import { Route as AuthenticatedSitesSiteIdAuditsRouteImport } from './routes/_authenticated/sites.$siteId.audits'
+import { Route as AuthenticatedAuditsAuditIdProposalsRouteImport } from './routes/_authenticated/audits.$auditId.proposals'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -111,6 +112,12 @@ const AuthenticatedSitesSiteIdAuditsRoute =
     path: '/sites/$siteId/audits',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAuditsAuditIdProposalsRoute =
+  AuthenticatedAuditsAuditIdProposalsRouteImport.update({
+    id: '/proposals',
+    path: '/proposals',
+    getParentRoute: () => AuthenticatedAuditsAuditIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -119,13 +126,14 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
-  '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
+  '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRouteWithChildren
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/sites/': typeof AuthenticatedSitesIndexRoute
+  '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
@@ -136,13 +144,14 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
-  '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
+  '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRouteWithChildren
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/sites': typeof AuthenticatedSitesIndexRoute
+  '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
@@ -155,13 +164,14 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
-  '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
+  '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRouteWithChildren
   '/_authenticated/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/_authenticated/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/_authenticated/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
   '/_authenticated/sites/': typeof AuthenticatedSitesIndexRoute
+  '/_authenticated/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/_authenticated/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
@@ -181,6 +191,7 @@ export interface FileRouteTypes {
     | '/onboarding/welcome'
     | '/sites/new'
     | '/sites/'
+    | '/audits/$auditId/proposals'
     | '/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
   fileRoutesByTo: FileRoutesByTo
@@ -198,6 +209,7 @@ export interface FileRouteTypes {
     | '/onboarding/welcome'
     | '/sites/new'
     | '/sites'
+    | '/audits/$auditId/proposals'
     | '/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
   id:
@@ -216,6 +228,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding/welcome'
     | '/_authenticated/sites/new'
     | '/_authenticated/sites/'
+    | '/_authenticated/audits/$auditId/proposals'
     | '/_authenticated/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
   fileRoutesById: FileRoutesById
@@ -343,6 +356,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSitesSiteIdAuditsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/audits/$auditId/proposals': {
+      id: '/_authenticated/audits/$auditId/proposals'
+      path: '/proposals'
+      fullPath: '/audits/$auditId/proposals'
+      preLoaderRoute: typeof AuthenticatedAuditsAuditIdProposalsRouteImport
+      parentRoute: typeof AuthenticatedAuditsAuditIdRoute
+    }
   }
 }
 
@@ -366,10 +386,25 @@ const AuthenticatedOnboardingRouteWithChildren =
     AuthenticatedOnboardingRouteChildren,
   )
 
+interface AuthenticatedAuditsAuditIdRouteChildren {
+  AuthenticatedAuditsAuditIdProposalsRoute: typeof AuthenticatedAuditsAuditIdProposalsRoute
+}
+
+const AuthenticatedAuditsAuditIdRouteChildren: AuthenticatedAuditsAuditIdRouteChildren =
+  {
+    AuthenticatedAuditsAuditIdProposalsRoute:
+      AuthenticatedAuditsAuditIdProposalsRoute,
+  }
+
+const AuthenticatedAuditsAuditIdRouteWithChildren =
+  AuthenticatedAuditsAuditIdRoute._addFileChildren(
+    AuthenticatedAuditsAuditIdRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRouteWithChildren
-  AuthenticatedAuditsAuditIdRoute: typeof AuthenticatedAuditsAuditIdRoute
+  AuthenticatedAuditsAuditIdRoute: typeof AuthenticatedAuditsAuditIdRouteWithChildren
   AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
   AuthenticatedSitesIndexRoute: typeof AuthenticatedSitesIndexRoute
   AuthenticatedSitesSiteIdAuditsRoute: typeof AuthenticatedSitesSiteIdAuditsRoute
@@ -378,7 +413,7 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRouteWithChildren,
-  AuthenticatedAuditsAuditIdRoute: AuthenticatedAuditsAuditIdRoute,
+  AuthenticatedAuditsAuditIdRoute: AuthenticatedAuditsAuditIdRouteWithChildren,
   AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
   AuthenticatedSitesIndexRoute: AuthenticatedSitesIndexRoute,
   AuthenticatedSitesSiteIdAuditsRoute: AuthenticatedSitesSiteIdAuditsRoute,
@@ -399,3 +434,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
