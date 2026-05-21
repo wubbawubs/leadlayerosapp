@@ -212,6 +212,23 @@ function ToneProfilePage() {
           </div>
         )}
 
+        <ConfidenceBreakdown summaryJson={profileRow?.source_summary} />
+
+        <ManualSamplesPanel
+          samples={samplesQuery.data?.samples ?? []}
+          pasteText={pasteText}
+          pasteUrl={pasteUrl}
+          pasteLabel={pasteLabel}
+          onPasteText={setPasteText}
+          onPasteUrl={setPasteUrl}
+          onPasteLabel={setPasteLabel}
+          onAdd={() => addSampleMut.mutate()}
+          onDelete={(id) => deleteSampleMut.mutate(id)}
+          isPending={addSampleMut.isPending}
+        />
+
+
+
         {!profileRow && !analyzeMut.isPending && (
           <div className="rounded border border-dashed border-border bg-card/40 p-8 text-center text-muted-foreground">
             Nog geen tone profile. Zorg dat er minstens één succesvolle audit is en klik op "Analyze from website".
