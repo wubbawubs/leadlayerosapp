@@ -14,6 +14,139 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_pages: {
+        Row: {
+          audit_id: string
+          external_links_count: number
+          fetched_at: string
+          h1: string | null
+          id: string
+          images_without_alt: number
+          internal_links_count: number
+          issues: Json
+          meta_description: string | null
+          page_id: string | null
+          schema: Json | null
+          status_code: number | null
+          tenant_id: string
+          title: string | null
+          url: string
+          word_count: number
+        }
+        Insert: {
+          audit_id: string
+          external_links_count?: number
+          fetched_at?: string
+          h1?: string | null
+          id?: string
+          images_without_alt?: number
+          internal_links_count?: number
+          issues?: Json
+          meta_description?: string | null
+          page_id?: string | null
+          schema?: Json | null
+          status_code?: number | null
+          tenant_id: string
+          title?: string | null
+          url: string
+          word_count?: number
+        }
+        Update: {
+          audit_id?: string
+          external_links_count?: number
+          fetched_at?: string
+          h1?: string | null
+          id?: string
+          images_without_alt?: number
+          internal_links_count?: number
+          issues?: Json
+          meta_description?: string | null
+          page_id?: string | null
+          schema?: Json | null
+          status_code?: number | null
+          tenant_id?: string
+          title?: string | null
+          url?: string
+          word_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_pages_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "audits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_pages_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_pages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audits: {
+        Row: {
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          pages_count: number
+          site_connection_id: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["audit_status"]
+          summary: Json
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          pages_count?: number
+          site_connection_id: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["audit_status"]
+          summary?: Json
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          pages_count?: number
+          site_connection_id?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["audit_status"]
+          summary?: Json
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audits_site_connection_id_fkey"
+            columns: ["site_connection_id"]
+            isOneToOne: false
+            referencedRelation: "site_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audits_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       change_groups: {
         Row: {
           action_type: Database["public"]["Enums"]["action_type"]
@@ -522,10 +655,14 @@ export type Database = {
       pages: {
         Row: {
           created_at: string
+          h1: string | null
           health_score: number | null
           id: string
+          images_without_alt: number | null
           last_audited_at: string | null
+          meta_description: string | null
           site_connection_id: string | null
+          status_code: number | null
           template: string | null
           tenant_id: string
           title: string | null
@@ -534,10 +671,14 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          h1?: string | null
           health_score?: number | null
           id?: string
+          images_without_alt?: number | null
           last_audited_at?: string | null
+          meta_description?: string | null
           site_connection_id?: string | null
+          status_code?: number | null
           template?: string | null
           tenant_id: string
           title?: string | null
@@ -546,10 +687,14 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          h1?: string | null
           health_score?: number | null
           id?: string
+          images_without_alt?: number | null
           last_audited_at?: string | null
+          meta_description?: string | null
           site_connection_id?: string | null
+          status_code?: number | null
           template?: string | null
           tenant_id?: string
           title?: string | null
@@ -1046,6 +1191,7 @@ export type Database = {
         | "create_page"
       app_role: "owner" | "operator" | "client_approver" | "client_viewer"
       approval_state: "pending" | "approved" | "rejected" | "auto_approved"
+      audit_status: "queued" | "running" | "succeeded" | "failed"
       change_status:
         | "proposed"
         | "approved"
@@ -1217,6 +1363,7 @@ export const Constants = {
       ],
       app_role: ["owner", "operator", "client_approver", "client_viewer"],
       approval_state: ["pending", "approved", "rejected", "auto_approved"],
+      audit_status: ["queued", "running", "succeeded", "failed"],
       change_status: [
         "proposed",
         "approved",
