@@ -48,6 +48,9 @@ function AppHome() {
             <Link to="/settings/business-profile" className="text-muted-foreground hover:text-foreground">
               Business profile
             </Link>
+            <Link to="/settings/tone-profile" className="text-muted-foreground hover:text-foreground">
+              Tone profile
+            </Link>
           </nav>
 
         </div>

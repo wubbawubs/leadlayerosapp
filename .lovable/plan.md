@@ -1,109 +1,173 @@
-## Beslissing
+# Tone Profile V1 — Linguistic Brand Model
 
-S5 (WordPress publishing) **niet** nu bouwen. Eerst S4 afronden als infrastructuur, daarna S4.5 Context Layer zodat proposals niet generiek zijn maar passen bij merk, aanbod, doelgroep en pagina-intentie.
+## Doel
 
-## Volgorde
+Geen plat `tone_summary` veld meer. Een gestructureerd, gelaagd taalprofiel per tenant dat proposals **stuurt én blokkeert**. Vervangt de huidige `brand_voice_profiles` als bron van waarheid voor alle proposal-output.
+
+## Scope V1 (wat we nu bouwen)
+
+Wel:
+- 3 nieuwe tabellen: `tone_profiles`, `tone_profile_samples`, `tone_feedback_examples`
+- Analyzer die 5–8 site samples scoort op kwaliteit en alleen goede zwaar meeweegt
+- Volledig JSON-schema (10 lagen: voiceIdentity, sentenceArchitecture, vocabulary, claimStyle, ctaStyle, trustStyle, audienceAdaptation, localeTone, examples, scoringWeights)
+- Operator UI op `/settings/tone-profile` — geen JSON dump, mooie secties met edit/lock per veld
+- "Test output" knop in UI: genereer voorbeeld-meta/H1/CTA met huidige profiel + scores tonen
+- Prompt-context builder die het profiel comprimeert naar wat de LLM nodig heeft
+- Output-evaluator: elke proposal krijgt `toneScore { voiceFit, vocabularyFit, sentenceRhythmFit, claimSafety, ctaFit, localeFit, genericnessRisk }`
+- Blocking gate in generator:
+  - geen profile → status `needs_context`
+  - verboden claim/woord → `rejected`
+  - genericnessRisk > drempel → `regenerate` (max 1x)
+  - toneFitScore < 8 → `needs_review`, niet `draft`
+- Feedback capture: approve/reject/edit op proposals schrijft naar `tone_feedback_examples`
+
+Niet nu (V2+):
+- Tone embeddings / retrieval van approved content
+- Fine-tune dataset export
+- Tone drift detection bij her-crawl
+- Vertical presets
+- Audience adaptation als losse switch per proposal (schema is er, gebruik volgt)
+
+## Architectuur
 
 ```text
-S4a Proposal Infrastructure (afronden)
-  └─> S4.5 Context Layer (nieuw)
-        └─> S4c Context-Aware Proposals (prompt rewrite + quality gate)
-              └─> S5 Safe Publishing
+audit pages  ─┐
+              ├─► sample scorer ─► weighted samples ─► LLM analyzer ─► tone_profiles.profile (JSONB)
+manual paste ─┘                                                                │
+                                                                               ▼
+operator UI (edit/lock per veld) ──────────────────────────────────────► tone_profiles (status: draft|approved|locked)
+                                                                               │
+                                                                               ▼
+proposal generator ──► context builder ──► LLM ──► output evaluator ──► toneScore + verdict
+                                                                               │
+                                              approve/reject/edit ─────────────┴──► tone_feedback_examples
 ```
 
----
+## Database
 
-## Stap 1 — S4a afronden (geen nieuwe features, alleen verifiëren)
+### `tone_profiles`
+- `tenant_id`, `language`, `locale`
+- `status`: `draft | approved | locked`
+- `profile jsonb` — volgens schema hieronder
+- `confidence_score numeric`
+- `source_summary jsonb` — { sample_count, avg_quality, sources }
+- `analyzed_at`, `job_status`, `job_error`
+- RLS: member select, operator write (zelfde pattern als bestaande tabellen)
 
-End-to-end test van bestaande generate-flow:
-- Generate-knop werkt op echte audit
-- Proposals landen in DB (sequentieel per pagina, geen timeout)
-- UI toont groepen per pagina, filters werken
-- Approve/reject/regenerate werken
-- Geen duplicates bij opnieuw klikken
-- Failures per pagina zichtbaar
+### `tone_profile_samples`
+- `tenant_id`, `tone_profile_id`
+- `source_type`: `homepage | service | blog | about | contact | manual_paste | approved_proposal`
+- `source_url`, `text`
+- `quality_score numeric` (0–10), `weight numeric default 1`
+- `analysis jsonb` — losse metingen (zinslengte, passieve vorm %, etc.)
 
-Output wordt behandeld als **testdata**, niet als publicatiekwaliteit.
+### `tone_feedback_examples`
+- `tenant_id`, `tone_profile_id`
+- `example_type`: `approved | rejected | edited | manual_good | manual_bad`
+- `before_text`, `after_text`, `reason`
+- `proposal_id uuid` (nullable)
 
----
+### Migratie van bestaande `brand_voice_profiles`
+- Blijft staan, wordt **gedeprecateerd** in V1. Generator leest alleen nog `tone_profiles`.
+- Geen data-migratie nodig — V0 brand voice was testdata. Operator klikt 1x "Analyze" op nieuwe pagina.
 
-## Stap 2 — S4.5 Context Layer
+## Tone Profile JSON-schema
 
-### 2.1 Database (migratie)
+Exact zoals jij beschreef, met Zod-validatie:
 
-Vier nieuwe tabellen, allemaal `tenant_id` + RLS conform bestaand patroon (`is_tenant_member` voor select, `has_tenant_min_role('operator')` voor write):
-
-- **business_profiles** — `business_name, industry, vertical, geo, primary_offer, secondary_offers jsonb, target_audience jsonb, service_areas jsonb, unique_value_proposition, main_promise, proof_points jsonb, avoid_claims jsonb, preferred_cta, tone_preference`
-- **brand_voice_profiles** — `tone_summary, writing_style jsonb, preferred_words jsonb, forbidden_words jsonb, example_phrases jsonb, reading_level, language, source_urls jsonb, analyzed_at`
-- **page_intelligence** — `page_id, page_type, intent, commercial_priority, target_keyword, target_audience, desired_action, funnel_stage, summary`
-- **proposal_quality_checks** — `proposal_id, brand_fit_score, seo_fit_score, commercial_fit_score, clarity_score, risk_flags jsonb, quality_score, verdict, publishable`
-
-Enums: `page_type`, `page_intent`, `commercial_priority`, `quality_verdict`.
-Triggers: `set_updated_at` waar relevant.
-
-### 2.2 Repos + Zod schemas
-
-In `src/lib/shared/db/repos/`:
-- `business-profiles.functions.ts` (get/upsert via `createServerFn` + `requireSupabaseAuth`)
-- `brand-voice-profiles.functions.ts`
-- `page-intelligence.functions.ts`
-- `proposal-quality-checks.functions.ts`
-
-Insert/update/select Zod-schemas met lengte- en regex-validatie.
-
-### 2.3 UI — Business Profile
-
-Route: `/_authenticated/settings/business-profile.tsx`
-
-Formulier met velden hierboven, empty-state als geen profiel bestaat, save/load via serverFn. Toast bij opslaan. Bestaande shadcn-componenten + design tokens.
-
-### 2.4 Brand Voice Analyzer
-
-- Knop "Analyze brand voice from website" op de business profile pagina
-- ServerFn `analyzeBrandVoice`: haalt homepage + max 5 belangrijke pagina's (hergebruik bestaande crawler in `src/lib/shared/audit/`), stuurt naar Lovable AI (`google/gemini-2.5-flash`) met strict Zod-output: `tone_summary, preferred_words, forbidden_words, example_phrases, reading_level`
-- Schrijft naar `brand_voice_profiles`
-- Job status zichtbaar in UI (queued / running / done / failed) — **geen mock data**
-
-### 2.5 Page Intelligence
-
-- ServerFn `classifyAuditPages(auditId)`: voor elke `audit_page` één LLM call, Zod-gevalideerde output `{ pageType, intent, commercialPriority, summary, targetKeyword, desiredAction }`
-- Sequentieel, zelfde pattern als proposal generator
-- Knop "Classify pages" op audit-detail pagina
-- Resultaten zichtbaar per page-row
-
-### 2.6 Context-fetcher voor proposal engine
-
-Nieuw bestand `src/lib/shared/proposals/context.server.ts`:
-```ts
-getProposalContext(tenantId, pageId) => {
-  businessProfile, brandVoiceProfile, pageIntelligence
+```json
+{
+  "voiceIdentity": { "summary", "persona", "emotionalRegister", "authorityStyle", "commercialIntensity" },
+  "sentenceArchitecture": { "averageSentenceLength", "paragraphLength", "preferredStructure", "usesQuestions", "passiveVoicePolicy", "rhythm" },
+  "vocabulary": { "preferred[]", "avoid[]", "forbidden[]", "replacements{}", "technicalTermsPolicy" },
+  "claimStyle": { "allowedClaims[]", "riskyClaims[]", "forbiddenClaims[]", "safeClaimPatterns[]", "evidenceRequiredFor[]" },
+  "ctaStyle": { "primaryCtaPatterns[]", "secondaryCtaPatterns[]", "style", "avoid[]" },
+  "trustStyle": { "primaryTrustDrivers[]", "proofTypes[]", "trustLanguage", "avoid[]" },
+  "audienceAdaptation": {},
+  "localeTone": { "locale", "salesIntensity", "culturalNotes[]", "spelling", "formality" },
+  "examples": { "good[]", "bad[]", "rewritePatterns[]" },
+  "scoringWeights": { ... default weights }
 }
 ```
 
-Bestaande `generator.server.ts` haalt deze context op en geeft mee aan de prompt. **Prompt rewrite + quality gate komen pas in stap 3.** Voor nu: context wordt opgehaald en als optionele sectie in de bestaande prompt geïnjecteerd, met TODO-marker voor de volledige rewrite.
+## Server-side flow
 
----
+1. **`analyzeToneProfile(tenantId)`** serverFn
+   - Pakt laatste succesvolle audit, selecteert tot 8 pagina's (homepage + 3 service + 2 blog + about + contact)
+   - Per sample: LLM-call `scoreSampleQuality` → `{ quality, isCommercial, isGeneric }` (cheap model)
+   - Filter samples met quality < 5
+   - LLM-call `extractToneProfile` met overgebleven samples (gemini-2.5-pro voor diepte)
+   - Zod-valideer, schrijf naar `tone_profiles`, status = `draft`
+   - Sla samples op in `tone_profile_samples`
 
-## Stap 3 (volgende sprint, niet nu) — Context-Aware prompt + Quality Gate
+2. **`testToneOutput(tenantId, kind)`** serverFn — UI knop
+   - kind: `meta | h1 | cta`
+   - Genereer 1 voorbeeld + evaluator-scores, return inline (niet opslaan)
 
-- Volledige prompt-rewrite met `businessProfile + brandVoice + pageIntelligence + issue + outputRules`
-- LLM-output schema met `qualityScore, brandFitScore, riskFlags, publishable`
-- Proposals onder drempel → status `needs_review`, niet `draft`
-- UI toont scores en risk flags per proposal
+3. **`generator.server.ts` (bestaand)** — uitbreiden
+   - Vervang `getProposalContext` brand voice deel door `tone_profiles.profile`
+   - Inject compressed profile + 3 good + 3 bad examples in prompt
+   - Na LLM-output: roep `evaluateToneOutput(text, profile)` aan
+   - Bepaal verdict + status volgens blocking gate hierboven
 
-## Stap 4 (daarna) — S5 Safe Publishing
+4. **`evaluateToneOutput(text, profile)`** — server-only
+   - Deterministische checks (verboden woorden regex, gemiddelde zinslengte)
+   - LLM-call voor `voiceFit`, `genericnessRisk` (cheap model, strict JSON)
+   - Schrijft naar bestaande `proposal_quality_checks` (al aanwezig sinds S4.5)
 
-Pas starten als context-aware proposals consistent ≥8/10 scoren.
+5. **Feedback capture** — uitbreiden bestaande approve/reject endpoints
+   - approve → insert in `tone_feedback_examples` (type `approved`)
+   - reject met reden → type `rejected`
+   - edit (nieuwe actie) → type `edited`, before+after
 
----
+## UI
 
-## Scope van deze plan-uitvoering
+Route: `/settings/tone-profile`
 
-Alleen **Stap 1 (verificatie) + Stap 2 (S4.5 Context Layer)**. Geen prompt-rewrite, geen quality gate, geen publishing. Geen mock data, RLS overal aan, geen secrets in client code.
+Secties (collapsible, geen JSON-dump):
+1. **Samenvatting** — voiceIdentity + confidence badge + status pill + "Analyze from website" knop
+2. **Schrijfstijl** — sentenceArchitecture, edit per veld
+3. **Woorden** — 4 tag-inputs (preferred / avoid / forbidden / replacements)
+4. **Claims** — 3 lijsten + safe patterns
+5. **CTA's** — patterns + voorbeelden
+6. **Trust** — drivers + proof types
+7. **Voorbeelden** — good / bad / rewrite patterns (toevoegen/verwijderen)
+8. **Test output** — 3 knoppen, toont gegenereerde tekst + score-bars
+9. **Feedback log** — laatste 20 approved/rejected examples readonly
 
-### Technische details
+Per veld: lock-toggle (locked → analyzer overschrijft niet meer).
 
-- TanStack serverFns met `requireSupabaseAuth` voor alle reads/writes
-- Lovable AI Gateway (`LOVABLE_API_KEY` al aanwezig) voor brand voice + page classification
-- Sequentiële LLM-calls om timeouts te voorkomen, zelfde pattern als bestaande generator
-- Migraties in één call, daarna code in batches
+Status-pill bovenaan: `draft` (grijs) / `approved` (groen) / `locked` (blauw).
+
+## Acceptance criteria
+
+V1 is klaar als:
+- Analyzer levert geldig profiel op echte audit-data (handmatig getest op 1 NL site)
+- Operator kan elk veld editten en locken
+- "Approve" knop zet status op `approved`
+- Proposal generator gebruikt het profiel — bewijs: prompt-snapshot in logs bevat profile-block
+- Elke proposal heeft `toneScore` in `proposal_quality_checks`
+- Verboden woord in output → proposal status `rejected`, zichtbaar in UI
+- Geen profile → nieuwe proposals krijgen status `needs_context` (nieuwe enum-waarde)
+- Approve/reject schrijft naar `tone_feedback_examples`
+
+## Wat we expliciet NIET doen in V1
+
+- Geen embeddings / vector search
+- Geen audience-switch per proposal (schema staat, UI komt in V2)
+- Geen tone drift detection
+- Geen vertical presets
+- Geen auto-regenerate loop voorbij 1 retry
+- Geen fine-tune export
+
+## Volgorde van uitvoeren
+
+1. Migratie: 3 nieuwe tabellen + nieuwe enum-waarde `needs_context` op `proposal_status`
+2. Zod-schemas + repos
+3. Sample scorer + analyzer serverFn
+4. Operator UI (read-only eerst, dan edit per sectie)
+5. Generator integratie + evaluator + blocking gate
+6. Feedback capture op approve/reject/edit
+7. End-to-end test op echte audit
+
+Geschat: 1 sprint. Geen S5 erbij. Pas naar S5 als tone scores consistent ≥8 zitten op echte data.

@@ -1354,6 +1354,148 @@ export type Database = {
         }
         Relationships: []
       }
+      tone_feedback_examples: {
+        Row: {
+          after_text: string | null
+          before_text: string | null
+          created_at: string
+          example_type: Database["public"]["Enums"]["tone_feedback_type"]
+          id: string
+          proposal_id: string | null
+          reason: string | null
+          tenant_id: string
+          tone_profile_id: string | null
+        }
+        Insert: {
+          after_text?: string | null
+          before_text?: string | null
+          created_at?: string
+          example_type: Database["public"]["Enums"]["tone_feedback_type"]
+          id?: string
+          proposal_id?: string | null
+          reason?: string | null
+          tenant_id: string
+          tone_profile_id?: string | null
+        }
+        Update: {
+          after_text?: string | null
+          before_text?: string | null
+          created_at?: string
+          example_type?: Database["public"]["Enums"]["tone_feedback_type"]
+          id?: string
+          proposal_id?: string | null
+          reason?: string | null
+          tenant_id?: string
+          tone_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tone_feedback_examples_tone_profile_id_fkey"
+            columns: ["tone_profile_id"]
+            isOneToOne: false
+            referencedRelation: "tone_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tone_profile_samples: {
+        Row: {
+          analysis: Json
+          created_at: string
+          id: string
+          quality_score: number | null
+          source_type: Database["public"]["Enums"]["tone_sample_source"]
+          source_url: string | null
+          tenant_id: string
+          text: string
+          tone_profile_id: string
+          weight: number
+        }
+        Insert: {
+          analysis?: Json
+          created_at?: string
+          id?: string
+          quality_score?: number | null
+          source_type: Database["public"]["Enums"]["tone_sample_source"]
+          source_url?: string | null
+          tenant_id: string
+          text: string
+          tone_profile_id: string
+          weight?: number
+        }
+        Update: {
+          analysis?: Json
+          created_at?: string
+          id?: string
+          quality_score?: number | null
+          source_type?: Database["public"]["Enums"]["tone_sample_source"]
+          source_url?: string | null
+          tenant_id?: string
+          text?: string
+          tone_profile_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tone_profile_samples_tone_profile_id_fkey"
+            columns: ["tone_profile_id"]
+            isOneToOne: false
+            referencedRelation: "tone_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tone_profiles: {
+        Row: {
+          analyzed_at: string | null
+          confidence_score: number | null
+          created_at: string
+          id: string
+          job_error: string | null
+          job_status: Database["public"]["Enums"]["tone_job_status"]
+          language: string
+          locale: string
+          locked_fields: Json
+          profile: Json
+          source_summary: Json
+          status: Database["public"]["Enums"]["tone_profile_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          analyzed_at?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          job_error?: string | null
+          job_status?: Database["public"]["Enums"]["tone_job_status"]
+          language?: string
+          locale?: string
+          locked_fields?: Json
+          profile?: Json
+          source_summary?: Json
+          status?: Database["public"]["Enums"]["tone_profile_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          analyzed_at?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          job_error?: string | null
+          job_status?: Database["public"]["Enums"]["tone_job_status"]
+          language?: string
+          locale?: string
+          locked_fields?: Json
+          profile?: Json
+          source_summary?: Json
+          status?: Database["public"]["Enums"]["tone_profile_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       workflow_runs: {
         Row: {
           created_at: string
@@ -1534,7 +1676,12 @@ export type Database = {
         | "about"
         | "other"
       plan_tier: "free" | "starter" | "pro" | "enterprise"
-      proposal_status: "draft" | "approved" | "rejected" | "partial"
+      proposal_status:
+        | "draft"
+        | "approved"
+        | "rejected"
+        | "partial"
+        | "needs_context"
       proposal_type:
         | "meta_description"
         | "alt_text"
@@ -1543,6 +1690,23 @@ export type Database = {
         | "h1"
         | "other"
       quality_verdict: "publishable" | "needs_review" | "rejected"
+      tone_feedback_type:
+        | "approved"
+        | "rejected"
+        | "edited"
+        | "manual_good"
+        | "manual_bad"
+      tone_job_status: "queued" | "running" | "done" | "failed"
+      tone_profile_status: "draft" | "approved" | "locked"
+      tone_sample_source:
+        | "homepage"
+        | "service"
+        | "blog"
+        | "about"
+        | "contact"
+        | "manual_paste"
+        | "approved_proposal"
+        | "other"
       vertical_code:
         | "healthcare"
         | "legal"
@@ -1738,7 +1902,13 @@ export const Constants = {
         "other",
       ],
       plan_tier: ["free", "starter", "pro", "enterprise"],
-      proposal_status: ["draft", "approved", "rejected", "partial"],
+      proposal_status: [
+        "draft",
+        "approved",
+        "rejected",
+        "partial",
+        "needs_context",
+      ],
       proposal_type: [
         "meta_description",
         "alt_text",
@@ -1748,6 +1918,25 @@ export const Constants = {
         "other",
       ],
       quality_verdict: ["publishable", "needs_review", "rejected"],
+      tone_feedback_type: [
+        "approved",
+        "rejected",
+        "edited",
+        "manual_good",
+        "manual_bad",
+      ],
+      tone_job_status: ["queued", "running", "done", "failed"],
+      tone_profile_status: ["draft", "approved", "locked"],
+      tone_sample_source: [
+        "homepage",
+        "service",
+        "blog",
+        "about",
+        "contact",
+        "manual_paste",
+        "approved_proposal",
+        "other",
+      ],
       vertical_code: [
         "healthcare",
         "legal",

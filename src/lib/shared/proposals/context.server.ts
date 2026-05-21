@@ -1,18 +1,16 @@
 /**
  * Proposal context fetcher — server-only.
  *
- * Returns the business profile, brand voice and page intelligence for a
- * given tenant/page so the proposal engine can produce context-aware
- * suggestions. Used by generator.server.ts.
- *
- * TODO(S4c): Full prompt rewrite + quality gate. For now we expose the
- * context and let the existing prompt optionally inject it.
+ * Now backed by tone_profiles (V1) instead of brand_voice_profiles.
+ * brand_voice_profiles is deprecated; left in DB but not read here anymore.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { ToneProfileSchema, type ToneProfile } from "@/lib/shared/tone/schemas";
 
 export interface ProposalContext {
   businessProfile: Record<string, unknown> | null;
-  brandVoiceProfile: Record<string, unknown> | null;
+  toneProfile: ToneProfile | null;
+  toneStatus: string | null;
   pageIntelligence: Record<string, unknown> | null;
 }
 
@@ -20,15 +18,15 @@ export async function getProposalContext(
   tenantId: string,
   auditPageId: string | null,
 ): Promise<ProposalContext> {
-  const [bp, bv, pi] = await Promise.all([
+  const [bp, tp, pi] = await Promise.all([
     supabaseAdmin
       .from("business_profiles")
       .select("*")
       .eq("tenant_id", tenantId)
       .maybeSingle(),
     supabaseAdmin
-      .from("brand_voice_profiles")
-      .select("*")
+      .from("tone_profiles")
+      .select("profile, status")
       .eq("tenant_id", tenantId)
       .maybeSingle(),
     auditPageId
@@ -40,9 +38,20 @@ export async function getProposalContext(
       : Promise.resolve({ data: null }),
   ]);
 
+  let toneProfile: ToneProfile | null = null;
+  const tpRow = (tp as { data: { profile: unknown; status: string } | null }).data;
+  if (tpRow?.profile) {
+    try {
+      toneProfile = ToneProfileSchema.parse(tpRow.profile);
+    } catch {
+      toneProfile = null;
+    }
+  }
+
   return {
     businessProfile: (bp as { data: Record<string, unknown> | null }).data ?? null,
-    brandVoiceProfile: (bv as { data: Record<string, unknown> | null }).data ?? null,
+    toneProfile,
+    toneStatus: tpRow?.status ?? null,
     pageIntelligence: (pi as { data: Record<string, unknown> | null }).data ?? null,
   };
 }
@@ -55,22 +64,31 @@ export function renderContextForPrompt(ctx: ProposalContext): string {
       "Business context:",
       `- Naam: ${bp.business_name ?? "?"}`,
       `- Primair aanbod: ${bp.primary_offer ?? "?"}`,
-      `- Doelgroep: ${JSON.stringify(bp.target_audience ?? [])}`,
       `- Belofte: ${bp.main_promise ?? "?"}`,
-      `- Bewijspunten: ${JSON.stringify(bp.proof_points ?? [])}`,
-      `- Te vermijden claims: ${JSON.stringify(bp.avoid_claims ?? [])}`,
       `- Voorkeurs-CTA: ${bp.preferred_cta ?? "?"}`,
-      `- Toon: ${bp.tone_preference ?? "?"}`,
     );
   }
-  if (ctx.brandVoiceProfile) {
-    const bv = ctx.brandVoiceProfile;
+  if (ctx.toneProfile) {
+    const t = ctx.toneProfile;
     parts.push(
       "",
-      "Brand voice:",
-      `- Toon: ${bv.tone_summary ?? "?"}`,
-      `- Voorkeurswoorden: ${JSON.stringify(bv.preferred_words ?? [])}`,
-      `- Verboden woorden: ${JSON.stringify(bv.forbidden_words ?? [])}`,
+      "Tone Profile (volg STRIKT):",
+      `- Persona: ${t.voiceIdentity.persona}`,
+      `- Samenvatting: ${t.voiceIdentity.summary}`,
+      `- Commercial intensity: ${t.voiceIdentity.commercialIntensity}`,
+      `- Zinslengte: ${t.sentenceArchitecture.averageSentenceLength}`,
+      `- Ritme: ${t.sentenceArchitecture.rhythm}`,
+      `- Voorkeurswoorden: ${t.vocabulary.preferred.slice(0, 12).join(", ")}`,
+      `- Vermijd: ${t.vocabulary.avoid.slice(0, 12).join(", ")}`,
+      `- VERBODEN woorden (NOOIT gebruiken): ${t.vocabulary.forbidden.join(", ")}`,
+      `- VERBODEN claims: ${t.claimStyle.forbiddenClaims.join(" | ")}`,
+      `- Veilige claim-patterns: ${t.claimStyle.safeClaimPatterns.slice(0, 4).join(" | ")}`,
+      `- CTA-stijl: ${t.ctaStyle.style}`,
+      `- CTA voorbeelden: ${t.ctaStyle.primaryCtaPatterns.slice(0, 4).join(" | ")}`,
+      `- Goede voorbeelden:`,
+      ...t.examples.good.slice(0, 4).map((s) => `  ✓ ${s}`),
+      `- Slechte voorbeelden (NIET zo schrijven):`,
+      ...t.examples.bad.slice(0, 4).map((s) => `  ✗ ${s}`),
     );
   }
   if (ctx.pageIntelligence) {
@@ -78,11 +96,8 @@ export function renderContextForPrompt(ctx: ProposalContext): string {
     parts.push(
       "",
       "Page intelligence:",
-      `- Type: ${pi.page_type ?? "?"}`,
-      `- Intent: ${pi.intent ?? "?"}`,
-      `- Commerciële prioriteit: ${pi.commercial_priority ?? "?"}`,
+      `- Type: ${pi.page_type ?? "?"} · Intent: ${pi.intent ?? "?"}`,
       `- Doelactie: ${pi.desired_action ?? "?"}`,
-      `- Samenvatting: ${pi.summary ?? "?"}`,
     );
   }
   return parts.length > 0 ? parts.join("\n") : "";
