@@ -48,6 +48,11 @@ function BusinessProfilePage() {
   const save = useServerFn(upsertBusinessProfileV2);
   const setStatus = useServerFn(setBusinessProfileStatus);
   const lockField = useServerFn(lockBusinessProfileField);
+  const fetchSuggestions = useServerFn(listBusinessProfileSuggestions);
+  const acceptSuggestion = useServerFn(acceptBusinessProfileSuggestion);
+  const rejectSuggestion = useServerFn(rejectBusinessProfileSuggestion);
+  const editAcceptSuggestion = useServerFn(editAndAcceptBusinessProfileSuggestion);
+  const analyzeFromWebsite = useServerFn(analyzeBusinessProfileFromWebsiteFn);
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
