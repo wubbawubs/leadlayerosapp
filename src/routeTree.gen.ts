@@ -22,6 +22,7 @@ import { Route as AuthenticatedOnboardingWelcomeRouteImport } from './routes/_au
 import { Route as AuthenticatedOnboardingSiteRouteImport } from './routes/_authenticated/onboarding.site'
 import { Route as AuthenticatedOnboardingDoneRouteImport } from './routes/_authenticated/onboarding.done'
 import { Route as AuthenticatedOnboardingBusinessRouteImport } from './routes/_authenticated/onboarding.business'
+import { Route as ApiPublicWpcomCallbackRouteImport } from './routes/api/public/wpcom/callback'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -91,6 +92,11 @@ const AuthenticatedOnboardingBusinessRoute =
     path: '/business',
     getParentRoute: () => AuthenticatedOnboardingRoute,
   } as any)
+const ApiPublicWpcomCallbackRoute = ApiPublicWpcomCallbackRouteImport.update({
+  id: '/api/public/wpcom/callback',
+  path: '/api/public/wpcom/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
+  '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -119,6 +126,7 @@ export interface FileRoutesByTo {
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
+  '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/_authenticated/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
+  '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/onboarding/site'
     | '/onboarding/welcome'
     | '/sites/new'
+    | '/api/public/wpcom/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
     | '/onboarding/site'
     | '/onboarding/welcome'
     | '/sites/new'
+    | '/api/public/wpcom/callback'
   id:
     | '__root__'
     | '/'
@@ -180,6 +191,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding/site'
     | '/_authenticated/onboarding/welcome'
     | '/_authenticated/sites/new'
+    | '/api/public/wpcom/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -188,6 +200,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  ApiPublicWpcomCallbackRoute: typeof ApiPublicWpcomCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -283,6 +296,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingBusinessRouteImport
       parentRoute: typeof AuthenticatedOnboardingRoute
     }
+    '/api/public/wpcom/callback': {
+      id: '/api/public/wpcom/callback'
+      path: '/api/public/wpcom/callback'
+      fullPath: '/api/public/wpcom/callback'
+      preLoaderRoute: typeof ApiPublicWpcomCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -339,6 +359,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  ApiPublicWpcomCallbackRoute: ApiPublicWpcomCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -18,6 +18,7 @@ import {
   listSiteConnections,
   probeSiteConnection,
 } from "@/lib/shared/db/repos/siteConnections.functions";
+import { startWpcomOAuth } from "@/lib/shared/wpcom/wpcom.functions";
 import { CreateSiteConnectionSchema } from "@/lib/shared/db/repos/siteConnections.schemas";
 
 export const Route = createFileRoute("/_authenticated/sites")({
@@ -31,6 +32,7 @@ function SitesPage() {
   const fetchSites = useServerFn(listSiteConnections);
   const create = useServerFn(createSiteConnection);
   const probe = useServerFn(probeSiteConnection);
+  const startOAuth = useServerFn(startWpcomOAuth);
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
@@ -111,6 +113,30 @@ function SitesPage() {
     connectMutation.mutate();
   }
 
+  const [oauthBanner, setOauthBanner] = useState<
+    null | { kind: "success" | "error"; msg: string }
+  >(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const wpcom = params.get("wpcom");
+    if (!wpcom) return;
+    if (wpcom === "connected") {
+      setOauthBanner({
+        kind: "success",
+        msg: `WordPress.com site connected: ${params.get("site") ?? ""}`,
+      });
+    } else {
+      setOauthBanner({
+        kind: "error",
+        msg: `WordPress.com connect failed: ${params.get("reason") ?? "unknown"}`,
+      });
+    }
+    qc.invalidateQueries({ queryKey: ["site-connections"] });
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [qc]);
+
+
   if (tenantsQuery.isLoading) {
     return <Shell><p className="text-muted-foreground">Loading…</p></Shell>;
   }
@@ -139,14 +165,46 @@ function SitesPage() {
             Connected sites
           </h1>
         </div>
-        <button
-          type="button"
-          onClick={() => setConnectOpen(true)}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-        >
-          + Connect WordPress site
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={async () => {
+              if (!tenantId) return;
+              try {
+                const { authorizeUrl } = await startOAuth({
+                  data: { tenantId },
+                });
+                window.location.href = authorizeUrl;
+              } catch (e) {
+                setConnectError((e as Error).message);
+              }
+            }}
+            disabled={!tenantId}
+            className="rounded-md border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:bg-secondary disabled:opacity-60"
+          >
+            Connect WordPress.com
+          </button>
+          <button
+            type="button"
+            onClick={() => setConnectOpen(true)}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+          >
+            + Connect self-hosted
+          </button>
+        </div>
       </div>
+
+      {oauthBanner && (
+        <div
+          className={`mb-4 rounded-md border px-4 py-3 text-sm ${
+            oauthBanner.kind === "success"
+              ? "border-primary/40 bg-primary/10 text-foreground"
+              : "border-destructive/40 bg-destructive/10 text-destructive"
+          }`}
+        >
+          {oauthBanner.msg}
+        </div>
+      )}
 
       <ConnectSiteDialog
         open={connectOpen}
