@@ -345,10 +345,18 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
         "Je bent een merkstrateeg én linguïst. Je bouwt een diep, bruikbaar taalprofiel. Output uitsluitend valide JSON volgens het gevraagde schema.",
       prompt: buildExtractPrompt(scored, locale),
       temperature: 0.2,
-      maxTokens: 3000,
+      maxTokens: 6000,
+      jsonMode: true,
     });
 
-    const profile = ToneProfileSchema.parse(extractJson(extractResult.text));
+    let parsed: unknown;
+    try {
+      parsed = extractJson(extractResult.text);
+    } catch (e) {
+      console.error("[tone] extract failed, raw response:", extractResult.text?.slice(0, 1000));
+      throw new Error(`Profielextractie gaf geen geldige JSON: ${(e as Error).message}`);
+    }
+    const profile = ToneProfileSchema.parse(parsed);
 
     // Confidence: mean quality * (clamped 1..1) with small bonus per sample
     const avgQuality =
