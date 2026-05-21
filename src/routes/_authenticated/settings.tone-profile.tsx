@@ -33,6 +33,10 @@ function ToneProfilePage() {
   const setStatus = useServerFn(setToneStatus);
   const testOut = useServerFn(testToneOutput);
   const fetchFeedback = useServerFn(listToneFeedback);
+  const fetchSamples = useServerFn(listToneSamples);
+  const addSample = useServerFn(addManualSample);
+  const deleteSample = useServerFn(deleteToneSample);
+
 
   const tenantsQuery = useQuery({ queryKey: ["my-tenants"], queryFn: () => fetchTenants() });
   const tenantId = tenantsQuery.data?.tenants[0]?.id ?? null;
