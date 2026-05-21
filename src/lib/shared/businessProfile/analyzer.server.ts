@@ -241,7 +241,7 @@ function buildPrompt(input: {
   recentRejections: Array<{ field_path: string; reason: string | null }>;
 }): string {
   const {
-    observed,
+    observed: observed.slice(0, 8),
     aggregated,
     currentProfile,
     lockedFields,
@@ -255,7 +255,7 @@ function buildPrompt(input: {
         `--- PAGE ${i + 1} | ${o.source_type} | ${o.url}\n` +
         `CTA's: ${o.ctas.slice(0, 8).join(" | ") || "(geen)"}\n` +
         `Headlines: ${o.headlines.slice(0, 6).join(" | ") || "(geen)"}\n` +
-        `Tekst:\n${o.text.slice(0, 1800)}`,
+        `Tekst:\n${o.text.slice(0, 1100)}`,
     )
     .join("\n\n");
 
@@ -333,7 +333,7 @@ function buildPrompt(input: {
     "",
     "Output UITSLUITEND geldige JSON in dit schema:",
     `{
-  "fieldSuggestions": [
+    "fieldSuggestions": [
     {
       "fieldPath": "offer_profile.primaryOffer",
       "suggestedValue": "...",
@@ -357,6 +357,7 @@ function buildPrompt(input: {
   },
   "overallConfidence": 0.0-1.0
 }`,
+    "Beperk output: maximaal 30 fieldSuggestions, maximaal 4 strategyAngles, maximaal 10 missingContext-items. Hou rationale en evidence kort.",
     "",
     "Antwoord ALLEEN met geldige JSON. Geen markdown, geen uitleg.",
   ].join("\n");
