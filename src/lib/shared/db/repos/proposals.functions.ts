@@ -109,6 +109,9 @@ export const listProposals = createServerFn({ method: "POST" })
       after: JSON.stringify(p.after ?? {}),
     }));
     return { groups: groups ?? [], proposals: serializable, pageMap };
+  });
+
+
 
 
 export const decideProposal = createServerFn({ method: "POST" })
