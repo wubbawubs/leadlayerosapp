@@ -32,6 +32,18 @@ const EMPTY = BusinessProfileSchema.parse({});
 
 type Status = "draft" | "review_ready" | "approved" | "locked";
 
+interface Suggestion {
+  id: string;
+  section: string;
+  field_path: string;
+  suggested_value: unknown;
+  current_value: unknown;
+  source_evidence: Array<{ url?: string; quote?: string; reason?: string }>;
+  confidence: number;
+  rationale: string;
+  status: string;
+}
+
 function splitLines(s: string): string[] {
   return s.split("\n").map((l) => l.trim()).filter(Boolean);
 }
