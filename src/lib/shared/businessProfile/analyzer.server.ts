@@ -96,6 +96,19 @@ function extractJson(text: string): unknown {
   }
 }
 
+function normalizeAnalyzerError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/upstream request timeout|timed out|abort/i.test(message)) {
+    return new Error(
+      "Analyzer duurde te lang. Ik heb de site-scan begrensd; probeer opnieuw. Als dit blijft gebeuren, analyseer eerst minder pagina's of voer een kleinere audit uit.",
+    );
+  }
+  if (/LLM gateway 5\d\d|fetch failed|network/i.test(message)) {
+    return new Error("AI-service reageerde niet stabiel. Probeer de analyse over een minuut opnieuw.");
+  }
+  return error instanceof Error ? error : new Error(message);
+}
+
 function isLocked(fieldPath: string, lockedFields: string[]): boolean {
   if (lockedFields.includes(fieldPath)) return true;
   // ancestor lock — e.g. lock on "offer_profile" blocks "offer_profile.primaryOffer"
@@ -145,7 +158,7 @@ function setAtPath(
 // Corpus collection (reuses tone analyzer's corpus tooling)
 // ----------------------------------------------------------------------------
 
-async function pickCorpusUrls(tenantId: string): Promise<UrlPick[]> {
+async function pickCorpusUrls(tenantId: string, maxTotal = 8): Promise<UrlPick[]> {
   const { data: audit } = await supabaseAdmin
     .from("audits")
     .select("id, site_connection_id")
@@ -194,19 +207,19 @@ async function pickCorpusUrls(tenantId: string): Promise<UrlPick[]> {
   let sitemapUrls: string[] = [];
   if (origin) {
     try {
-      sitemapUrls = await discoverSitemapUrls(origin, 60);
+      sitemapUrls = await discoverSitemapUrls(origin, 32);
     } catch {
       sitemapUrls = [];
     }
   }
   const merged = [...auditUrls, ...sitemapUrls];
   if (!merged.length) return [];
-  return pickDiverse(merged, 16);
+  return pickDiverse(merged, maxTotal);
 }
 
 async function observeAll(picks: UrlPick[]): Promise<PageObservation[]> {
   const observed: PageObservation[] = [];
-  const CONCURRENCY = 4;
+  const CONCURRENCY = 3;
   for (let i = 0; i < picks.length; i += CONCURRENCY) {
     const batch = picks.slice(i, i + CONCURRENCY);
     const res = await Promise.all(batch.map((p) => observePage(p.url, p.source_type)));
@@ -236,13 +249,13 @@ function buildPrompt(input: {
     recentRejections,
   } = input;
 
-  const samples = observed
+  const samples = observed.slice(0, 6)
     .map(
       (o, i) =>
         `--- PAGE ${i + 1} | ${o.source_type} | ${o.url}\n` +
         `CTA's: ${o.ctas.slice(0, 8).join(" | ") || "(geen)"}\n` +
         `Headlines: ${o.headlines.slice(0, 6).join(" | ") || "(geen)"}\n` +
-        `Tekst:\n${o.text.slice(0, 1800)}`,
+        `Tekst:\n${o.text.slice(0, 1100)}`,
     )
     .join("\n\n");
 
@@ -320,7 +333,7 @@ function buildPrompt(input: {
     "",
     "Output UITSLUITEND geldige JSON in dit schema:",
     `{
-  "fieldSuggestions": [
+    "fieldSuggestions": [
     {
       "fieldPath": "offer_profile.primaryOffer",
       "suggestedValue": "...",
@@ -344,6 +357,7 @@ function buildPrompt(input: {
   },
   "overallConfidence": 0.0-1.0
 }`,
+    "Beperk output: maximaal 30 fieldSuggestions, maximaal 4 strategyAngles, maximaal 10 missingContext-items. Hou rationale en evidence kort.",
     "",
     "Antwoord ALLEEN met geldige JSON. Geen markdown, geen uitleg.",
   ].join("\n");
@@ -443,6 +457,7 @@ export interface AnalyzerResult {
 export async function analyzeBusinessProfileFromWebsite(input: {
   tenantId: string;
 }): Promise<AnalyzerResult> {
+  try {
   const { tenantId } = input;
 
   // 1. Load current profile + locks
@@ -503,13 +518,15 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     recentRejections,
   });
   const llm = await llmComplete({
-    task: "default",
+    task: "cheap",
     system:
       "Je bent een growth-strateeg die websitecontent vertaalt naar een gestructureerd business profile. Je verzint NOOIT bewijs. Je respecteert het Tone Profile letterlijk. Output uitsluitend valide JSON.",
     prompt,
     temperature: 0.2,
-    maxTokens: 6500,
+    maxTokens: 4200,
     jsonMode: true,
+    timeoutMs: 25_000,
+    retries: 0,
   });
 
   let parsed: AnalysisResult;
@@ -671,6 +688,10 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     observedPages: observed.length,
     overallConfidence: parsed.overallConfidence,
   };
+  } catch (error) {
+    console.error("[bp-2] analyze failed", error);
+    throw normalizeAnalyzerError(error);
+  }
 }
 
 // ----------------------------------------------------------------------------
