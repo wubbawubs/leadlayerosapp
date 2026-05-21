@@ -223,7 +223,7 @@ function ToneProfilePage() {
           onPasteUrl={setPasteUrl}
           onPasteLabel={setPasteLabel}
           onAdd={() => addSampleMut.mutate()}
-          onDelete={(id) => deleteSampleMut.mutate(id)}
+          onDelete={(id: string) => deleteSampleMut.mutate(id)}
           isPending={addSampleMut.isPending}
         />
 
