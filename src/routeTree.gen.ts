@@ -22,7 +22,9 @@ import { Route as AuthenticatedOnboardingWelcomeRouteImport } from './routes/_au
 import { Route as AuthenticatedOnboardingSiteRouteImport } from './routes/_authenticated/onboarding.site'
 import { Route as AuthenticatedOnboardingDoneRouteImport } from './routes/_authenticated/onboarding.done'
 import { Route as AuthenticatedOnboardingBusinessRouteImport } from './routes/_authenticated/onboarding.business'
+import { Route as AuthenticatedAuditsAuditIdRouteImport } from './routes/_authenticated/audits.$auditId'
 import { Route as ApiPublicWpcomCallbackRouteImport } from './routes/api/public/wpcom/callback'
+import { Route as AuthenticatedSitesSiteIdAuditsRouteImport } from './routes/_authenticated/sites.$siteId.audits'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -92,11 +94,23 @@ const AuthenticatedOnboardingBusinessRoute =
     path: '/business',
     getParentRoute: () => AuthenticatedOnboardingRoute,
   } as any)
+const AuthenticatedAuditsAuditIdRoute =
+  AuthenticatedAuditsAuditIdRouteImport.update({
+    id: '/audits/$auditId',
+    path: '/audits/$auditId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiPublicWpcomCallbackRoute = ApiPublicWpcomCallbackRouteImport.update({
   id: '/api/public/wpcom/callback',
   path: '/api/public/wpcom/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSitesSiteIdAuditsRoute =
+  AuthenticatedSitesSiteIdAuditsRouteImport.update({
+    id: '/$siteId/audits',
+    path: '/$siteId/audits',
+    getParentRoute: () => AuthenticatedSitesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -106,11 +120,13 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
   '/sites': typeof AuthenticatedSitesRouteWithChildren
+  '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
+  '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -121,11 +137,13 @@ export interface FileRoutesByTo {
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
   '/sites': typeof AuthenticatedSitesRouteWithChildren
+  '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
+  '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
 export interface FileRoutesById {
@@ -138,11 +156,13 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
   '/_authenticated/sites': typeof AuthenticatedSitesRouteWithChildren
+  '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/_authenticated/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/_authenticated/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/_authenticated/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
+  '/_authenticated/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
 export interface FileRouteTypes {
@@ -155,11 +175,13 @@ export interface FileRouteTypes {
     | '/app'
     | '/onboarding'
     | '/sites'
+    | '/audits/$auditId'
     | '/onboarding/business'
     | '/onboarding/done'
     | '/onboarding/site'
     | '/onboarding/welcome'
     | '/sites/new'
+    | '/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -170,11 +192,13 @@ export interface FileRouteTypes {
     | '/app'
     | '/onboarding'
     | '/sites'
+    | '/audits/$auditId'
     | '/onboarding/business'
     | '/onboarding/done'
     | '/onboarding/site'
     | '/onboarding/welcome'
     | '/sites/new'
+    | '/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
   id:
     | '__root__'
@@ -186,11 +210,13 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/_authenticated/onboarding'
     | '/_authenticated/sites'
+    | '/_authenticated/audits/$auditId'
     | '/_authenticated/onboarding/business'
     | '/_authenticated/onboarding/done'
     | '/_authenticated/onboarding/site'
     | '/_authenticated/onboarding/welcome'
     | '/_authenticated/sites/new'
+    | '/_authenticated/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
   fileRoutesById: FileRoutesById
 }
@@ -296,12 +322,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingBusinessRouteImport
       parentRoute: typeof AuthenticatedOnboardingRoute
     }
+    '/_authenticated/audits/$auditId': {
+      id: '/_authenticated/audits/$auditId'
+      path: '/audits/$auditId'
+      fullPath: '/audits/$auditId'
+      preLoaderRoute: typeof AuthenticatedAuditsAuditIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/wpcom/callback': {
       id: '/api/public/wpcom/callback'
       path: '/api/public/wpcom/callback'
       fullPath: '/api/public/wpcom/callback'
       preLoaderRoute: typeof ApiPublicWpcomCallbackRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/sites/$siteId/audits': {
+      id: '/_authenticated/sites/$siteId/audits'
+      path: '/$siteId/audits'
+      fullPath: '/sites/$siteId/audits'
+      preLoaderRoute: typeof AuthenticatedSitesSiteIdAuditsRouteImport
+      parentRoute: typeof AuthenticatedSitesRoute
     }
   }
 }
@@ -328,10 +368,12 @@ const AuthenticatedOnboardingRouteWithChildren =
 
 interface AuthenticatedSitesRouteChildren {
   AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
+  AuthenticatedSitesSiteIdAuditsRoute: typeof AuthenticatedSitesSiteIdAuditsRoute
 }
 
 const AuthenticatedSitesRouteChildren: AuthenticatedSitesRouteChildren = {
   AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
+  AuthenticatedSitesSiteIdAuditsRoute: AuthenticatedSitesSiteIdAuditsRoute,
 }
 
 const AuthenticatedSitesRouteWithChildren =
@@ -341,12 +383,14 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRouteWithChildren
   AuthenticatedSitesRoute: typeof AuthenticatedSitesRouteWithChildren
+  AuthenticatedAuditsAuditIdRoute: typeof AuthenticatedAuditsAuditIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRouteWithChildren,
   AuthenticatedSitesRoute: AuthenticatedSitesRouteWithChildren,
+  AuthenticatedAuditsAuditIdRoute: AuthenticatedAuditsAuditIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

@@ -293,15 +293,24 @@ function SitesPage() {
                     </p>
                   )}
                 </div>
-                <button
-                  onClick={() => probeMutation.mutate(c.id)}
-                  disabled={probeMutation.isPending && probeMutation.variables === c.id}
-                  className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-secondary disabled:opacity-60"
-                >
-                  {probeMutation.isPending && probeMutation.variables === c.id
-                    ? "Probing…"
-                    : "Re-probe"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/sites/$siteId/audits"
+                    params={{ siteId: c.id }}
+                    className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-secondary"
+                  >
+                    Audits
+                  </Link>
+                  <button
+                    onClick={() => probeMutation.mutate(c.id)}
+                    disabled={probeMutation.isPending && probeMutation.variables === c.id}
+                    className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-secondary disabled:opacity-60"
+                  >
+                    {probeMutation.isPending && probeMutation.variables === c.id
+                      ? "Probing…"
+                      : "Re-probe"}
+                  </button>
+                </div>
               </div>
             </div>
           );

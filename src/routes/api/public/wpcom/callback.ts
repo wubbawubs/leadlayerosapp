@@ -72,10 +72,13 @@ export const Route = createFileRoute("/api/public/wpcom/callback")({
           });
 
           // Pick the site the user authorized. WPCOM returns blog_id/blog_url
-          // when the consent was scoped to a single site. Fall back to /me/sites.
+          // when the consent was scoped to a single site. For scope=global it
+          // returns blog_id "0" — fall back to /me/sites in that case.
           let blogId = tokenRes.blog_id;
           let blogUrl = tokenRes.blog_url;
-          if (!blogId) {
+          const blogIdMissing =
+            !blogId || String(blogId) === "0" || String(blogId).trim() === "";
+          if (blogIdMissing) {
             const sites = await wpcomFetch<{
               sites: { ID: number; URL: string; name?: string }[];
             }>("/me/sites?fields=ID,URL,name", tokenRes.access_token);
