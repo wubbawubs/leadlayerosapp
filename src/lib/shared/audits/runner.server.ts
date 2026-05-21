@@ -78,13 +78,13 @@ export async function runAudit(auditId: string): Promise<void> {
     // List up to MAX_PAGES recent posts + pages
     const [posts, pages] = await Promise.all([
       wpcomFetch<{ posts: WpcomListItem[] }>(
-        `/rest/v1.1/sites/${siteId}/posts?number=${MAX_PAGES}&fields=ID,URL,title,type`,
+        `/sites/${siteId}/posts?number=${MAX_PAGES}&fields=ID,URL,title,type`,
         token,
-      ).catch(() => ({ posts: [] })),
+      ).catch((e) => { console.error("wpcom posts failed", e); return { posts: [] }; }),
       wpcomFetch<{ posts: WpcomListItem[] }>(
-        `/rest/v1.1/sites/${siteId}/posts?number=${MAX_PAGES}&type=page&fields=ID,URL,title,type`,
+        `/sites/${siteId}/posts?number=${MAX_PAGES}&type=page&fields=ID,URL,title,type`,
         token,
-      ).catch(() => ({ posts: [] })),
+      ).catch((e) => { console.error("wpcom pages failed", e); return { posts: [] }; }),
     ]);
 
     const all: WpcomListItem[] = [...(pages.posts ?? []), ...(posts.posts ?? [])];
