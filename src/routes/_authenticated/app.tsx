@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Logo } from "@/components/brand/Logo";
+import { TenantSwitcher } from "@/components/app/TenantSwitcher";
 import { supabase } from "@/integrations/supabase/client";
 import { listMyTenants } from "@/lib/shared/db/repos/tenants.functions";
 import { llmPing } from "@/lib/shared/llm/router.functions";
@@ -38,12 +39,17 @@ function AppHome() {
     <div className="min-h-screen bg-background bg-blueprint">
       <header className="container mx-auto flex items-center justify-between px-6 py-5">
         <Logo />
-        <button
-          onClick={signOut}
-          className="rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary"
-        >
-          Sign out
-        </button>
+        <div className="flex items-center gap-2">
+          {tenantsQuery.data && tenantsQuery.data.tenants.length > 0 && (
+            <TenantSwitcher tenants={tenantsQuery.data.tenants} />
+          )}
+          <button
+            onClick={signOut}
+            className="rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary"
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
       <main className="container mx-auto px-6 pb-24 pt-8">
