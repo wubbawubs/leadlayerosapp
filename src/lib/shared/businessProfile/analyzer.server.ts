@@ -241,7 +241,7 @@ function buildPrompt(input: {
   recentRejections: Array<{ field_path: string; reason: string | null }>;
 }): string {
   const {
-    observed: observed.slice(0, 8),
+    observed,
     aggregated,
     currentProfile,
     lockedFields,
@@ -249,7 +249,7 @@ function buildPrompt(input: {
     recentRejections,
   } = input;
 
-  const samples = observed
+  const samples = observed.slice(0, 8)
     .map(
       (o, i) =>
         `--- PAGE ${i + 1} | ${o.source_type} | ${o.url}\n` +
