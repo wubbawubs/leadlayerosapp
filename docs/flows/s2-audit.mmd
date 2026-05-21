@@ -1,0 +1,24 @@
+sequenceDiagram
+    autonumber
+    actor U as Operator
+    participant UI as /app/audit
+    participant SF as ServerFn
+    participant DB as Supabase
+    participant W as Worker (external)
+    participant P as Playwright
+
+    U->>UI: Click "Run audit"
+    UI->>SF: audits.requestAudit({tenantId})
+    SF->>DB: insert workflow_runs(state=queued, type=audit)
+    SF-->>UI: run_id
+    UI->>UI: poll workflow_runs
+
+    W->>DB: claim queued run (state=running)
+    W->>P: crawl site (sitemap + sampled pages)
+    P-->>W: snapshots + metrics
+    W->>W: rule-engine → issues[]
+    W->>SF: POST /api/public/worker/audit-callback (HMAC)
+    SF->>DB: insert scans + issues + health_scores
+    SF->>DB: workflow_runs.state = done
+    UI->>SF: poll → done
+    UI->>UI: render health score + issues
