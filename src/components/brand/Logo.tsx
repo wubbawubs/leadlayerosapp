@@ -11,7 +11,7 @@ export function Logo({ to = "/", showWordmark = true }: { to?: string; showWordm
       />
       {showWordmark && (
         <span className="font-display text-xl font-bold tracking-tight text-foreground">
-          LeadLayer<span className="text-primary">OS</span>
+          LeadLayer <span className="text-accent">OS</span>
         </span>
       )}
     </Link>
