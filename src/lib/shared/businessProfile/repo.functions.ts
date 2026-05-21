@@ -349,3 +349,133 @@ export const analyzeBusinessProfileFromWebsiteFn = createServerFn({ method: "POS
     const result = await analyzeBusinessProfileFromWebsite({ tenantId: data.tenantId });
     return result;
   });
+
+// ----------------------------------------------------------------------------
+// Strategy angles — mark a single angle as primary (or clear)
+// ----------------------------------------------------------------------------
+
+export const setPrimaryStrategyAngle = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { tenantId: string; angleIndex: number | null }) =>
+    z
+      .object({
+        tenantId: z.string().uuid(),
+        angleIndex: z.number().int().min(0).max(40).nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+    const { data: row } = await admin
+      .from("business_profiles_v2")
+      .select("strategy_angles")
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
+    const angles: Array<Record<string, unknown>> = Array.isArray(row?.strategy_angles)
+      ? (row!.strategy_angles as Array<Record<string, unknown>>)
+      : [];
+    const next = angles.map((a, i) => ({ ...a, isPrimary: i === data.angleIndex }));
+    const { error } = await admin
+      .from("business_profiles_v2")
+      .update({ strategy_angles: next })
+      .eq("tenant_id", data.tenantId);
+    if (error) throw error;
+    return { ok: true };
+  });
+
+// ----------------------------------------------------------------------------
+// Missing context — answer a gap, optionally map answer to a profile field
+// ----------------------------------------------------------------------------
+
+export const answerMissingContext = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: {
+      tenantId: string;
+      index: number;
+      answer: string;
+      mapToField?: string;
+      resolve?: boolean;
+    }) =>
+      z
+        .object({
+          tenantId: z.string().uuid(),
+          index: z.number().int().min(0).max(40),
+          answer: z.string().max(2000),
+          mapToField: z.string().max(160).optional(),
+          resolve: z.boolean().optional(),
+        })
+        .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+    const { data: row } = await admin
+      .from("business_profiles_v2")
+      .select("missing_context")
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
+    const items: Array<Record<string, unknown>> = Array.isArray(row?.missing_context)
+      ? (row!.missing_context as Array<Record<string, unknown>>)
+      : [];
+    if (data.index >= items.length) throw new Error("Missing-context item niet gevonden.");
+    const updatedItem = {
+      ...items[data.index],
+      answer: data.answer,
+      mapToField: data.mapToField ?? (items[data.index].mapToField as string) ?? "",
+      resolvedAt: data.resolve ? new Date().toISOString() : ((items[data.index].resolvedAt as string) ?? ""),
+    };
+    const nextItems = items.map((it, i) => (i === data.index ? updatedItem : it));
+
+    // Optionally apply the answer to a profile field
+    if (data.mapToField && data.answer.trim()) {
+      try {
+        await applySuggestionValue({
+          tenantId: data.tenantId,
+          fieldPath: data.mapToField,
+          value: data.answer.trim(),
+        });
+      } catch (e) {
+        console.warn("[bp-2] could not map missing-context answer to field", data.mapToField, e);
+      }
+    }
+
+    const { error } = await admin
+      .from("business_profiles_v2")
+      .update({ missing_context: nextItems })
+      .eq("tenant_id", data.tenantId);
+    if (error) throw error;
+    return { ok: true };
+  });
+
+export const deleteMissingContext = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { tenantId: string; index: number }) =>
+    z
+      .object({
+        tenantId: z.string().uuid(),
+        index: z.number().int().min(0).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+    const { data: row } = await admin
+      .from("business_profiles_v2")
+      .select("missing_context")
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
+    const items: Array<Record<string, unknown>> = Array.isArray(row?.missing_context)
+      ? (row!.missing_context as Array<Record<string, unknown>>)
+      : [];
+    const nextItems = items.filter((_, i) => i !== data.index);
+    const { error } = await admin
+      .from("business_profiles_v2")
+      .update({ missing_context: nextItems })
+      .eq("tenant_id", data.tenantId);
+    if (error) throw error;
+    return { ok: true };
+  });
+

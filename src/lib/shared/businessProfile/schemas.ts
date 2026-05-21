@@ -122,6 +122,7 @@ export const StrategyAngleSchema = z.object({
   why: z.string().trim().max(800).optional().default(""),
   bestFor: StrArr.optional().default([]),
   riskLevel: z.enum(["low", "medium", "high"]).optional().default("low"),
+  isPrimary: z.boolean().optional().default(false),
 });
 
 export const MissingContextItemSchema = z.object({
@@ -129,6 +130,16 @@ export const MissingContextItemSchema = z.object({
   impact: z.string().trim().max(600).optional().default(""),
   recommendedQuestion: z.string().trim().max(400).optional().default(""),
   priority: z.enum(["low", "medium", "high"]).optional().default("medium"),
+  answer: z.string().trim().max(2000).optional().default(""),
+  mapToField: z.string().trim().max(160).optional().default(""),
+  resolvedAt: z.string().optional().default(""),
+});
+
+export const ConfidenceReasonSchema = z.object({
+  score: z.number().min(0).max(10),
+  strengths: z.array(z.string().max(400)).max(10).default([]),
+  gaps: z.array(z.string().max(400)).max(10).default([]),
+  nextSteps: z.array(z.string().max(400)).max(10).default([]),
 });
 
 export const BusinessProfileSchema = z.object({
@@ -144,7 +155,9 @@ export const BusinessProfileSchema = z.object({
   strategy_angles: z.array(StrategyAngleSchema).max(40).default([]),
   missing_context: z.array(MissingContextItemSchema).max(40).default([]),
   locked_fields: z.array(z.string().max(120)).max(200).default([]),
+  confidence_reasons: z.record(z.string(), ConfidenceReasonSchema).default({}),
 });
+
 
 export type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
 export type BusinessIdentity = z.infer<typeof BusinessIdentitySchema>;

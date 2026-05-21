@@ -48,15 +48,24 @@ const FieldSuggestionSchema = z.object({
   sourceEvidence: z.array(EvidenceSchema).max(8).default([]),
 });
 
+const SectionReasonSchema = z.object({
+  score: z.number().min(0).max(1),
+  strengths: z.array(z.string().max(300)).max(8).default([]),
+  gaps: z.array(z.string().max(300)).max(8).default([]),
+  nextSteps: z.array(z.string().max(300)).max(8).default([]),
+});
+
 const AnalysisResultSchema = z.object({
   fieldSuggestions: z.array(FieldSuggestionSchema).max(80).default([]),
   strategyAngles: z.array(StrategyAngleSchema).max(12).default([]),
   missingContext: z.array(MissingContextItemSchema).max(20).default([]),
   sectionConfidence: z.record(z.string(), z.number().min(0).max(1)).default({}),
+  sectionReasons: z.record(z.string(), SectionReasonSchema).default({}),
   overallConfidence: z.number().min(0).max(1).default(0),
 });
 
 type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
+
 
 // ----------------------------------------------------------------------------
 // Helpers
@@ -211,9 +220,17 @@ function buildPrompt(input: {
   aggregated: ReturnType<typeof aggregateLists>;
   currentProfile: Record<string, unknown> | null;
   lockedFields: string[];
-  toneSummary: string | null;
+  toneContext: ToneContext | null;
+  recentRejections: Array<{ field_path: string; reason: string | null }>;
 }): string {
-  const { observed, aggregated, currentProfile, lockedFields, toneSummary } = input;
+  const {
+    observed,
+    aggregated,
+    currentProfile,
+    lockedFields,
+    toneContext,
+    recentRejections,
+  } = input;
 
   const samples = observed
     .map(
@@ -245,6 +262,24 @@ function buildPrompt(input: {
       ).slice(0, 4000)
     : "(leeg)";
 
+  const toneBlock = toneContext
+    ? [
+        "TONE PROFILE (APPROVED — output MOET hieraan voldoen):",
+        toneContext.summary ? `- Voice: ${toneContext.summary}` : "",
+        toneContext.formality ? `- Formality / aanhef: ${toneContext.formality} (gebruik 'je/jij' tenzij hier expliciet 'u' staat)` : "- Aanhef: gebruik 'je/jij'",
+        toneContext.preferredWords.length ? `- Voorkeurswoorden: ${toneContext.preferredWords.slice(0, 20).join(", ")}` : "",
+        toneContext.forbiddenWords.length ? `- VERBODEN woorden: ${toneContext.forbiddenWords.slice(0, 20).join(", ")}` : "",
+        toneContext.examplePhrases.length ? `- Voorbeeldzinnen: ${toneContext.examplePhrases.slice(0, 5).map((s) => `"${s}"`).join(" | ")}` : "",
+      ].filter(Boolean).join("\n")
+    : "(geen approved tone profile — gebruik neutrale 'je'-vorm)";
+
+  const rejectBlock = recentRejections.length
+    ? recentRejections
+        .slice(0, 15)
+        .map((r) => `- ${r.field_path}${r.reason ? ` — reason: ${r.reason}` : ""}`)
+        .join("\n")
+    : "(geen)";
+
   return [
     "Je bouwt een GROWTH INTELLIGENCE PROFILE voor een bedrijf op basis van échte website-content.",
     "Je doet SUGGESTIES voor invulling. Niets wordt automatisch overschreven — de operator beslist.",
@@ -254,13 +289,21 @@ function buildPrompt(input: {
     "- Elke suggestie MOET sourceEvidence hebben (url + quote uit de samples) tenzij confidence < 0.5.",
     "- Confidence schaal: 0.9+ alleen bij meerdere expliciete bronnen, 0.7-0.85 bij duidelijke inferentie, 0.4-0.6 bij zwakke aanwijzing, < 0.4 → naar missingContext.",
     "- LOCKED VELDEN (geen suggesties voor): " + (lockedFields.length ? lockedFields.join(", ") : "(geen)"),
-    "- Geef voor lege velden in het huidige profiel meer suggesties; voor velden die al ingevuld zijn alleen wanneer je iets sterk anders/beters voorstelt.",
+    "- ALLE tekstwaarden (string-suggesties: oneLiner, primaryOffer, primaryCta, valuePropositions, …) MOETEN voldoen aan het Tone Profile hierboven. Gebruik geen 'U/uw'-aanhef als tone 'je/jij' voorschrijft. Gebruik geen verboden woorden.",
+    "- Suggesteer NIET hetzelfde als het huidige profiel al bevat (zelfde string of zelfde array). Sla over.",
+    "- Suggesteer NIET hetzelfde als recent door operator afgekeurd is (zie sectie hieronder), tenzij je een fundamenteel andere formulering hebt.",
+    "- Voor sectionReasons: leg PER SECTIE in 1-3 korte bullets uit (a) wat sterk is, (b) welke gaps de score laag houden, (c) welke concrete content de operator zou moeten leveren of laten verschijnen op de site om de score omhoog te krijgen.",
+    "- strategyAngles: max 4. Geef de meest commercieel logische als eerste. Markeer de beste met isPrimary=true (maximaal 1).",
     "- Velden zijn dot-paths binnen secties. Toegestane top-level secties: business_identity, offer_profile, icp_profile, location_profile, conversion_profile, proof_profile, claim_guardrails.",
     "- Voor lijst-velden (bv. icp_profile.idealCustomers) is suggestedValue een array van strings. Voor scalars een string/number/enum.",
     "",
-    toneSummary ? `TONE PROFILE CONTEXT (al goedgekeurd):\n${toneSummary.slice(0, 1500)}\n` : "",
+    toneBlock,
+    "",
     "HUIDIG BUSINESS PROFILE (vertrek hiervan, vul aan, overschrijf niet zomaar):",
     profileBlock,
+    "",
+    "RECENT AFGEWEZEN SUGGESTIES (niet opnieuw voorstellen):",
+    rejectBlock,
     "",
     "WAARGENOMEN CTA's op de site:",
     ctaList,
@@ -283,14 +326,17 @@ function buildPrompt(input: {
     }
   ],
   "strategyAngles": [
-    {"angle":"...","score":0-10,"why":"...","bestFor":["homepage","meta","CTA"],"riskLevel":"low|medium|high"}
+    {"angle":"...","score":0-10,"why":"...","bestFor":["homepage","meta","CTA"],"riskLevel":"low|medium|high","isPrimary":false}
   ],
   "missingContext": [
-    {"missing":"...","impact":"...","recommendedQuestion":"...","priority":"low|medium|high"}
+    {"missing":"...","impact":"...","recommendedQuestion":"...","priority":"low|medium|high","mapToField":"offer_profile.pricingContext"}
   ],
   "sectionConfidence": {
     "business_identity":0.0-1.0,"offer_profile":0.0-1.0,"icp_profile":0.0-1.0,
     "location_profile":0.0-1.0,"conversion_profile":0.0-1.0,"proof_profile":0.0-1.0,"claim_guardrails":0.0-1.0
+  },
+  "sectionReasons": {
+    "location_profile": {"score":0.4,"strengths":["..."],"gaps":["geen stadspagina's","geen primaire vestiging"],"nextSteps":["voeg /vestiging/utrecht toe","noem stad in footer"]}
   },
   "overallConfidence": 0.0-1.0
 }`,
@@ -298,6 +344,85 @@ function buildPrompt(input: {
     "Antwoord ALLEEN met geldige JSON. Geen markdown, geen uitleg.",
   ].join("\n");
 }
+
+// ----------------------------------------------------------------------------
+// Tone profile context (used to normalize analyzer output)
+// ----------------------------------------------------------------------------
+
+interface ToneContext {
+  summary: string | null;
+  formality: string | null;
+  preferredWords: string[];
+  forbiddenWords: string[];
+  examplePhrases: string[];
+}
+
+async function loadToneContext(tenantId: string): Promise<ToneContext | null> {
+  const { data: tone } = await supabaseAdmin
+    .from("tone_profiles")
+    .select("profile, status")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!tone?.profile || typeof tone.profile !== "object") return null;
+  const p = tone.profile as Record<string, unknown>;
+  const voice = (p.voiceIdentity as Record<string, unknown> | undefined) ?? {};
+  const vocab = (p.vocabulary as Record<string, unknown> | undefined) ?? {};
+  const examples = (p.examples as Record<string, unknown> | undefined) ?? {};
+
+  const arr = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : [];
+
+  const formalityRaw =
+    (voice.formality as string | undefined) ??
+    (voice.aanhef as string | undefined) ??
+    (p.formality as string | undefined) ??
+    null;
+
+  return {
+    summary: (voice.summary as string | undefined) ?? null,
+    formality: formalityRaw,
+    preferredWords: arr(vocab.preferredWords ?? vocab.preferred ?? p.preferred_words),
+    forbiddenWords: arr(vocab.forbiddenWords ?? vocab.forbidden ?? p.forbidden_words),
+    examplePhrases: arr(examples.bestExamples ?? examples.phrases ?? p.example_phrases),
+  };
+}
+
+// ----------------------------------------------------------------------------
+// Dedup helpers
+// ----------------------------------------------------------------------------
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  if (typeof a !== typeof b) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((x, i) => deepEqual(x, b[i]));
+  }
+  if (typeof a === "object" && typeof b === "object") {
+    const ka = Object.keys(a as object).sort();
+    const kb = Object.keys(b as object).sort();
+    if (ka.length !== kb.length) return false;
+    if (!ka.every((k, i) => k === kb[i])) return false;
+    return ka.every((k) =>
+      deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]),
+    );
+  }
+  if (typeof a === "string" && typeof b === "string") {
+    return a.trim().toLowerCase() === b.trim().toLowerCase();
+  }
+  return false;
+}
+
+function isMeaningful(v: unknown): boolean {
+  if (v === null || v === undefined) return false;
+  if (typeof v === "string") return v.trim().length > 0;
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === "object") return Object.keys(v as object).length > 0;
+  return true;
+}
+
+
 
 // ----------------------------------------------------------------------------
 // Main orchestrator
@@ -326,17 +451,29 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     ? (currentProfile!.locked_fields as string[])
     : [];
 
-  // 2. Load tone profile summary (approved only)
-  const { data: tone } = await supabaseAdmin
-    .from("tone_profiles")
-    .select("profile, status")
+  // 2. Tone profile context (used to normalize analyzer output style)
+  const toneContext = await loadToneContext(tenantId);
+
+  // 2b. Recent rejections (so analyzer doesn't keep proposing same junk)
+  const { data: rejections } = await admin
+    .from("business_profile_feedback")
+    .select("field_path, reason, after_value")
     .eq("tenant_id", tenantId)
-    .maybeSingle();
-  let toneSummary: string | null = null;
-  if (tone?.profile && typeof tone.profile === "object") {
-    const p = tone.profile as Record<string, unknown>;
-    const voice = (p.voiceIdentity as Record<string, unknown> | undefined)?.summary;
-    if (typeof voice === "string") toneSummary = voice;
+    .eq("feedback_type", "rejected")
+    .order("created_at", { ascending: false })
+    .limit(30);
+  const recentRejections = (rejections ?? []).map(
+    (r: { field_path: string | null; reason: string | null }) => ({
+      field_path: r.field_path ?? "",
+      reason: r.reason,
+    }),
+  );
+  const rejectedValuesByField = new Map<string, unknown[]>();
+  for (const r of rejections ?? []) {
+    if (!r.field_path) continue;
+    const arr = rejectedValuesByField.get(r.field_path) ?? [];
+    arr.push((r as { after_value: unknown }).after_value);
+    rejectedValuesByField.set(r.field_path, arr);
   }
 
   // 3. Collect corpus
@@ -358,15 +495,16 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     aggregated,
     currentProfile: currentProfile ?? null,
     lockedFields,
-    toneSummary,
+    toneContext,
+    recentRejections,
   });
   const llm = await llmComplete({
     task: "default",
     system:
-      "Je bent een growth-strateeg die websitecontent vertaalt naar een gestructureerd business profile. Je verzint NOOIT bewijs. Output uitsluitend valide JSON.",
+      "Je bent een growth-strateeg die websitecontent vertaalt naar een gestructureerd business profile. Je verzint NOOIT bewijs. Je respecteert het Tone Profile letterlijk. Output uitsluitend valide JSON.",
     prompt,
     temperature: 0.2,
-    maxTokens: 6000,
+    maxTokens: 6500,
     jsonMode: true,
   });
 
@@ -399,8 +537,10 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     .eq("tenant_id", tenantId)
     .eq("status", "pending");
 
-  // 7. Insert per-field suggestions, respecting locks
+  // 7. Insert per-field suggestions, respecting locks + dedup against current + recent rejections
   let blockedByLock = 0;
+  let skippedDuplicate = 0;
+  let skippedRejected = 0;
   const rows: Array<Record<string, unknown>> = [];
   for (const s of parsed.fieldSuggestions) {
     const section = fieldPathSection(s.fieldPath);
@@ -413,6 +553,17 @@ export async function analyzeBusinessProfileFromWebsite(input: {
       currentProfile as Record<string, unknown> | null,
       s.fieldPath,
     );
+    // Skip when suggestion equals current meaningful value
+    if (isMeaningful(currentValue) && deepEqual(currentValue, s.suggestedValue)) {
+      skippedDuplicate++;
+      continue;
+    }
+    // Skip when operator already rejected this exact value
+    const prevRejected = rejectedValuesByField.get(s.fieldPath) ?? [];
+    if (prevRejected.some((v) => deepEqual(v, s.suggestedValue))) {
+      skippedRejected++;
+      continue;
+    }
     rows.push({
       tenant_id: tenantId,
       business_profile_id: businessProfileId,
@@ -431,28 +582,83 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     if (error) throw error;
   }
 
-  // 8. Update profile metadata (strategy_angles, missing_context, confidence_map)
-  //    Only if those fields are NOT locked.
+  // 8. Update profile metadata (strategy_angles, missing_context, confidence_map, confidence_reasons)
   const sectionConfidence10: Record<string, number> = {};
   for (const [k, v] of Object.entries(parsed.sectionConfidence)) {
     sectionConfidence10[k] = Math.round(Math.max(0, Math.min(1, Number(v))) * 100) / 10;
   }
+  const confidenceReasons: Record<string, unknown> = {};
+  for (const [k, r] of Object.entries(parsed.sectionReasons)) {
+    confidenceReasons[k] = {
+      score: Math.round(Math.max(0, Math.min(1, Number(r.score))) * 100) / 10,
+      strengths: r.strengths ?? [],
+      gaps: r.gaps ?? [],
+      nextSteps: r.nextSteps ?? [],
+    };
+  }
   const updates: Record<string, unknown> = {
-    confidence_score: Math.round(parsed.overallConfidence * 100) / 10, // 0-10 scale
+    confidence_score: Math.round(parsed.overallConfidence * 100) / 10,
     confidence_map: sectionConfidence10,
+    confidence_reasons: confidenceReasons,
   };
   if (!isLocked("strategy_angles", lockedFields)) {
-    updates.strategy_angles = parsed.strategyAngles;
+    // Preserve existing isPrimary mark for an angle that re-appears (by angle text)
+    const prev = Array.isArray(currentProfile?.strategy_angles)
+      ? (currentProfile!.strategy_angles as Array<Record<string, unknown>>)
+      : [];
+    const prevPrimary = prev.find((a) => a?.isPrimary === true);
+    const merged = parsed.strategyAngles.map((a) => ({ ...a }));
+    if (prevPrimary && typeof prevPrimary.angle === "string") {
+      const match = merged.find(
+        (a) => a.angle.trim().toLowerCase() === (prevPrimary.angle as string).trim().toLowerCase(),
+      );
+      if (match) {
+        merged.forEach((a) => (a.isPrimary = false));
+        match.isPrimary = true;
+      }
+    }
+    updates.strategy_angles = merged;
   }
   if (!isLocked("missing_context", lockedFields)) {
-    updates.missing_context = parsed.missingContext;
+    // Preserve answers / resolvedAt for items whose `missing` text re-appears
+    const prev = Array.isArray(currentProfile?.missing_context)
+      ? (currentProfile!.missing_context as Array<Record<string, unknown>>)
+      : [];
+    const prevByKey = new Map<string, Record<string, unknown>>();
+    for (const m of prev) {
+      if (typeof m?.missing === "string") {
+        prevByKey.set((m.missing as string).trim().toLowerCase(), m);
+      }
+    }
+    const merged = parsed.missingContext.map((m) => {
+      const k = m.missing.trim().toLowerCase();
+      const prior = prevByKey.get(k);
+      if (prior && (prior.answer || prior.resolvedAt)) {
+        return {
+          ...m,
+          answer: (prior.answer as string) ?? "",
+          mapToField: (prior.mapToField as string) ?? m.mapToField ?? "",
+          resolvedAt: (prior.resolvedAt as string) ?? "",
+        };
+      }
+      return m;
+    });
+    updates.missing_context = merged;
   }
-  // Status hint: only bump to review_ready if currently draft
   if ((currentProfile?.status ?? "draft") === "draft") {
     updates.status = "review_ready";
   }
 
   await admin.from("business_profiles_v2").update(updates).eq("tenant_id", tenantId);
+
+  console.log("[bp-2] analyze done", {
+    suggestionsCreated: rows.length,
+    blockedByLock,
+    skippedDuplicate,
+    skippedRejected,
+    observedPages: observed.length,
+  });
+
 
   return {
     ok: true,

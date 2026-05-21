@@ -845,8 +845,9 @@ function StrategyAngles({
     onChange(angles.filter((_, idx) => idx !== i));
   }
   function add() {
-    onChange([...angles, { angle: "", score: 5, why: "", bestFor: [], riskLevel: "low" }]);
+    onChange([...angles, { angle: "", score: 5, why: "", bestFor: [], riskLevel: "low", isPrimary: false }]);
   }
+
   return (
     <div className="space-y-3">
       {angles.length === 0 && (
@@ -913,8 +914,9 @@ function MissingContext({
     onChange(items.filter((_, idx) => idx !== i));
   }
   function add() {
-    onChange([...items, { missing: "", impact: "", recommendedQuestion: "", priority: "medium" }]);
+    onChange([...items, { missing: "", impact: "", recommendedQuestion: "", priority: "medium", answer: "", mapToField: "", resolvedAt: "" }]);
   }
+
   return (
     <div className="space-y-3">
       {items.length === 0 && (
