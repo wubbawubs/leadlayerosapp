@@ -11,7 +11,7 @@ import {
   listProposals,
 } from "@/lib/shared/db/repos/proposals.functions";
 
-export const Route = createFileRoute("/_authenticated/audits/$auditId/proposals")({
+export const Route = createFileRoute("/_authenticated/audits/$auditId_/proposals")({
   component: ProposalsPage,
 });
 
