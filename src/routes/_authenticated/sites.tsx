@@ -18,6 +18,7 @@ import {
   listSiteConnections,
   probeSiteConnection,
 } from "@/lib/shared/db/repos/siteConnections.functions";
+import { startWpcomOAuth } from "@/lib/shared/wpcom/wpcom.functions";
 import { CreateSiteConnectionSchema } from "@/lib/shared/db/repos/siteConnections.schemas";
 
 export const Route = createFileRoute("/_authenticated/sites")({
