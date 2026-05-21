@@ -80,13 +80,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "LeadLayer OS connects search, your website and tracking into one system, built to deliver qualified enquiries every single month.",
       },
-      { property: "og:title", content: "LeadLayer OS" },
+      { property: "og:title", content: "LeadLayer OS — Lead infrastructure for service businesses" },
       {
         property: "og:description",
         content: "Lead infrastructure for service businesses.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "LeadLayer OS — Lead infrastructure for service businesses" },
+      { name: "description", content: "Lead Layer Builder is a platform for building and managing website integrations and branding." },
+      { property: "og:description", content: "Lead Layer Builder is a platform for building and managing website integrations and branding." },
+      { name: "twitter:description", content: "Lead Layer Builder is a platform for building and managing website integrations and branding." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d13a3dbb-3efa-4e2f-92f1-51ea012dcbd5/id-preview-173b7fab--5529efef-2490-4a8b-8733-f89fd4caba7e.lovable.app-1779388629280.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d13a3dbb-3efa-4e2f-92f1-51ea012dcbd5/id-preview-173b7fab--5529efef-2490-4a8b-8733-f89fd4caba7e.lovable.app-1779388629280.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
