@@ -42,9 +42,10 @@ function AppHome() {
           <Logo />
           <nav className="flex items-center gap-4 text-sm">
             <span className="text-foreground font-medium">Dashboard</span>
-            <a href="/sites" className="text-muted-foreground hover:text-foreground">
+            <Link to="/sites" className="text-muted-foreground hover:text-foreground">
               Sites
-            </a>
+            </Link>
+
           </nav>
         </div>
         <div className="flex items-center gap-2">
