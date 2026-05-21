@@ -14,6 +14,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedSitesRouteImport } from './routes/_authenticated/sites'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedOnboardingWelcomeRouteImport } from './routes/_authenticated/onboarding.welcome'
@@ -44,6 +45,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedSitesRoute = AuthenticatedSitesRouteImport.update({
+  id: '/sites',
+  path: '/sites',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
+  '/sites': typeof AuthenticatedSitesRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
+  '/sites': typeof AuthenticatedSitesRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
+  '/_authenticated/sites': typeof AuthenticatedSitesRoute
   '/_authenticated/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/_authenticated/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/app'
     | '/onboarding'
+    | '/sites'
     | '/onboarding/business'
     | '/onboarding/done'
     | '/onboarding/site'
@@ -139,6 +149,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/app'
     | '/onboarding'
+    | '/sites'
     | '/onboarding/business'
     | '/onboarding/done'
     | '/onboarding/site'
@@ -152,6 +163,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/_authenticated/app'
     | '/_authenticated/onboarding'
+    | '/_authenticated/sites'
     | '/_authenticated/onboarding/business'
     | '/_authenticated/onboarding/done'
     | '/_authenticated/onboarding/site'
@@ -202,6 +214,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/sites': {
+      id: '/_authenticated/sites'
+      path: '/sites'
+      fullPath: '/sites'
+      preLoaderRoute: typeof AuthenticatedSitesRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/onboarding': {
       id: '/_authenticated/onboarding'
@@ -271,11 +290,13 @@ const AuthenticatedOnboardingRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRouteWithChildren
+  AuthenticatedSitesRoute: typeof AuthenticatedSitesRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRouteWithChildren,
+  AuthenticatedSitesRoute: AuthenticatedSitesRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -292,3 +313,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
