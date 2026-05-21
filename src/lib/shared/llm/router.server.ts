@@ -21,6 +21,7 @@ export interface LlmCompleteOptions {
   model?: string; // override
   temperature?: number;
   maxTokens?: number;
+  jsonMode?: boolean;
 }
 
 export interface LlmCompleteResult {
@@ -44,12 +45,16 @@ export async function llmComplete(opts: LlmCompleteOptions): Promise<LlmComplete
   if (opts.system) messages.push({ role: "system", content: opts.system });
   messages.push({ role: "user", content: opts.prompt });
 
-  const body = {
+  const body: Record<string, unknown> = {
     model,
     messages,
     temperature: opts.temperature,
     max_tokens: opts.maxTokens,
   };
+  if (opts.jsonMode) {
+    body.response_format = { type: "json_object" };
+  }
+
 
   // Minimal retry: 1 retry on 5xx / network error
   let lastErr: unknown;
