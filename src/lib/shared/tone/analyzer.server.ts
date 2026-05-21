@@ -41,11 +41,28 @@ interface ScoredSample extends RawSample {
 }
 
 function extractJson(text: string): unknown {
-  const cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-  const first = cleaned.indexOf("{");
-  const last = cleaned.lastIndexOf("}");
-  if (first === -1 || last === -1) throw new Error("No JSON object in LLM response");
-  return JSON.parse(cleaned.slice(first, last + 1));
+  if (!text || !text.trim()) throw new Error("LLM returned empty response");
+  let cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+  const first = cleaned.search(/[{[]/);
+  if (first === -1) {
+    throw new Error(`No JSON object in LLM response (got: ${text.slice(0, 200)})`);
+  }
+  const opener = cleaned[first];
+  const closer = opener === "[" ? "]" : "}";
+  const last = cleaned.lastIndexOf(closer);
+  if (last === -1 || last < first) {
+    throw new Error(`Truncated JSON in LLM response (got: ${text.slice(0, 200)})`);
+  }
+  cleaned = cleaned.slice(first, last + 1);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const repaired = cleaned
+      .replace(/,\s*}/g, "}")
+      .replace(/,\s*]/g, "]")
+      .replace(/[\x00-\x1F\x7F]/g, " ");
+    return JSON.parse(repaired);
+  }
 }
 
 async function fetchHtml(url: string, timeoutMs = 8000): Promise<string | null> {
