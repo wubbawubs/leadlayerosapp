@@ -112,7 +112,7 @@ function normalizeAnalyzerError(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
   if (/upstream request timeout|timed out|abort/i.test(message)) {
     return new Error(
-      "Analyzer duurde te lang. Ik heb de site-scan begrensd; probeer opnieuw. Als dit blijft gebeuren, analyseer eerst minder pagina's of voer een kleinere audit uit.",
+      "Analyzer duurde te lang — een van de twee AI-stages reageerde niet op tijd. Probeer opnieuw; de stages worden los verwerkt dus een retry pakt vaak meteen door.",
     );
   }
   if (/LLM gateway 5\d\d|fetch failed|network/i.test(message)) {
