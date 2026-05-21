@@ -71,7 +71,7 @@ type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 // Helpers
 // ----------------------------------------------------------------------------
 
-function extractJson(text: string): unknown {
+async function extractJson(text: string): Promise<unknown> {
   if (!text || !text.trim()) throw new Error("LLM returned empty response");
   let cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
   const first = cleaned.search(/[{[]/);
@@ -79,16 +79,20 @@ function extractJson(text: string): unknown {
   const opener = cleaned[first];
   const closer = opener === "[" ? "]" : "}";
   const last = cleaned.lastIndexOf(closer);
-  if (last === -1 || last < first) {
-    throw new Error(`Truncated JSON: ${text.slice(0, 200)}`);
-  }
-  cleaned = cleaned.slice(first, last + 1);
+  cleaned = last > first ? cleaned.slice(first, last + 1) : cleaned.slice(first);
   try {
     return JSON.parse(cleaned);
   } catch {
-    return JSON.parse(
-      cleaned.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]").replace(/[\x00-\x1F\x7F]/g, " "),
-    );
+    try {
+      return JSON.parse(
+        cleaned.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]").replace(/[\x00-\x1F\x7F]/g, " "),
+      );
+    } catch {
+      // Last resort: jsonrepair handles unescaped quotes, trailing commas,
+      // missing closers, control chars in strings, truncation, etc.
+      const { jsonrepair } = await import("jsonrepair");
+      return JSON.parse(jsonrepair(cleaned));
+    }
   }
 }
 
@@ -510,7 +514,7 @@ export async function analyzeBusinessProfileFromWebsite(input: {
 
   let parsed: AnalysisResult;
   try {
-    parsed = AnalysisResultSchema.parse(extractJson(llm.text));
+    parsed = AnalysisResultSchema.parse(await extractJson(llm.text));
   } catch (e) {
     console.error("[bp-2] parse failed, raw:", llm.text?.slice(0, 1000));
     throw new Error(`Analyzer JSON ongeldig: ${(e as Error).message}`);
