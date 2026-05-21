@@ -140,13 +140,33 @@ function SitesPage() {
             Connected sites
           </h1>
         </div>
-        <button
-          type="button"
-          onClick={() => setConnectOpen(true)}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-        >
-          + Connect WordPress site
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={async () => {
+              if (!tenantId) return;
+              try {
+                const { authorizeUrl } = await startOAuth({
+                  data: { tenantId },
+                });
+                window.location.href = authorizeUrl;
+              } catch (e) {
+                setConnectError((e as Error).message);
+              }
+            }}
+            disabled={!tenantId}
+            className="rounded-md border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground hover:bg-secondary disabled:opacity-60"
+          >
+            Connect WordPress.com
+          </button>
+          <button
+            type="button"
+            onClick={() => setConnectOpen(true)}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+          >
+            + Connect self-hosted
+          </button>
+        </div>
       </div>
 
       <ConnectSiteDialog
