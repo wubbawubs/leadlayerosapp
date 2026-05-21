@@ -11,6 +11,11 @@ import {
   upsertBusinessProfileV2,
   setBusinessProfileStatus,
   lockBusinessProfileField,
+  listBusinessProfileSuggestions,
+  acceptBusinessProfileSuggestion,
+  rejectBusinessProfileSuggestion,
+  editAndAcceptBusinessProfileSuggestion,
+  analyzeBusinessProfileFromWebsiteFn,
 } from "@/lib/shared/businessProfile/repo.functions";
 import {
   BusinessProfileSchema,
@@ -26,6 +31,18 @@ export const Route = createFileRoute("/_authenticated/settings/business-profile"
 const EMPTY = BusinessProfileSchema.parse({});
 
 type Status = "draft" | "review_ready" | "approved" | "locked";
+
+interface Suggestion {
+  id: string;
+  section: string;
+  field_path: string;
+  suggested_value: unknown;
+  current_value: unknown;
+  source_evidence: Array<{ url?: string; quote?: string; reason?: string }>;
+  confidence: number;
+  rationale: string;
+  status: string;
+}
 
 function splitLines(s: string): string[] {
   return s.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -43,6 +60,11 @@ function BusinessProfilePage() {
   const save = useServerFn(upsertBusinessProfileV2);
   const setStatus = useServerFn(setBusinessProfileStatus);
   const lockField = useServerFn(lockBusinessProfileField);
+  const fetchSuggestions = useServerFn(listBusinessProfileSuggestions);
+  const acceptSuggestion = useServerFn(acceptBusinessProfileSuggestion);
+  const rejectSuggestion = useServerFn(rejectBusinessProfileSuggestion);
+  const editAcceptSuggestion = useServerFn(editAndAcceptBusinessProfileSuggestion);
+  const analyzeFromWebsite = useServerFn(analyzeBusinessProfileFromWebsiteFn);
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
@@ -121,6 +143,61 @@ function BusinessProfilePage() {
       return lockField({ data: { tenantId, ...input } });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] }),
+  });
+
+  // BP-2: suggestions
+  const suggestionsQuery = useQuery({
+    queryKey: ["bp-suggestions", tenantId],
+    queryFn: () => fetchSuggestions({ data: { tenantId: tenantId!, status: "pending" } }),
+    enabled: !!tenantId,
+  });
+  const suggestions = (suggestionsQuery.data?.suggestions ?? []) as Suggestion[];
+
+  const analyzeMutation = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error("Geen tenant");
+      return analyzeFromWebsite({ data: { tenantId } });
+    },
+    onSuccess: (r) => {
+      setMsg(
+        `Analyzer klaar: ${r.suggestionsCreated} suggesties (${r.observedPages} pagina's geanalyseerd, ${r.blockedByLock} geblokkeerd door lock).`,
+      );
+      qc.invalidateQueries({ queryKey: ["bp-suggestions", tenantId] });
+      qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] });
+    },
+    onError: (e) => setMsg(`Analyzer fout: ${(e as Error).message}`),
+  });
+
+  const acceptMutation = useMutation({
+    mutationFn: async (input: { suggestionId: string; lockAfter?: boolean }) => {
+      if (!tenantId) throw new Error("Geen tenant");
+      return acceptSuggestion({ data: { tenantId, ...input } });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bp-suggestions", tenantId] });
+      qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] });
+    },
+    onError: (e) => setMsg(`Accept fout: ${(e as Error).message}`),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async (suggestionId: string) => {
+      if (!tenantId) throw new Error("Geen tenant");
+      return rejectSuggestion({ data: { tenantId, suggestionId } });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bp-suggestions", tenantId] }),
+  });
+
+  const editAcceptMutation = useMutation({
+    mutationFn: async (input: { suggestionId: string; editedValue: unknown }) => {
+      if (!tenantId) throw new Error("Geen tenant");
+      return editAcceptSuggestion({ data: { tenantId, ...input } });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bp-suggestions", tenantId] });
+      qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] });
+    },
+    onError: (e) => setMsg(`Edit fout: ${(e as Error).message}`),
   });
 
   const isLocked = (path: string) => locked.includes(path);
@@ -241,11 +318,12 @@ function BusinessProfilePage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <button
-                disabled
-                className="rounded-md border border-dashed border-border bg-background px-3 py-2 text-xs font-medium text-muted-foreground opacity-70"
-                title="Komt in BP-2"
+                onClick={() => analyzeMutation.mutate()}
+                disabled={analyzeMutation.isPending || !tenantId}
+                className="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
+                title="AI analyseert geauditeerde pagina's en stelt invullingen voor"
               >
-                Generate from website (binnenkort)
+                {analyzeMutation.isPending ? "Analyseren…" : "Generate from website"}
               </button>
               <button
                 onClick={() => saveMutation.mutate(undefined)}
@@ -295,6 +373,17 @@ function BusinessProfilePage() {
             {locked.join(", ")}
           </div>
         )}
+
+        {/* BP-2: AI Suggestions */}
+        <SuggestionsPanel
+          suggestions={suggestions}
+          onAccept={(id, lockAfter) => acceptMutation.mutate({ suggestionId: id, lockAfter })}
+          onReject={(id) => rejectMutation.mutate(id)}
+          onEditAccept={(id, v) => editAcceptMutation.mutate({ suggestionId: id, editedValue: v })}
+          pending={
+            acceptMutation.isPending || rejectMutation.isPending || editAcceptMutation.isPending
+          }
+        />
 
         {/* 1. Identity */}
         <Section
@@ -867,6 +956,200 @@ function MissingContext({
       >
         + Add missing context
       </button>
+    </div>
+  );
+}
+
+function formatValue(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (Array.isArray(v)) return v.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join(" · ");
+  if (typeof v === "object") return JSON.stringify(v, null, 2);
+  return String(v);
+}
+
+function SuggestionsPanel({
+  suggestions,
+  onAccept,
+  onReject,
+  onEditAccept,
+  pending,
+}: {
+  suggestions: Suggestion[];
+  onAccept: (id: string, lockAfter?: boolean) => void;
+  onReject: (id: string) => void;
+  onEditAccept: (id: string, value: unknown) => void;
+  pending: boolean;
+}) {
+  if (suggestions.length === 0) return null;
+  const bySection = suggestions.reduce<Record<string, Suggestion[]>>((acc, s) => {
+    (acc[s.section] ??= []).push(s);
+    return acc;
+  }, {});
+  return (
+    <section className="mt-6 rounded-lg border border-primary/30 bg-primary/5 p-5">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display text-lg text-foreground">
+          AI suggesties ({suggestions.length})
+        </h2>
+        <span className="text-xs text-muted-foreground">
+          Niets wordt automatisch overschreven. Accept / edit / reject per veld.
+        </span>
+      </div>
+      <div className="mt-4 space-y-5">
+        {Object.entries(bySection).map(([section, items]) => (
+          <div key={section}>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
+              {section.replace(/_/g, " ")}
+            </div>
+            <div className="space-y-2">
+              {items.map((s) => (
+                <SuggestionCard
+                  key={s.id}
+                  s={s}
+                  pending={pending}
+                  onAccept={onAccept}
+                  onReject={onReject}
+                  onEditAccept={onEditAccept}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SuggestionCard({
+  s,
+  pending,
+  onAccept,
+  onReject,
+  onEditAccept,
+}: {
+  s: Suggestion;
+  pending: boolean;
+  onAccept: (id: string, lockAfter?: boolean) => void;
+  onReject: (id: string) => void;
+  onEditAccept: (id: string, value: unknown) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const initial = Array.isArray(s.suggested_value)
+    ? (s.suggested_value as unknown[]).join("\n")
+    : typeof s.suggested_value === "object" && s.suggested_value !== null
+    ? JSON.stringify(s.suggested_value, null, 2)
+    : String(s.suggested_value ?? "");
+  const [draft, setDraft] = useState(initial);
+
+  function commitEdit() {
+    const value = Array.isArray(s.suggested_value)
+      ? draft.split("\n").map((l) => l.trim()).filter(Boolean)
+      : draft;
+    onEditAccept(s.id, value);
+    setEditing(false);
+  }
+
+  const confPct = Math.round((s.confidence ?? 0) * 100);
+  const confTone =
+    confPct >= 70
+      ? "text-emerald-700 dark:text-emerald-300"
+      : confPct >= 40
+      ? "text-amber-700 dark:text-amber-300"
+      : "text-muted-foreground";
+
+  return (
+    <div className="rounded-md border border-border bg-card p-3 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="font-mono text-xs text-muted-foreground">{s.field_path}</div>
+        <span className={`text-xs font-semibold ${confTone}`}>{confPct}% confidence</span>
+      </div>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Huidig</div>
+          <div className="whitespace-pre-wrap text-foreground/80">{formatValue(s.current_value)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Voorgesteld</div>
+          {editing ? (
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={Math.min(8, Math.max(2, draft.split("\n").length))}
+              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          ) : (
+            <div className="whitespace-pre-wrap text-foreground">{formatValue(s.suggested_value)}</div>
+          )}
+        </div>
+      </div>
+      {s.rationale && (
+        <p className="mt-2 text-xs text-muted-foreground"><span className="font-medium">Waarom:</span> {s.rationale}</p>
+      )}
+      {s.source_evidence && s.source_evidence.length > 0 && (
+        <details className="mt-2 text-xs">
+          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+            Evidence ({s.source_evidence.length})
+          </summary>
+          <ul className="mt-1 space-y-1 pl-4 text-muted-foreground">
+            {s.source_evidence.map((ev, i) => (
+              <li key={i}>
+                {ev.url && <span className="font-mono">{ev.url}</span>}
+                {ev.quote && <div className="italic">“{ev.quote}”</div>}
+                {ev.reason && <div>{ev.reason}</div>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {editing ? (
+          <>
+            <button
+              disabled={pending}
+              onClick={commitEdit}
+              className="rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+            >
+              Save & accept
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              className="rounded-md border border-border px-3 py-1 text-xs hover:bg-secondary"
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              disabled={pending}
+              onClick={() => onAccept(s.id, false)}
+              className="rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+            >
+              Accept
+            </button>
+            <button
+              disabled={pending}
+              onClick={() => onAccept(s.id, true)}
+              className="rounded-md border border-primary/40 px-3 py-1 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-60"
+            >
+              Accept + lock
+            </button>
+            <button
+              onClick={() => setEditing(true)}
+              className="rounded-md border border-border px-3 py-1 text-xs hover:bg-secondary"
+            >
+              Edit
+            </button>
+            <button
+              disabled={pending}
+              onClick={() => onReject(s.id)}
+              className="rounded-md border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-secondary disabled:opacity-60"
+            >
+              Reject
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
