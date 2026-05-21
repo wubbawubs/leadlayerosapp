@@ -11,6 +11,11 @@ import {
   upsertBusinessProfileV2,
   setBusinessProfileStatus,
   lockBusinessProfileField,
+  listBusinessProfileSuggestions,
+  acceptBusinessProfileSuggestion,
+  rejectBusinessProfileSuggestion,
+  editAndAcceptBusinessProfileSuggestion,
+  analyzeBusinessProfileFromWebsiteFn,
 } from "@/lib/shared/businessProfile/repo.functions";
 import {
   BusinessProfileSchema,
