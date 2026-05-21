@@ -260,6 +260,101 @@ export type Database = {
           },
         ]
       }
+      fix_proposal_groups: {
+        Row: {
+          audit_id: string
+          audit_page_id: string | null
+          created_at: string
+          id: string
+          page_id: string | null
+          status: Database["public"]["Enums"]["proposal_status"]
+          tenant_id: string
+          theme: string
+        }
+        Insert: {
+          audit_id: string
+          audit_page_id?: string | null
+          created_at?: string
+          id?: string
+          page_id?: string | null
+          status?: Database["public"]["Enums"]["proposal_status"]
+          tenant_id: string
+          theme: string
+        }
+        Update: {
+          audit_id?: string
+          audit_page_id?: string | null
+          created_at?: string
+          id?: string
+          page_id?: string | null
+          status?: Database["public"]["Enums"]["proposal_status"]
+          tenant_id?: string
+          theme?: string
+        }
+        Relationships: []
+      }
+      fix_proposals: {
+        Row: {
+          after: Json
+          audit_page_id: string | null
+          before: Json
+          confidence: number
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          group_id: string
+          id: string
+          issue_code: string
+          page_id: string | null
+          proposal_type: Database["public"]["Enums"]["proposal_type"]
+          rationale: string
+          status: Database["public"]["Enums"]["proposal_status"]
+          tenant_id: string
+        }
+        Insert: {
+          after?: Json
+          audit_page_id?: string | null
+          before?: Json
+          confidence?: number
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          group_id: string
+          id?: string
+          issue_code: string
+          page_id?: string | null
+          proposal_type: Database["public"]["Enums"]["proposal_type"]
+          rationale?: string
+          status?: Database["public"]["Enums"]["proposal_status"]
+          tenant_id: string
+        }
+        Update: {
+          after?: Json
+          audit_page_id?: string | null
+          before?: Json
+          confidence?: number
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          group_id?: string
+          id?: string
+          issue_code?: string
+          page_id?: string | null
+          proposal_type?: Database["public"]["Enums"]["proposal_type"]
+          rationale?: string
+          status?: Database["public"]["Enums"]["proposal_status"]
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fix_proposals_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "fix_proposal_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       health_scores: {
         Row: {
           category: string
@@ -1210,6 +1305,14 @@ export type Database = {
         | "tenant_created"
         | "expired"
       plan_tier: "free" | "starter" | "pro" | "enterprise"
+      proposal_status: "draft" | "approved" | "rejected" | "partial"
+      proposal_type:
+        | "meta_description"
+        | "alt_text"
+        | "schema"
+        | "title"
+        | "h1"
+        | "other"
       vertical_code:
         | "healthcare"
         | "legal"
@@ -1384,6 +1487,15 @@ export const Constants = {
         "expired",
       ],
       plan_tier: ["free", "starter", "pro", "enterprise"],
+      proposal_status: ["draft", "approved", "rejected", "partial"],
+      proposal_type: [
+        "meta_description",
+        "alt_text",
+        "schema",
+        "title",
+        "h1",
+        "other",
+      ],
       vertical_code: [
         "healthcare",
         "legal",
