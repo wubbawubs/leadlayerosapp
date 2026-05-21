@@ -1053,7 +1053,7 @@ export type Database = {
         | "rejected"
         | "rolled_back"
       connection_status: "pending" | "connected" | "error" | "revoked"
-      connection_type: "wordpress" | "gbp" | "gsc" | "ga4"
+      connection_type: "wordpress" | "gbp" | "gsc" | "ga4" | "wordpress_com"
       geo_code: "NL" | "US"
       issue_severity: "low" | "medium" | "high" | "critical"
       lead_status: "new" | "qualified" | "junk" | "won" | "lost"
@@ -1225,7 +1225,7 @@ export const Constants = {
         "rolled_back",
       ],
       connection_status: ["pending", "connected", "error", "revoked"],
-      connection_type: ["wordpress", "gbp", "gsc", "ga4"],
+      connection_type: ["wordpress", "gbp", "gsc", "ga4", "wordpress_com"],
       geo_code: ["NL", "US"],
       issue_severity: ["low", "medium", "high", "critical"],
       lead_status: ["new", "qualified", "junk", "won", "lost"],
