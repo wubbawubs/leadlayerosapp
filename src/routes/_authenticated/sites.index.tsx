@@ -21,7 +21,7 @@ import {
 import { startWpcomOAuth } from "@/lib/shared/wpcom/wpcom.functions";
 import { CreateSiteConnectionSchema } from "@/lib/shared/db/repos/siteConnections.schemas";
 
-export const Route = createFileRoute("/_authenticated/sites")({
+export const Route = createFileRoute("/_authenticated/sites/")({
   component: SitesPage,
 });
 
