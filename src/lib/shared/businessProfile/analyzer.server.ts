@@ -56,6 +56,18 @@ const SectionReasonSchema = z.object({
   nextSteps: z.array(z.string().max(300)).max(8).default([]),
 });
 
+const ExtractionResultSchema = z.object({
+  fieldSuggestions: z.array(FieldSuggestionSchema).max(80).default([]),
+  sectionConfidence: z.record(z.string(), z.number().min(0).max(1)).default({}),
+  overallConfidence: z.number().min(0).max(1).default(0),
+});
+
+const StrategyResultSchema = z.object({
+  strategyAngles: z.array(StrategyAngleSchema).max(12).default([]),
+  missingContext: z.array(MissingContextItemSchema).max(20).default([]),
+  sectionReasons: z.record(z.string(), SectionReasonSchema).default({}),
+});
+
 const AnalysisResultSchema = z.object({
   fieldSuggestions: z.array(FieldSuggestionSchema).max(80).default([]),
   strategyAngles: z.array(StrategyAngleSchema).max(12).default([]),
