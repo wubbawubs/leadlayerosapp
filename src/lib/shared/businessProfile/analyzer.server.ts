@@ -158,7 +158,7 @@ function setAtPath(
 // Corpus collection (reuses tone analyzer's corpus tooling)
 // ----------------------------------------------------------------------------
 
-async function pickCorpusUrls(tenantId: string, maxTotal = 10): Promise<UrlPick[]> {
+async function pickCorpusUrls(tenantId: string, maxTotal = 8): Promise<UrlPick[]> {
   const { data: audit } = await supabaseAdmin
     .from("audits")
     .select("id, site_connection_id")
@@ -249,7 +249,7 @@ function buildPrompt(input: {
     recentRejections,
   } = input;
 
-  const samples = observed.slice(0, 8)
+  const samples = observed.slice(0, 6)
     .map(
       (o, i) =>
         `--- PAGE ${i + 1} | ${o.source_type} | ${o.url}\n` +
@@ -518,13 +518,15 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     recentRejections,
   });
   const llm = await llmComplete({
-    task: "default",
+    task: "cheap",
     system:
       "Je bent een growth-strateeg die websitecontent vertaalt naar een gestructureerd business profile. Je verzint NOOIT bewijs. Je respecteert het Tone Profile letterlijk. Output uitsluitend valide JSON.",
     prompt,
     temperature: 0.2,
-    maxTokens: 6500,
+    maxTokens: 4200,
     jsonMode: true,
+    timeoutMs: 25_000,
+    retries: 0,
   });
 
   let parsed: AnalysisResult;
