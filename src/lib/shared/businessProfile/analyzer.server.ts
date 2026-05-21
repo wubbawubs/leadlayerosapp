@@ -10,6 +10,7 @@
  *     metadata on business_profiles_v2 (NEVER overwrites core fields).
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { jsonrepair } from "jsonrepair";
 import { llmComplete } from "@/lib/shared/llm/router.server";
 import {
   discoverSitemapUrls,
