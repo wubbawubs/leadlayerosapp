@@ -56,6 +56,18 @@ const SectionReasonSchema = z.object({
   nextSteps: z.array(z.string().max(300)).max(8).default([]),
 });
 
+const ExtractionResultSchema = z.object({
+  fieldSuggestions: z.array(FieldSuggestionSchema).max(80).default([]),
+  sectionConfidence: z.record(z.string(), z.number().min(0).max(1)).default({}),
+  overallConfidence: z.number().min(0).max(1).default(0),
+});
+
+const StrategyResultSchema = z.object({
+  strategyAngles: z.array(StrategyAngleSchema).max(12).default([]),
+  missingContext: z.array(MissingContextItemSchema).max(20).default([]),
+  sectionReasons: z.record(z.string(), SectionReasonSchema).default({}),
+});
+
 const AnalysisResultSchema = z.object({
   fieldSuggestions: z.array(FieldSuggestionSchema).max(80).default([]),
   strategyAngles: z.array(StrategyAngleSchema).max(12).default([]),
@@ -100,7 +112,7 @@ function normalizeAnalyzerError(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
   if (/upstream request timeout|timed out|abort/i.test(message)) {
     return new Error(
-      "Analyzer duurde te lang. Ik heb de site-scan begrensd; probeer opnieuw. Als dit blijft gebeuren, analyseer eerst minder pagina's of voer een kleinere audit uit.",
+      "Analyzer duurde te lang — een van de twee AI-stages reageerde niet op tijd. Probeer opnieuw; de stages worden los verwerkt dus een retry pakt vaak meteen door.",
     );
   }
   if (/LLM gateway 5\d\d|fetch failed|network/i.test(message)) {
@@ -158,7 +170,7 @@ function setAtPath(
 // Corpus collection (reuses tone analyzer's corpus tooling)
 // ----------------------------------------------------------------------------
 
-async function pickCorpusUrls(tenantId: string, maxTotal = 8): Promise<UrlPick[]> {
+async function pickCorpusUrls(tenantId: string, maxTotal = 10): Promise<UrlPick[]> {
   const { data: audit } = await supabaseAdmin
     .from("audits")
     .select("id, site_connection_id")
@@ -219,7 +231,7 @@ async function pickCorpusUrls(tenantId: string, maxTotal = 8): Promise<UrlPick[]
 
 async function observeAll(picks: UrlPick[]): Promise<PageObservation[]> {
   const observed: PageObservation[] = [];
-  const CONCURRENCY = 3;
+  const CONCURRENCY = 4;
   for (let i = 0; i < picks.length; i += CONCURRENCY) {
     const batch = picks.slice(i, i + CONCURRENCY);
     const res = await Promise.all(batch.map((p) => observePage(p.url, p.source_type)));
@@ -232,36 +244,34 @@ async function observeAll(picks: UrlPick[]): Promise<PageObservation[]> {
 // Prompt
 // ----------------------------------------------------------------------------
 
-function buildPrompt(input: {
+interface PromptInput {
   observed: PageObservation[];
   aggregated: ReturnType<typeof aggregateLists>;
   currentProfile: Record<string, unknown> | null;
   lockedFields: string[];
   toneContext: ToneContext | null;
   recentRejections: Array<{ field_path: string; reason: string | null }>;
-}): string {
-  const {
-    observed,
-    aggregated,
-    currentProfile,
-    lockedFields,
-    toneContext,
-    recentRejections,
-  } = input;
+}
 
-  const samples = observed.slice(0, 6)
+function buildSharedContext(input: PromptInput, sampleChars: number, sampleCount: number) {
+  const { observed, aggregated, currentProfile, lockedFields, toneContext, recentRejections } =
+    input;
+
+  const samples = observed
+    .slice(0, sampleCount)
     .map(
       (o, i) =>
         `--- PAGE ${i + 1} | ${o.source_type} | ${o.url}\n` +
-        `CTA's: ${o.ctas.slice(0, 8).join(" | ") || "(geen)"}\n` +
-        `Headlines: ${o.headlines.slice(0, 6).join(" | ") || "(geen)"}\n` +
-        `Tekst:\n${o.text.slice(0, 1100)}`,
+        `CTA's: ${o.ctas.slice(0, 10).join(" | ") || "(geen)"}\n` +
+        `Headlines: ${o.headlines.slice(0, 8).join(" | ") || "(geen)"}\n` +
+        `Tekst:\n${o.text.slice(0, sampleChars)}`,
     )
     .join("\n\n");
 
-  const ctaList = aggregated.ctas.slice(0, 20).map((c) => `- "${c.text}" (×${c.count})`).join("\n") || "(geen)";
+  const ctaList =
+    aggregated.ctas.slice(0, 25).map((c) => `- "${c.text}" (×${c.count})`).join("\n") || "(geen)";
   const claimList =
-    aggregated.claimSentences.slice(0, 15).map((c) => `- "${c.text}"`).join("\n") || "(geen)";
+    aggregated.claimSentences.slice(0, 20).map((c) => `- "${c.text}"`).join("\n") || "(geen)";
 
   const profileBlock = currentProfile
     ? JSON.stringify(
@@ -283,11 +293,21 @@ function buildPrompt(input: {
     ? [
         "TONE PROFILE (APPROVED — output MOET hieraan voldoen):",
         toneContext.summary ? `- Voice: ${toneContext.summary}` : "",
-        toneContext.formality ? `- Formality / aanhef: ${toneContext.formality} (gebruik 'je/jij' tenzij hier expliciet 'u' staat)` : "- Aanhef: gebruik 'je/jij'",
-        toneContext.preferredWords.length ? `- Voorkeurswoorden: ${toneContext.preferredWords.slice(0, 20).join(", ")}` : "",
-        toneContext.forbiddenWords.length ? `- VERBODEN woorden: ${toneContext.forbiddenWords.slice(0, 20).join(", ")}` : "",
-        toneContext.examplePhrases.length ? `- Voorbeeldzinnen: ${toneContext.examplePhrases.slice(0, 5).map((s) => `"${s}"`).join(" | ")}` : "",
-      ].filter(Boolean).join("\n")
+        toneContext.formality
+          ? `- Formality / aanhef: ${toneContext.formality} (gebruik 'je/jij' tenzij hier expliciet 'u' staat)`
+          : "- Aanhef: gebruik 'je/jij'",
+        toneContext.preferredWords.length
+          ? `- Voorkeurswoorden: ${toneContext.preferredWords.slice(0, 20).join(", ")}`
+          : "",
+        toneContext.forbiddenWords.length
+          ? `- VERBODEN woorden: ${toneContext.forbiddenWords.slice(0, 20).join(", ")}`
+          : "",
+        toneContext.examplePhrases.length
+          ? `- Voorbeeldzinnen: ${toneContext.examplePhrases.slice(0, 5).map((s) => `"${s}"`).join(" | ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
     : "(geen approved tone profile — gebruik neutrale 'je'-vorm)";
 
   const rejectBlock = recentRejections.length
@@ -297,69 +317,120 @@ function buildPrompt(input: {
         .join("\n")
     : "(geen)";
 
+  const lockedBlock = lockedFields.length ? lockedFields.join(", ") : "(geen)";
+
+  return { samples, ctaList, claimList, profileBlock, toneBlock, rejectBlock, lockedBlock };
+}
+
+function buildExtractionPrompt(input: PromptInput): string {
+  const ctx = buildSharedContext(input, 2200, 10);
   return [
-    "Je bouwt een GROWTH INTELLIGENCE PROFILE voor een bedrijf op basis van échte website-content.",
-    "Je doet SUGGESTIES voor invulling. Niets wordt automatisch overschreven — de operator beslist.",
+    "STAGE A — FEITEN-EXTRACTIE voor een GROWTH INTELLIGENCE PROFILE.",
+    "Je leest échte website-content en stelt per veld een waarde voor. Niets wordt automatisch overschreven — operator beslist.",
     "",
     "HARDE REGELS:",
-    "- Verzin GEEN cijfers, klantaantallen, percentages of cases. Komt het niet letterlijk uit de samples, dan hoort het in `unverifiedProofPoints` of `missingContext` — niet in `verifiedProofPoints`.",
-    "- Elke suggestie MOET sourceEvidence hebben (url + quote uit de samples) tenzij confidence < 0.5.",
-    "- Confidence schaal: 0.9+ alleen bij meerdere expliciete bronnen, 0.7-0.85 bij duidelijke inferentie, 0.4-0.6 bij zwakke aanwijzing, < 0.4 → naar missingContext.",
-    "- LOCKED VELDEN (geen suggesties voor): " + (lockedFields.length ? lockedFields.join(", ") : "(geen)"),
-    "- ALLE tekstwaarden (string-suggesties: oneLiner, primaryOffer, primaryCta, valuePropositions, …) MOETEN voldoen aan het Tone Profile hierboven. Gebruik geen 'U/uw'-aanhef als tone 'je/jij' voorschrijft. Gebruik geen verboden woorden.",
-    "- Suggesteer NIET hetzelfde als het huidige profiel al bevat (zelfde string of zelfde array). Sla over.",
-    "- Suggesteer NIET hetzelfde als recent door operator afgekeurd is (zie sectie hieronder), tenzij je een fundamenteel andere formulering hebt.",
-    "- Voor sectionReasons: leg PER SECTIE in 1-3 korte bullets uit (a) wat sterk is, (b) welke gaps de score laag houden, (c) welke concrete content de operator zou moeten leveren of laten verschijnen op de site om de score omhoog te krijgen.",
-    "- strategyAngles: max 4. Geef de meest commercieel logische als eerste. Markeer de beste met isPrimary=true (maximaal 1).",
-    "- Velden zijn dot-paths binnen secties. Toegestane top-level secties: business_identity, offer_profile, icp_profile, location_profile, conversion_profile, proof_profile, claim_guardrails.",
-    "- Voor lijst-velden (bv. icp_profile.idealCustomers) is suggestedValue een array van strings. Voor scalars een string/number/enum.",
+    "- Verzin GEEN cijfers, klantaantallen, percentages of cases. Niet letterlijk in samples → hoort in `unverifiedProofPoints` of (Stage B) missingContext, NIET in `verifiedProofPoints`.",
+    "- Elke suggestie MOET sourceEvidence hebben (url + quote uit samples) tenzij confidence < 0.5.",
+    "- Confidence: 0.9+ alleen bij meerdere expliciete bronnen, 0.7-0.85 bij duidelijke inferentie, 0.4-0.6 bij zwakke aanwijzing, < 0.4 → overslaan (komt in Stage B).",
+    "- LOCKED VELDEN (geen suggesties): " + ctx.lockedBlock,
+    "- Alle tekstwaarden MOETEN het Tone Profile volgen. Geen 'U/uw' als tone 'je/jij' voorschrijft. Geen verboden woorden.",
+    "- Suggesteer NIET hetzelfde als huidige profiel of recent afgewezen suggesties.",
+    "- Toegestane top-level secties: business_identity, offer_profile, icp_profile, location_profile, conversion_profile, proof_profile, claim_guardrails.",
+    "- Lijst-velden → array van strings. Scalars → string/number/enum.",
     "",
-    toneBlock,
+    ctx.toneBlock,
     "",
-    "HUIDIG BUSINESS PROFILE (vertrek hiervan, vul aan, overschrijf niet zomaar):",
-    profileBlock,
+    "HUIDIG BUSINESS PROFILE:",
+    ctx.profileBlock,
     "",
     "RECENT AFGEWEZEN SUGGESTIES (niet opnieuw voorstellen):",
-    rejectBlock,
+    ctx.rejectBlock,
     "",
-    "WAARGENOMEN CTA's op de site:",
-    ctaList,
+    "WAARGENOMEN CTA's:",
+    ctx.ctaList,
     "",
     "WAARGENOMEN CLAIM-ZINNEN:",
-    claimList,
+    ctx.claimList,
     "",
     "PAGINA-SAMPLES (echte content):",
-    samples,
+    ctx.samples,
     "",
     "Output UITSLUITEND geldige JSON in dit schema:",
     `{
-    "fieldSuggestions": [
-    {
-      "fieldPath": "offer_profile.primaryOffer",
-      "suggestedValue": "...",
-      "confidence": 0.0-1.0,
-      "rationale": "korte uitleg",
-      "sourceEvidence": [{"url":"...", "quote":"...", "reason":"..."}]
-    }
+  "fieldSuggestions": [
+    {"fieldPath":"offer_profile.primaryOffer","suggestedValue":"...","confidence":0.0-1.0,"rationale":"...","sourceEvidence":[{"url":"...","quote":"...","reason":"..."}]}
   ],
+  "sectionConfidence": {
+    "business_identity":0.0-1.0,"offer_profile":0.0-1.0,"icp_profile":0.0-1.0,
+    "location_profile":0.0-1.0,"conversion_profile":0.0-1.0,"proof_profile":0.0-1.0,"claim_guardrails":0.0-1.0
+  },
+  "overallConfidence": 0.0-1.0
+}`,
+    "Limieten: max 40 fieldSuggestions. Houd rationale en evidence-quotes kort (max ~120 chars).",
+    "",
+    "Antwoord ALLEEN met geldige JSON. Geen markdown.",
+  ].join("\n");
+}
+
+function buildStrategyPrompt(
+  input: PromptInput,
+  extraction: z.infer<typeof ExtractionResultSchema>,
+): string {
+  const ctx = buildSharedContext(input, 1500, 8);
+  const extractionDigest = JSON.stringify(
+    {
+      sectionConfidence: extraction.sectionConfidence,
+      overallConfidence: extraction.overallConfidence,
+      fieldSuggestions: extraction.fieldSuggestions.slice(0, 30).map((s) => ({
+        fieldPath: s.fieldPath,
+        confidence: s.confidence,
+        suggestedValue:
+          typeof s.suggestedValue === "string"
+            ? s.suggestedValue.slice(0, 200)
+            : s.suggestedValue,
+      })),
+    },
+    null,
+    2,
+  ).slice(0, 5000);
+
+  return [
+    "STAGE B — STRATEGIE & GAPS voor het Growth Intelligence Profile.",
+    "Op basis van de feiten uit Stage A + samples, produceer commerciële groeihoeken, ontbrekende context, en per-sectie redenen.",
+    "",
+    "HARDE REGELS:",
+    "- strategyAngles: max 4. Meest commercieel logische eerst. Eén isPrimary=true.",
+    "- missingContext: max 10. Concrete vragen die de operator moet beantwoorden, met mapToField waar mogelijk.",
+    "- sectionReasons: per sectie 1-3 bullets voor strengths, gaps, nextSteps. nextSteps = wat er op de site moet komen.",
+    "- Geen verzonnen cijfers. Tone Profile volgen.",
+    "",
+    ctx.toneBlock,
+    "",
+    "STAGE A RESULTAAT (feiten waar je op voortbouwt):",
+    extractionDigest,
+    "",
+    "HUIDIG BUSINESS PROFILE:",
+    ctx.profileBlock,
+    "",
+    "WAARGENOMEN CTA's:",
+    ctx.ctaList,
+    "",
+    "PAGINA-SAMPLES:",
+    ctx.samples,
+    "",
+    "Output UITSLUITEND geldige JSON in dit schema:",
+    `{
   "strategyAngles": [
     {"angle":"...","score":0-10,"why":"...","bestFor":["homepage","meta","CTA"],"riskLevel":"low|medium|high","isPrimary":false}
   ],
   "missingContext": [
     {"missing":"...","impact":"...","recommendedQuestion":"...","priority":"low|medium|high","mapToField":"offer_profile.pricingContext"}
   ],
-  "sectionConfidence": {
-    "business_identity":0.0-1.0,"offer_profile":0.0-1.0,"icp_profile":0.0-1.0,
-    "location_profile":0.0-1.0,"conversion_profile":0.0-1.0,"proof_profile":0.0-1.0,"claim_guardrails":0.0-1.0
-  },
   "sectionReasons": {
-    "location_profile": {"score":0.4,"strengths":["..."],"gaps":["geen stadspagina's","geen primaire vestiging"],"nextSteps":["voeg /vestiging/utrecht toe","noem stad in footer"]}
-  },
-  "overallConfidence": 0.0-1.0
+    "location_profile": {"score":0.4,"strengths":["..."],"gaps":["geen stadspagina's"],"nextSteps":["voeg /vestiging/utrecht toe"]}
+  }
 }`,
-    "Beperk output: maximaal 30 fieldSuggestions, maximaal 4 strategyAngles, maximaal 10 missingContext-items. Hou rationale en evidence kort.",
-    "",
-    "Antwoord ALLEEN met geldige JSON. Geen markdown, geen uitleg.",
+    "Antwoord ALLEEN met geldige JSON. Geen markdown.",
   ].join("\n");
 }
 
@@ -508,34 +579,67 @@ export async function analyzeBusinessProfileFromWebsite(input: {
   }
   const aggregated = aggregateLists(observed);
 
-  // 4. LLM synthesis
-  const prompt = buildPrompt({
+  // 4. LLM synthesis — in 2 stages om scope te kunnen behouden zonder één call alles te laten opeten.
+  const promptInput = {
     observed,
     aggregated,
     currentProfile: currentProfile ?? null,
     lockedFields,
     toneContext,
     recentRejections,
-  });
-  const llm = await llmComplete({
+  };
+
+  const systemMsg =
+    "Je bent een growth-strateeg die websitecontent vertaalt naar een gestructureerd business profile. Je verzint NOOIT bewijs. Je respecteert het Tone Profile letterlijk. Output uitsluitend valide JSON.";
+
+  // Stage A — feiten-extractie (grootste payload, krijgt ruim budget)
+  const llmA = await llmComplete({
     task: "cheap",
-    system:
-      "Je bent een growth-strateeg die websitecontent vertaalt naar een gestructureerd business profile. Je verzint NOOIT bewijs. Je respecteert het Tone Profile letterlijk. Output uitsluitend valide JSON.",
-    prompt,
+    system: systemMsg,
+    prompt: buildExtractionPrompt(promptInput),
     temperature: 0.2,
-    maxTokens: 4200,
+    maxTokens: 6000,
     jsonMode: true,
-    timeoutMs: 25_000,
+    timeoutMs: 75_000,
     retries: 0,
   });
-
-  let parsed: AnalysisResult;
+  let extraction: z.infer<typeof ExtractionResultSchema>;
   try {
-    parsed = AnalysisResultSchema.parse(extractJson(llm.text));
+    extraction = ExtractionResultSchema.parse(extractJson(llmA.text));
   } catch (e) {
-    console.error("[bp-2] parse failed, raw:", llm.text?.slice(0, 1000));
-    throw new Error(`Analyzer JSON ongeldig: ${(e as Error).message}`);
+    console.error("[bp-2] stage A parse failed, raw:", llmA.text?.slice(0, 1000));
+    throw new Error(`Analyzer Stage A JSON ongeldig: ${(e as Error).message}`);
   }
+
+  // Stage B — strategie + missing context + sectionReasons (kleinere payload, sneller)
+  const llmB = await llmComplete({
+    task: "cheap",
+    system: systemMsg,
+    prompt: buildStrategyPrompt(promptInput, extraction),
+    temperature: 0.3,
+    maxTokens: 3500,
+    jsonMode: true,
+    timeoutMs: 60_000,
+    retries: 0,
+  });
+  let strategy: z.infer<typeof StrategyResultSchema>;
+  try {
+    strategy = StrategyResultSchema.parse(extractJson(llmB.text));
+  } catch (e) {
+    console.error("[bp-2] stage B parse failed, raw:", llmB.text?.slice(0, 1000));
+    // Stage B is degraded-graceful: laat extraction door, maar log
+    strategy = { strategyAngles: [], missingContext: [], sectionReasons: {} };
+  }
+
+  const parsed: AnalysisResult = {
+    fieldSuggestions: extraction.fieldSuggestions,
+    sectionConfidence: extraction.sectionConfidence,
+    overallConfidence: extraction.overallConfidence,
+    strategyAngles: strategy.strategyAngles,
+    missingContext: strategy.missingContext,
+    sectionReasons: strategy.sectionReasons,
+  };
+
 
   // 5. Ensure profile row exists (so suggestions can reference it)
   if (!currentProfile) {
