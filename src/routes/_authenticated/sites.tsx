@@ -194,6 +194,18 @@ function SitesPage() {
         </div>
       </div>
 
+      {oauthBanner && (
+        <div
+          className={`mb-4 rounded-md border px-4 py-3 text-sm ${
+            oauthBanner.kind === "success"
+              ? "border-primary/40 bg-primary/10 text-foreground"
+              : "border-destructive/40 bg-destructive/10 text-destructive"
+          }`}
+        >
+          {oauthBanner.msg}
+        </div>
+      )}
+
       <ConnectSiteDialog
         open={connectOpen}
         onOpenChange={(open) => {
