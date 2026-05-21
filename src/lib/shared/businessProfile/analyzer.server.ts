@@ -231,7 +231,7 @@ async function pickCorpusUrls(tenantId: string, maxTotal = 10): Promise<UrlPick[
 
 async function observeAll(picks: UrlPick[]): Promise<PageObservation[]> {
   const observed: PageObservation[] = [];
-  const CONCURRENCY = 3;
+  const CONCURRENCY = 4;
   for (let i = 0; i < picks.length; i += CONCURRENCY) {
     const batch = picks.slice(i, i + CONCURRENCY);
     const res = await Promise.all(batch.map((p) => observePage(p.url, p.source_type)));
