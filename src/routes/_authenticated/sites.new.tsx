@@ -131,13 +131,14 @@ function NewSitePage() {
             hint="The home URL of your WordPress site, including https://"
           >
             <input
-              type="url"
+              type="text"
               required
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://example.com"
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
             />
+
           </Field>
 
           <Field label="WordPress username">
