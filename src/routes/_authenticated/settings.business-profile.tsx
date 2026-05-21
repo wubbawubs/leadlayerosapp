@@ -914,8 +914,9 @@ function MissingContext({
     onChange(items.filter((_, idx) => idx !== i));
   }
   function add() {
-    onChange([...items, { missing: "", impact: "", recommendedQuestion: "", priority: "medium" }]);
+    onChange([...items, { missing: "", impact: "", recommendedQuestion: "", priority: "medium", answer: "", mapToField: "", resolvedAt: "" }]);
   }
+
   return (
     <div className="space-y-3">
       {items.length === 0 && (
