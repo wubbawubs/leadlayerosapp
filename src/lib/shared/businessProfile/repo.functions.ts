@@ -1,0 +1,239 @@
+/**
+ * Business Profile (Growth Intelligence Profile) — repo serverFns. BP-1.
+ * No analyzer here; only CRUD + suggestion accept/reject + field lock.
+ */
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  BusinessProfileSchema,
+  type BusinessProfile,
+} from "./schemas";
+
+// types.ts hasn't regenerated for business_profiles_v2 yet; cast where needed.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const admin = supabaseAdmin as any;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function assertOperator(supabase: any, userId: string, tenantId: string) {
+  const { data, error } = await supabase
+    .from("memberships")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Forbidden: not a member of this tenant");
+  if (data.role !== "owner" && data.role !== "operator") {
+    throw new Error("Forbidden: requires operator or owner role");
+  }
+}
+
+const EMPTY: BusinessProfile = BusinessProfileSchema.parse({});
+
+export const getBusinessProfileV2 = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { tenantId: string }) =>
+    z.object({ tenantId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: row } = await (supabase as any)
+      .from("business_profiles_v2")
+      .select("*")
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
+    return { profile: row ?? null };
+  });
+
+export const upsertBusinessProfileV2 = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: {
+      tenantId: string;
+      patch: unknown;
+      status?: "draft" | "review_ready" | "approved" | "locked";
+    }) =>
+      z
+        .object({
+          tenantId: z.string().uuid(),
+          patch: z.unknown(),
+          status: z
+            .enum(["draft", "review_ready", "approved", "locked"])
+            .optional(),
+        })
+        .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+    // Validate patch against schema (partial-friendly because each section has defaults)
+    const parsed = BusinessProfileSchema.parse({
+      ...EMPTY,
+      ...(typeof data.patch === "object" && data.patch !== null ? data.patch : {}),
+    });
+
+    const row: Record<string, unknown> = {
+      tenant_id: data.tenantId,
+      business_identity: parsed.business_identity,
+      offer_profile: parsed.offer_profile,
+      icp_profile: parsed.icp_profile,
+      location_profile: parsed.location_profile,
+      conversion_profile: parsed.conversion_profile,
+      proof_profile: parsed.proof_profile,
+      claim_guardrails: parsed.claim_guardrails,
+      strategy_angles: parsed.strategy_angles,
+      missing_context: parsed.missing_context,
+      locked_fields: parsed.locked_fields,
+    };
+    if (data.status) row.status = data.status;
+
+    const { error } = await admin
+      .from("business_profiles_v2")
+      .upsert(row, { onConflict: "tenant_id" });
+    if (error) throw error;
+    return { ok: true };
+  });
+
+export const setBusinessProfileStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: {
+      tenantId: string;
+      status: "draft" | "review_ready" | "approved" | "locked";
+    }) =>
+      z
+        .object({
+          tenantId: z.string().uuid(),
+          status: z.enum(["draft", "review_ready", "approved", "locked"]),
+        })
+        .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+    const { error } = await admin
+      .from("business_profiles_v2")
+      .update({ status: data.status })
+      .eq("tenant_id", data.tenantId);
+    if (error) throw error;
+    return { ok: true };
+  });
+
+export const lockBusinessProfileField = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { tenantId: string; fieldPath: string; lock: boolean }) =>
+    z
+      .object({
+        tenantId: z.string().uuid(),
+        fieldPath: z.string().min(1).max(120),
+        lock: z.boolean(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+    const { data: row } = await admin
+      .from("business_profiles_v2")
+      .select("locked_fields")
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
+    const current: string[] = Array.isArray(row?.locked_fields)
+      ? (row!.locked_fields as string[])
+      : [];
+    const next = data.lock
+      ? Array.from(new Set([...current, data.fieldPath]))
+      : current.filter((f) => f !== data.fieldPath);
+    const { error } = await admin
+      .from("business_profiles_v2")
+      .upsert(
+        { tenant_id: data.tenantId, locked_fields: next },
+        { onConflict: "tenant_id" },
+      );
+    if (error) throw error;
+    return { ok: true, locked_fields: next };
+  });
+
+export const listBusinessProfileSuggestions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { tenantId: string; status?: string }) =>
+    z
+      .object({
+        tenantId: z.string().uuid(),
+        status: z.string().max(40).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q = (supabase as any)
+      .from("business_profile_suggestions")
+      .select("*")
+      .eq("tenant_id", data.tenantId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (data.status) q = q.eq("status", data.status);
+    const { data: rows } = await q;
+    return { suggestions: rows ?? [] };
+  });
+
+export const acceptBusinessProfileSuggestion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { tenantId: string; suggestionId: string }) =>
+    z
+      .object({ tenantId: z.string().uuid(), suggestionId: z.string().uuid() })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+    const { error } = await admin
+      .from("business_profile_suggestions")
+      .update({ status: "accepted", decided_at: new Date().toISOString(), decided_by: userId })
+      .eq("id", data.suggestionId)
+      .eq("tenant_id", data.tenantId);
+    if (error) throw error;
+    await admin.from("business_profile_feedback").insert({
+      tenant_id: data.tenantId,
+      suggestion_id: data.suggestionId,
+      feedback_type: "accepted",
+      created_by: userId,
+    });
+    return { ok: true };
+  });
+
+export const rejectBusinessProfileSuggestion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { tenantId: string; suggestionId: string; reason?: string }) =>
+      z
+        .object({
+          tenantId: z.string().uuid(),
+          suggestionId: z.string().uuid(),
+          reason: z.string().max(800).optional(),
+        })
+        .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+    const { error } = await admin
+      .from("business_profile_suggestions")
+      .update({ status: "rejected", decided_at: new Date().toISOString(), decided_by: userId })
+      .eq("id", data.suggestionId)
+      .eq("tenant_id", data.tenantId);
+    if (error) throw error;
+    await admin.from("business_profile_feedback").insert({
+      tenant_id: data.tenantId,
+      suggestion_id: data.suggestionId,
+      feedback_type: "rejected",
+      reason: data.reason ?? null,
+      created_by: userId,
+    });
+    return { ok: true };
+  });
