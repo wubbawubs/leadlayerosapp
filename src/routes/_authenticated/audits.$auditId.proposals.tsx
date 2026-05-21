@@ -6,7 +6,8 @@ import { toast } from "sonner";
 
 import {
   decideProposal,
-  generateProposals,
+  generateProposalsForPage,
+  listEligibleAuditPages,
   listProposals,
 } from "@/lib/shared/db/repos/proposals.functions";
 
@@ -35,6 +36,13 @@ type GroupRow = {
   created_at: string;
 };
 
+type Progress = {
+  total: number;
+  done: number;
+  created: number;
+  errors: { url: string; message: string }[];
+};
+
 function parseJsonSafe(s: string): unknown {
   try {
     return JSON.parse(s);
@@ -47,26 +55,59 @@ function ProposalsPage() {
   const { auditId } = Route.useParams();
   const qc = useQueryClient();
   const fetchList = useServerFn(listProposals);
-  const runGenerate = useServerFn(generateProposals);
+  const fetchPages = useServerFn(listEligibleAuditPages);
+  const runOne = useServerFn(generateProposalsForPage);
   const runDecide = useServerFn(decideProposal);
   const [filter, setFilter] = useState<"all" | "draft" | "approved" | "rejected">("all");
+  const [progress, setProgress] = useState<Progress | null>(null);
+  const [running, setRunning] = useState(false);
 
   const q = useQuery({
     queryKey: ["proposals", auditId],
     queryFn: () => fetchList({ data: { auditId } }),
   });
 
-  const generateMut = useMutation({
-    mutationFn: () => runGenerate({ data: { auditId } }),
-    onSuccess: (r) => {
+  async function runGenerate() {
+    setRunning(true);
+    setProgress(null);
+    try {
+      const { pages } = await fetchPages({ data: { auditId } });
+      if (pages.length === 0) {
+        toast.info("No pages with issues to process");
+        setRunning(false);
+        return;
+      }
+      const p: Progress = { total: pages.length, done: 0, created: 0, errors: [] };
+      setProgress({ ...p });
+      for (const page of pages) {
+        try {
+          const r = await runOne({
+            data: { auditId, auditPageId: page.id },
+          });
+          if (r.ok) {
+            p.created += r.proposalsCreated;
+          } else {
+            p.errors.push({ url: page.url, message: r.error });
+          }
+        } catch (e) {
+          p.errors.push({
+            url: page.url,
+            message: e instanceof Error ? e.message : "Unknown error",
+          });
+        }
+        p.done += 1;
+        setProgress({ ...p });
+        qc.invalidateQueries({ queryKey: ["proposals", auditId] });
+      }
       toast.success(
-        `Generated ${r.proposalsCreated} proposals across ${r.groupsCreated} groups${r.errors ? ` (${r.errors} errors)` : ""}`,
+        `Done: ${p.created} proposals across ${p.done} pages${p.errors.length ? ` (${p.errors.length} errors)` : ""}`,
       );
-      qc.invalidateQueries({ queryKey: ["proposals", auditId] });
-    },
-    onError: (e: unknown) =>
-      toast.error(e instanceof Error ? e.message : "Failed to generate proposals"),
-  });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to generate proposals");
+    } finally {
+      setRunning(false);
+    }
+  }
 
   const decideMut = useMutation({
     mutationFn: (v: { proposalId: string; decision: "approved" | "rejected" }) =>
@@ -128,17 +169,52 @@ function ProposalsPage() {
           </p>
         </div>
         <button
-          onClick={() => generateMut.mutate()}
-          disabled={generateMut.isPending}
+          onClick={runGenerate}
+          disabled={running}
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
-          {generateMut.isPending
-            ? "Generating…"
+          {running
+            ? progress
+              ? `Generating ${progress.done}/${progress.total}…`
+              : "Starting…"
             : proposals.length > 0
               ? "Re-generate proposals"
               : "Generate proposals"}
         </button>
       </div>
+
+      {progress && (
+        <div className="mb-6 rounded-md border border-border bg-card/70 p-4">
+          <div className="mb-2 flex items-center justify-between text-sm">
+            <span className="text-foreground">
+              {progress.done}/{progress.total} pages · {progress.created} proposals
+              {progress.errors.length > 0 && ` · ${progress.errors.length} errors`}
+            </span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded bg-muted">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{
+                width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%`,
+              }}
+            />
+          </div>
+          {progress.errors.length > 0 && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs text-destructive">
+                {progress.errors.length} error{progress.errors.length === 1 ? "" : "s"}
+              </summary>
+              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {progress.errors.map((er, i) => (
+                  <li key={i} className="font-mono">
+                    <span className="text-foreground">{er.url}</span>: {er.message}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
 
       <div className="mb-6 flex gap-2">
         {(["all", "draft", "approved", "rejected"] as const).map((f) => (
