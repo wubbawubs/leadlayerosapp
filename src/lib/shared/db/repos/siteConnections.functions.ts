@@ -140,8 +140,17 @@ export const probeSiteConnection = createServerFn({ method: "POST" })
     const probeUrl = `${conn.base_url.replace(/\/+$/, "")}/wp-json/wp/v2/users/me?context=edit`;
     const startedAt = Date.now();
 
+    type ProbeResult = {
+      ok: boolean;
+      httpStatus?: number;
+      elapsedMs: number;
+      error?: string;
+      body?: string;
+      user?: { id?: number; name?: string; slug?: string; roles: string[] };
+    };
     let status: "connected" | "error" = "error";
-    let probeResult: Record<string, unknown> = {};
+    let probeResult: ProbeResult = { ok: false, elapsedMs: 0 };
+
 
     try {
       const ctrl = new AbortController();
