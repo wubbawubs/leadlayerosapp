@@ -117,14 +117,18 @@ export async function generateProposalsForAuditPage(
     .eq("audit_page_id", auditPageId)
     .eq("status", "draft");
 
+  const ctx = await getProposalContext(audit.tenant_id, pageRow.id);
+  const contextBlock = renderContextForPrompt(ctx);
+
   const result = await llmComplete({
     task: "cheap",
     system:
       "You are an expert SEO consultant. Output ONLY valid JSON matching the requested schema. Never include explanatory text.",
-    prompt: buildPrompt(pageRow),
+    prompt: buildPrompt(pageRow, contextBlock),
     temperature: 0.3,
     maxTokens: 1200,
   });
+
   const parsed = ResponseSchema.parse(extractJson(result.text));
   console.log(`[proposals] page=${pageRow.url} got=${parsed.proposals.length}`);
 
