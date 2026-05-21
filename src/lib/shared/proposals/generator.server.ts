@@ -5,6 +5,11 @@
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { llmComplete } from "@/lib/shared/llm/router.server";
+import {
+  getProposalContext,
+  renderContextForPrompt,
+} from "@/lib/shared/proposals/context.server";
+
 
 const ProposalSchema = z.object({
   proposal_type: z.enum(["meta_description", "alt_text", "schema", "title", "h1", "other"]),
