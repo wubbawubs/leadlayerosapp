@@ -96,6 +96,19 @@ function extractJson(text: string): unknown {
   }
 }
 
+function normalizeAnalyzerError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/upstream request timeout|timed out|abort/i.test(message)) {
+    return new Error(
+      "Analyzer duurde te lang. Ik heb de site-scan begrensd; probeer opnieuw. Als dit blijft gebeuren, analyseer eerst minder pagina's of voer een kleinere audit uit.",
+    );
+  }
+  if (/LLM gateway 5\d\d|fetch failed|network/i.test(message)) {
+    return new Error("AI-service reageerde niet stabiel. Probeer de analyse over een minuut opnieuw.");
+  }
+  return error instanceof Error ? error : new Error(message);
+}
+
 function isLocked(fieldPath: string, lockedFields: string[]): boolean {
   if (lockedFields.includes(fieldPath)) return true;
   // ancestor lock — e.g. lock on "offer_profile" blocks "offer_profile.primaryOffer"
