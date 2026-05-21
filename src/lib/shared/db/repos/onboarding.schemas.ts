@@ -1,12 +1,13 @@
 import { z } from "zod";
 
-export const GEO_OPTIONS = ["NL", "BE", "DE", "UK", "US"] as const;
+export const GEO_OPTIONS = ["NL", "US"] as const;
 export const VERTICAL_OPTIONS = [
   "home_services",
-  "professional_services",
-  "health",
-  "hospitality",
-  "ecommerce",
+  "healthcare",
+  "legal",
+  "insurance",
+  "consulting",
+  "b2b",
   "other",
 ] as const;
 

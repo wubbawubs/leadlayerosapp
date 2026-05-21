@@ -19,7 +19,7 @@ export const getActiveOnboarding = createServerFn({ method: "GET" })
       .from("onboarding_sessions")
       .select("id, site_url, geo, vertical, status, tenant_id, created_at")
       .eq("user_id", userId)
-      .neq("status", "completed")
+      .neq("status", "tenant_created")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -37,7 +37,7 @@ async function ensureSession(
     .from("onboarding_sessions")
     .select("id")
     .eq("user_id", userId)
-    .neq("status", "completed")
+    .neq("status", "tenant_created")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -60,7 +60,7 @@ export const saveBusinessStep = createServerFn({ method: "POST" })
     const sessionId = await ensureSession(supabase, userId);
     const { error } = await supabase
       .from("onboarding_sessions")
-      .update({ geo: data.geo, vertical: data.vertical, status: "business" })
+      .update({ geo: data.geo, vertical: data.vertical, status: "started" })
       .eq("id", sessionId);
     if (error) throw error;
     return { sessionId, name: data.name };
@@ -78,7 +78,7 @@ export const saveSiteStep = createServerFn({ method: "POST" })
       .from("onboarding_sessions")
       .select("id, geo, vertical")
       .eq("user_id", userId)
-      .neq("status", "completed")
+      .neq("status", "tenant_created")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -98,7 +98,7 @@ export const saveSiteStep = createServerFn({ method: "POST" })
       .update({
         site_url: data.site_url,
         tenant_id: tenantId as string,
-        status: "completed",
+        status: "tenant_created",
       })
       .eq("id", session.id);
     if (uErr) throw uErr;
