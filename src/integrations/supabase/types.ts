@@ -386,6 +386,7 @@ export type Database = {
           business_identity: Json
           claim_guardrails: Json
           confidence_map: Json
+          confidence_reasons: Json
           confidence_score: number
           conversion_profile: Json
           created_at: string
@@ -406,6 +407,7 @@ export type Database = {
           business_identity?: Json
           claim_guardrails?: Json
           confidence_map?: Json
+          confidence_reasons?: Json
           confidence_score?: number
           conversion_profile?: Json
           created_at?: string
@@ -426,6 +428,7 @@ export type Database = {
           business_identity?: Json
           claim_guardrails?: Json
           confidence_map?: Json
+          confidence_reasons?: Json
           confidence_score?: number
           conversion_profile?: Json
           created_at?: string
