@@ -32,6 +32,7 @@ function SitesPage() {
   const fetchSites = useServerFn(listSiteConnections);
   const create = useServerFn(createSiteConnection);
   const probe = useServerFn(probeSiteConnection);
+  const startOAuth = useServerFn(startWpcomOAuth);
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
