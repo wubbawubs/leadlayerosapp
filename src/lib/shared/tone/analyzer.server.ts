@@ -303,7 +303,20 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
       if (r) scored.push(r);
     }
     if (scored.length === 0) {
-      throw new Error("Alle samples scoorden te laag op kwaliteit. Verbeter de site of voeg handmatige samples toe.");
+      // Fallback: keep top 3 longest raw samples so we can still extract a profile.
+      const fallback = [...rawSamples]
+        .sort((a, b) => b.text.length - a.text.length)
+        .slice(0, 3)
+        .map<ScoredSample>((s) => ({
+          ...s,
+          quality: 4,
+          weight: 0.5,
+          analysis: { fallback: true },
+        }));
+      if (fallback.length === 0) {
+        throw new Error("Kon geen bruikbare pagina-content vinden.");
+      }
+      scored.push(...fallback);
     }
 
     // 4. Extract full profile
