@@ -14,9 +14,9 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedSitesRouteImport } from './routes/_authenticated/sites'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedSitesIndexRouteImport } from './routes/_authenticated/sites.index'
 import { Route as AuthenticatedSitesNewRouteImport } from './routes/_authenticated/sites.new'
 import { Route as AuthenticatedOnboardingWelcomeRouteImport } from './routes/_authenticated/onboarding.welcome'
 import { Route as AuthenticatedOnboardingSiteRouteImport } from './routes/_authenticated/onboarding.site'
@@ -50,11 +50,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedSitesRoute = AuthenticatedSitesRouteImport.update({
-  id: '/sites',
-  path: '/sites',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -65,10 +60,15 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   path: '/app',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSitesIndexRoute = AuthenticatedSitesIndexRouteImport.update({
+  id: '/sites/',
+  path: '/sites/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedSitesNewRoute = AuthenticatedSitesNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => AuthenticatedSitesRoute,
+  id: '/sites/new',
+  path: '/sites/new',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedOnboardingWelcomeRoute =
   AuthenticatedOnboardingWelcomeRouteImport.update({
@@ -107,9 +107,9 @@ const ApiPublicWpcomCallbackRoute = ApiPublicWpcomCallbackRouteImport.update({
 } as any)
 const AuthenticatedSitesSiteIdAuditsRoute =
   AuthenticatedSitesSiteIdAuditsRouteImport.update({
-    id: '/$siteId/audits',
-    path: '/$siteId/audits',
-    getParentRoute: () => AuthenticatedSitesRoute,
+    id: '/sites/$siteId/audits',
+    path: '/sites/$siteId/audits',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -119,13 +119,13 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
-  '/sites': typeof AuthenticatedSitesRouteWithChildren
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
+  '/sites/': typeof AuthenticatedSitesIndexRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
@@ -136,13 +136,13 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
-  '/sites': typeof AuthenticatedSitesRouteWithChildren
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
+  '/sites': typeof AuthenticatedSitesIndexRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
@@ -155,13 +155,13 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
-  '/_authenticated/sites': typeof AuthenticatedSitesRouteWithChildren
   '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/_authenticated/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/_authenticated/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/_authenticated/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
+  '/_authenticated/sites/': typeof AuthenticatedSitesIndexRoute
   '/_authenticated/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
 }
@@ -174,13 +174,13 @@ export interface FileRouteTypes {
     | '/signup'
     | '/app'
     | '/onboarding'
-    | '/sites'
     | '/audits/$auditId'
     | '/onboarding/business'
     | '/onboarding/done'
     | '/onboarding/site'
     | '/onboarding/welcome'
     | '/sites/new'
+    | '/sites/'
     | '/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
   fileRoutesByTo: FileRoutesByTo
@@ -191,13 +191,13 @@ export interface FileRouteTypes {
     | '/signup'
     | '/app'
     | '/onboarding'
-    | '/sites'
     | '/audits/$auditId'
     | '/onboarding/business'
     | '/onboarding/done'
     | '/onboarding/site'
     | '/onboarding/welcome'
     | '/sites/new'
+    | '/sites'
     | '/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
   id:
@@ -209,13 +209,13 @@ export interface FileRouteTypes {
     | '/signup'
     | '/_authenticated/app'
     | '/_authenticated/onboarding'
-    | '/_authenticated/sites'
     | '/_authenticated/audits/$auditId'
     | '/_authenticated/onboarding/business'
     | '/_authenticated/onboarding/done'
     | '/_authenticated/onboarding/site'
     | '/_authenticated/onboarding/welcome'
     | '/_authenticated/sites/new'
+    | '/_authenticated/sites/'
     | '/_authenticated/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
   fileRoutesById: FileRoutesById
@@ -266,13 +266,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/sites': {
-      id: '/_authenticated/sites'
-      path: '/sites'
-      fullPath: '/sites'
-      preLoaderRoute: typeof AuthenticatedSitesRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/onboarding': {
       id: '/_authenticated/onboarding'
       path: '/onboarding'
@@ -287,12 +280,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/sites/': {
+      id: '/_authenticated/sites/'
+      path: '/sites'
+      fullPath: '/sites/'
+      preLoaderRoute: typeof AuthenticatedSitesIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/sites/new': {
       id: '/_authenticated/sites/new'
-      path: '/new'
+      path: '/sites/new'
       fullPath: '/sites/new'
       preLoaderRoute: typeof AuthenticatedSitesNewRouteImport
-      parentRoute: typeof AuthenticatedSitesRoute
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/onboarding/welcome': {
       id: '/_authenticated/onboarding/welcome'
@@ -338,10 +338,10 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/sites/$siteId/audits': {
       id: '/_authenticated/sites/$siteId/audits'
-      path: '/$siteId/audits'
+      path: '/sites/$siteId/audits'
       fullPath: '/sites/$siteId/audits'
       preLoaderRoute: typeof AuthenticatedSitesSiteIdAuditsRouteImport
-      parentRoute: typeof AuthenticatedSitesRoute
+      parentRoute: typeof AuthenticatedRoute
     }
   }
 }
@@ -366,31 +366,22 @@ const AuthenticatedOnboardingRouteWithChildren =
     AuthenticatedOnboardingRouteChildren,
   )
 
-interface AuthenticatedSitesRouteChildren {
-  AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
-  AuthenticatedSitesSiteIdAuditsRoute: typeof AuthenticatedSitesSiteIdAuditsRoute
-}
-
-const AuthenticatedSitesRouteChildren: AuthenticatedSitesRouteChildren = {
-  AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
-  AuthenticatedSitesSiteIdAuditsRoute: AuthenticatedSitesSiteIdAuditsRoute,
-}
-
-const AuthenticatedSitesRouteWithChildren =
-  AuthenticatedSitesRoute._addFileChildren(AuthenticatedSitesRouteChildren)
-
 interface AuthenticatedRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRouteWithChildren
-  AuthenticatedSitesRoute: typeof AuthenticatedSitesRouteWithChildren
   AuthenticatedAuditsAuditIdRoute: typeof AuthenticatedAuditsAuditIdRoute
+  AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
+  AuthenticatedSitesIndexRoute: typeof AuthenticatedSitesIndexRoute
+  AuthenticatedSitesSiteIdAuditsRoute: typeof AuthenticatedSitesSiteIdAuditsRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRouteWithChildren,
-  AuthenticatedSitesRoute: AuthenticatedSitesRouteWithChildren,
   AuthenticatedAuditsAuditIdRoute: AuthenticatedAuditsAuditIdRoute,
+  AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
+  AuthenticatedSitesIndexRoute: AuthenticatedSitesIndexRoute,
+  AuthenticatedSitesSiteIdAuditsRoute: AuthenticatedSitesSiteIdAuditsRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -408,3 +399,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
