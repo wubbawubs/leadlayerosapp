@@ -153,6 +153,8 @@ async function fetchRawSamples(picks: Array<{ url: string; source_type: SampleSo
 async function scoreSample(sample: RawSample): Promise<ScoredSample | null> {
   const prompt = [
     "Beoordeel de bruikbaarheid van deze webpagina-tekst als 'brand voice sample'.",
+    "Wees mild: een normale commerciële pagina met >100 woorden eigen tekst is al bruikbaar (quality 5-7).",
+    "Geef alleen quality < 3 als de pagina vrijwel geen leesbare tekst bevat (cookie banner, 404, lege pagina).",
     "Output uitsluitend JSON:",
     `{"quality": 0-10, "isCommercial": true|false, "isGeneric": true|false, "language": "nl"|"en"|...}`,
     "",
@@ -161,10 +163,12 @@ async function scoreSample(sample: RawSample): Promise<ScoredSample | null> {
     "",
     sample.text.slice(0, 2500),
   ].join("\n");
+  let quality = 4;
+  let analysis: Record<string, unknown> = {};
   try {
     const r = await llmComplete({
       task: "cheap",
-      system: "Je beoordeelt teksten kort en streng. Output uitsluitend valide JSON.",
+      system: "Je beoordeelt teksten kort en mild. Output uitsluitend valide JSON.",
       prompt,
       temperature: 0.1,
       maxTokens: 200,
@@ -175,23 +179,20 @@ async function scoreSample(sample: RawSample): Promise<ScoredSample | null> {
       isGeneric?: boolean;
       language?: string;
     };
-    const quality = Math.max(0, Math.min(10, Number(j.quality ?? 0)));
-    if (quality < 5) return null;
-    const weight = j.isGeneric ? Math.max(0.3, quality / 15) : quality / 10;
-    return {
-      ...sample,
-      quality,
-      weight,
-      analysis: {
-        isCommercial: !!j.isCommercial,
-        isGeneric: !!j.isGeneric,
-        language: j.language ?? null,
-      },
+    quality = Math.max(0, Math.min(10, Number(j.quality ?? 4)));
+    analysis = {
+      isCommercial: !!j.isCommercial,
+      isGeneric: !!j.isGeneric,
+      language: j.language ?? null,
     };
   } catch (e) {
-    console.error("[tone] sample scoring failed", sample.url, (e as Error).message);
-    return null;
+    console.error("[tone] sample scoring failed, using fallback", sample.url, (e as Error).message);
   }
+  // Lenient threshold: drop only if both low score AND very little text.
+  if (quality < 3 && sample.text.length < 300) return null;
+  const isGeneric = (analysis as { isGeneric?: boolean }).isGeneric;
+  const weight = isGeneric ? Math.max(0.3, quality / 15) : Math.max(0.4, quality / 10);
+  return { ...sample, quality, weight, analysis };
 }
 
 function buildExtractPrompt(samples: ScoredSample[], locale: string): string {
@@ -302,7 +303,20 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
       if (r) scored.push(r);
     }
     if (scored.length === 0) {
-      throw new Error("Alle samples scoorden te laag op kwaliteit. Verbeter de site of voeg handmatige samples toe.");
+      // Fallback: keep top 3 longest raw samples so we can still extract a profile.
+      const fallback = [...rawSamples]
+        .sort((a, b) => b.text.length - a.text.length)
+        .slice(0, 3)
+        .map<ScoredSample>((s) => ({
+          ...s,
+          quality: 4,
+          weight: 0.5,
+          analysis: { fallback: true },
+        }));
+      if (fallback.length === 0) {
+        throw new Error("Kon geen bruikbare pagina-content vinden.");
+      }
+      scored.push(...fallback);
     }
 
     // 4. Extract full profile
