@@ -57,6 +57,38 @@ function ToneProfilePage() {
     enabled: !!tenantId,
   });
 
+  const samplesQuery = useQuery({
+    queryKey: ["tone-samples", tenantId],
+    queryFn: () => (tenantId ? fetchSamples({ data: { tenantId } }) : Promise.resolve({ samples: [] })),
+    enabled: !!tenantId,
+  });
+
+  const [pasteText, setPasteText] = useState("");
+  const [pasteUrl, setPasteUrl] = useState("");
+  const [pasteLabel, setPasteLabel] = useState("");
+  const addSampleMut = useMutation({
+    mutationFn: () =>
+      addSample({
+        data: {
+          tenantId: tenantId!,
+          text: pasteText,
+          sourceUrl: pasteUrl || undefined,
+          label: pasteLabel || undefined,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Sample toegevoegd. Klik 'Re-analyze' om mee te nemen.");
+      setPasteText(""); setPasteUrl(""); setPasteLabel("");
+      qc.invalidateQueries({ queryKey: ["tone-samples", tenantId] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const deleteSampleMut = useMutation({
+    mutationFn: (sampleId: string) => deleteSample({ data: { tenantId: tenantId!, sampleId } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tone-samples", tenantId] }),
+  });
+
+
   const [draft, setDraft] = useState<ToneProfile | null>(null);
   const [dirty, setDirty] = useState(false);
 
