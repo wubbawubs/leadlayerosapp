@@ -433,9 +433,13 @@ export async function analyzeBusinessProfileFromWebsite(input: {
 
   // 8. Update profile metadata (strategy_angles, missing_context, confidence_map)
   //    Only if those fields are NOT locked.
+  const sectionConfidence10: Record<string, number> = {};
+  for (const [k, v] of Object.entries(parsed.sectionConfidence)) {
+    sectionConfidence10[k] = Math.round(Math.max(0, Math.min(1, Number(v))) * 100) / 10;
+  }
   const updates: Record<string, unknown> = {
     confidence_score: Math.round(parsed.overallConfidence * 100) / 10, // 0-10 scale
-    confidence_map: parsed.sectionConfidence,
+    confidence_map: sectionConfidence10,
   };
   if (!isLocked("strategy_angles", lockedFields)) {
     updates.strategy_angles = parsed.strategyAngles;
