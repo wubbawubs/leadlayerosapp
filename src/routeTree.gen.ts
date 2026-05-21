@@ -18,6 +18,7 @@ import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedSitesIndexRouteImport } from './routes/_authenticated/sites.index'
 import { Route as AuthenticatedSitesNewRouteImport } from './routes/_authenticated/sites.new'
+import { Route as AuthenticatedSettingsToneProfileRouteImport } from './routes/_authenticated/settings.tone-profile'
 import { Route as AuthenticatedSettingsBusinessProfileRouteImport } from './routes/_authenticated/settings.business-profile'
 import { Route as AuthenticatedOnboardingWelcomeRouteImport } from './routes/_authenticated/onboarding.welcome'
 import { Route as AuthenticatedOnboardingSiteRouteImport } from './routes/_authenticated/onboarding.site'
@@ -72,6 +73,12 @@ const AuthenticatedSitesNewRoute = AuthenticatedSitesNewRouteImport.update({
   path: '/sites/new',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSettingsToneProfileRoute =
+  AuthenticatedSettingsToneProfileRouteImport.update({
+    id: '/settings/tone-profile',
+    path: '/settings/tone-profile',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedSettingsBusinessProfileRoute =
   AuthenticatedSettingsBusinessProfileRouteImport.update({
     id: '/settings/business-profile',
@@ -139,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
+  '/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/sites/': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
@@ -158,6 +166,7 @@ export interface FileRoutesByTo {
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
+  '/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/sites': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
@@ -179,6 +188,7 @@ export interface FileRoutesById {
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/_authenticated/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/_authenticated/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
+  '/_authenticated/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
   '/_authenticated/sites/': typeof AuthenticatedSitesIndexRoute
   '/_authenticated/audits/$auditId_/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/onboarding/site'
     | '/onboarding/welcome'
     | '/settings/business-profile'
+    | '/settings/tone-profile'
     | '/sites/new'
     | '/sites/'
     | '/audits/$auditId/proposals'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/onboarding/site'
     | '/onboarding/welcome'
     | '/settings/business-profile'
+    | '/settings/tone-profile'
     | '/sites/new'
     | '/sites'
     | '/audits/$auditId/proposals'
@@ -239,6 +251,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding/site'
     | '/_authenticated/onboarding/welcome'
     | '/_authenticated/settings/business-profile'
+    | '/_authenticated/settings/tone-profile'
     | '/_authenticated/sites/new'
     | '/_authenticated/sites/'
     | '/_authenticated/audits/$auditId_/proposals'
@@ -318,6 +331,13 @@ declare module '@tanstack/react-router' {
       path: '/sites/new'
       fullPath: '/sites/new'
       preLoaderRoute: typeof AuthenticatedSitesNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings/tone-profile': {
+      id: '/_authenticated/settings/tone-profile'
+      path: '/settings/tone-profile'
+      fullPath: '/settings/tone-profile'
+      preLoaderRoute: typeof AuthenticatedSettingsToneProfileRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/settings/business-profile': {
@@ -411,6 +431,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRouteWithChildren
   AuthenticatedAuditsAuditIdRoute: typeof AuthenticatedAuditsAuditIdRoute
   AuthenticatedSettingsBusinessProfileRoute: typeof AuthenticatedSettingsBusinessProfileRoute
+  AuthenticatedSettingsToneProfileRoute: typeof AuthenticatedSettingsToneProfileRoute
   AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
   AuthenticatedSitesIndexRoute: typeof AuthenticatedSitesIndexRoute
   AuthenticatedAuditsAuditIdProposalsRoute: typeof AuthenticatedAuditsAuditIdProposalsRoute
@@ -423,6 +444,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditsAuditIdRoute: AuthenticatedAuditsAuditIdRoute,
   AuthenticatedSettingsBusinessProfileRoute:
     AuthenticatedSettingsBusinessProfileRoute,
+  AuthenticatedSettingsToneProfileRoute: AuthenticatedSettingsToneProfileRoute,
   AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
   AuthenticatedSitesIndexRoute: AuthenticatedSitesIndexRoute,
   AuthenticatedAuditsAuditIdProposalsRoute:
