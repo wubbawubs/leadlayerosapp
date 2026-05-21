@@ -579,34 +579,67 @@ export async function analyzeBusinessProfileFromWebsite(input: {
   }
   const aggregated = aggregateLists(observed);
 
-  // 4. LLM synthesis
-  const prompt = buildPrompt({
+  // 4. LLM synthesis — in 2 stages om scope te kunnen behouden zonder één call alles te laten opeten.
+  const promptInput = {
     observed,
     aggregated,
     currentProfile: currentProfile ?? null,
     lockedFields,
     toneContext,
     recentRejections,
-  });
-  const llm = await llmComplete({
+  };
+
+  const systemMsg =
+    "Je bent een growth-strateeg die websitecontent vertaalt naar een gestructureerd business profile. Je verzint NOOIT bewijs. Je respecteert het Tone Profile letterlijk. Output uitsluitend valide JSON.";
+
+  // Stage A — feiten-extractie (grootste payload, krijgt ruim budget)
+  const llmA = await llmComplete({
     task: "cheap",
-    system:
-      "Je bent een growth-strateeg die websitecontent vertaalt naar een gestructureerd business profile. Je verzint NOOIT bewijs. Je respecteert het Tone Profile letterlijk. Output uitsluitend valide JSON.",
-    prompt,
+    system: systemMsg,
+    prompt: buildExtractionPrompt(promptInput),
     temperature: 0.2,
-    maxTokens: 4200,
+    maxTokens: 6000,
     jsonMode: true,
-    timeoutMs: 25_000,
+    timeoutMs: 75_000,
     retries: 0,
   });
-
-  let parsed: AnalysisResult;
+  let extraction: z.infer<typeof ExtractionResultSchema>;
   try {
-    parsed = AnalysisResultSchema.parse(extractJson(llm.text));
+    extraction = ExtractionResultSchema.parse(extractJson(llmA.text));
   } catch (e) {
-    console.error("[bp-2] parse failed, raw:", llm.text?.slice(0, 1000));
-    throw new Error(`Analyzer JSON ongeldig: ${(e as Error).message}`);
+    console.error("[bp-2] stage A parse failed, raw:", llmA.text?.slice(0, 1000));
+    throw new Error(`Analyzer Stage A JSON ongeldig: ${(e as Error).message}`);
   }
+
+  // Stage B — strategie + missing context + sectionReasons (kleinere payload, sneller)
+  const llmB = await llmComplete({
+    task: "cheap",
+    system: systemMsg,
+    prompt: buildStrategyPrompt(promptInput, extraction),
+    temperature: 0.3,
+    maxTokens: 3500,
+    jsonMode: true,
+    timeoutMs: 60_000,
+    retries: 0,
+  });
+  let strategy: z.infer<typeof StrategyResultSchema>;
+  try {
+    strategy = StrategyResultSchema.parse(extractJson(llmB.text));
+  } catch (e) {
+    console.error("[bp-2] stage B parse failed, raw:", llmB.text?.slice(0, 1000));
+    // Stage B is degraded-graceful: laat extraction door, maar log
+    strategy = { strategyAngles: [], missingContext: [], sectionReasons: {} };
+  }
+
+  const parsed: AnalysisResult = {
+    fieldSuggestions: extraction.fieldSuggestions,
+    sectionConfidence: extraction.sectionConfidence,
+    overallConfidence: extraction.overallConfidence,
+    strategyAngles: strategy.strategyAngles,
+    missingContext: strategy.missingContext,
+    sectionReasons: strategy.sectionReasons,
+  };
+
 
   // 5. Ensure profile row exists (so suggestions can reference it)
   if (!currentProfile) {
