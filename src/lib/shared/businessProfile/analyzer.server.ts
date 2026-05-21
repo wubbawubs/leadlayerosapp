@@ -145,7 +145,7 @@ function setAtPath(
 // Corpus collection (reuses tone analyzer's corpus tooling)
 // ----------------------------------------------------------------------------
 
-async function pickCorpusUrls(tenantId: string): Promise<UrlPick[]> {
+async function pickCorpusUrls(tenantId: string, maxTotal = 10): Promise<UrlPick[]> {
   const { data: audit } = await supabaseAdmin
     .from("audits")
     .select("id, site_connection_id")
@@ -194,19 +194,19 @@ async function pickCorpusUrls(tenantId: string): Promise<UrlPick[]> {
   let sitemapUrls: string[] = [];
   if (origin) {
     try {
-      sitemapUrls = await discoverSitemapUrls(origin, 60);
+      sitemapUrls = await discoverSitemapUrls(origin, 32);
     } catch {
       sitemapUrls = [];
     }
   }
   const merged = [...auditUrls, ...sitemapUrls];
   if (!merged.length) return [];
-  return pickDiverse(merged, 16);
+  return pickDiverse(merged, maxTotal);
 }
 
 async function observeAll(picks: UrlPick[]): Promise<PageObservation[]> {
   const observed: PageObservation[] = [];
-  const CONCURRENCY = 4;
+  const CONCURRENCY = 3;
   for (let i = 0; i < picks.length; i += CONCURRENCY) {
     const batch = picks.slice(i, i + CONCURRENCY);
     const res = await Promise.all(batch.map((p) => observePage(p.url, p.source_type)));
