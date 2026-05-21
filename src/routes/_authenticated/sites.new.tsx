@@ -76,8 +76,10 @@ function NewSitePage() {
     e.preventDefault();
     setError(null);
     setProbeMsg(null);
+    console.log("[sites/new] submit", { tenantId, baseUrl, username, hasPw: !!appPassword });
     submit.mutate();
   }
+
 
   return (
     <div className="min-h-screen bg-background bg-blueprint">
