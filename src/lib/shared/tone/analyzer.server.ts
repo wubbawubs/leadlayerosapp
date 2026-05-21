@@ -1,40 +1,36 @@
 /**
  * Tone Profile analyzer — server-only.
  *
- * Pipeline:
- *  1. Pick up to 8 pages from the latest succeeded audit (homepage, services, blogs, about, contact).
- *  2. Fetch + extract text per page.
- *  3. Per-sample quality scoring (cheap LLM) — keep only samples with quality >= 5.
- *  4. One LLM call (pro) to extract the full tone profile JSON.
- *  5. Persist tone_profiles + tone_profile_samples; status = 'draft'.
- *
- * No mock data. Failures bubble up and mark job_status = 'failed'.
+ * V2 pipeline (evidence-first):
+ *  1. Pick up to ~18 URLs from latest audit + site sitemap (diverse bucket caps).
+ *  2. Observe each page: visible text, anchor/button CTAs, claim-bearing sentences,
+ *     headlines — all extracted from real HTML, no LLM fantasy.
+ *  3. Load manual_paste samples added by operator (high weight).
+ *  4. Lenient quality scoring per sample (cheap LLM) with fallback so we never
+ *     bail on a valid site.
+ *  5. Single synthesis call (pro) that receives the per-sample text AND the
+ *     aggregated CTA / claim / headline candidate lists. The model picks from
+ *     these candidates instead of inventing them.
+ *  6. Persist tone_profiles + tone_profile_samples.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { llmComplete } from "@/lib/shared/llm/router.server";
-import { extract } from "@/lib/shared/audits/extract.server";
 import {
   ToneProfileSchema,
   type ToneProfile,
 } from "./schemas";
+import {
+  aggregateLists,
+  classifyUrl,
+  discoverSitemapUrls,
+  observePage,
+  pickDiverse,
+  type PageObservation,
+  type SampleSource,
+  type UrlPick,
+} from "./corpus.server";
 
-type SampleSource =
-  | "homepage"
-  | "service"
-  | "blog"
-  | "about"
-  | "contact"
-  | "manual_paste"
-  | "approved_proposal"
-  | "other";
-
-interface RawSample {
-  url: string;
-  source_type: SampleSource;
-  text: string;
-}
-
-interface ScoredSample extends RawSample {
+interface ScoredObservation extends PageObservation {
   quality: number; // 0-10
   weight: number;
   analysis: Record<string, unknown>;
@@ -65,109 +61,98 @@ function extractJson(text: string): unknown {
   }
 }
 
-async function fetchHtml(url: string, timeoutMs = 8000): Promise<string | null> {
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      headers: { "user-agent": "LeadLayerBot/1.0 (+tone-analyzer)" },
-      signal: ctl.signal,
-    });
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-function classifyUrl(url: string): SampleSource {
-  const u = url.toLowerCase();
-  try {
-    const parsed = new URL(u);
-    if (parsed.pathname === "/" || parsed.pathname === "") return "homepage";
-    if (/blog|nieuws|news|artikel/.test(parsed.pathname)) return "blog";
-    if (/about|over|team/.test(parsed.pathname)) return "about";
-    if (/contact/.test(parsed.pathname)) return "contact";
-    if (/diensten|service|product/.test(parsed.pathname)) return "service";
-  } catch {
-    // ignore
-  }
-  return "other";
-}
-
-function htmlToVisibleText(html: string): string {
-  // Strip script/style and tags. Cheap but effective for sample purposes.
-  const noScript = html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ");
-  const text = noScript.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  return text;
-}
-
-async function pickSampleUrls(tenantId: string): Promise<Array<{ url: string; source_type: SampleSource }>> {
+async function pickFromAuditAndSitemap(tenantId: string): Promise<UrlPick[]> {
+  // 1) Latest succeeded audit pages
   const { data: audit } = await supabaseAdmin
     .from("audits")
-    .select("id")
+    .select("id, site_id")
     .eq("tenant_id", tenantId)
     .eq("status", "succeeded")
     .order("finished_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (!audit?.id) return [];
 
-  const { data: pages } = await supabaseAdmin
-    .from("audit_pages")
-    .select("url")
-    .eq("audit_id", audit.id)
-    .limit(40);
+  const auditUrls: string[] = [];
+  let origin: string | null = null;
+  if (audit?.id) {
+    const { data: pages } = await supabaseAdmin
+      .from("audit_pages")
+      .select("url")
+      .eq("audit_id", audit.id)
+      .limit(60);
+    for (const p of pages ?? []) {
+      const u = p.url as string;
+      auditUrls.push(u);
+      if (!origin) {
+        try {
+          origin = new URL(u).origin;
+        } catch {
+          /* skip */
+        }
+      }
+    }
+  }
 
-  const classified = (pages ?? []).map((p) => ({
-    url: p.url as string,
-    source_type: classifyUrl(p.url as string),
+  // Fallback origin via site row
+  if (!origin && audit?.site_id) {
+    const { data: site } = await supabaseAdmin
+      .from("sites")
+      .select("base_url")
+      .eq("id", audit.site_id)
+      .maybeSingle();
+    if (site?.base_url) {
+      try {
+        origin = new URL(site.base_url as string).origin;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  // 2) Sitemap discovery (broader coverage)
+  let sitemapUrls: string[] = [];
+  if (origin) {
+    try {
+      sitemapUrls = await discoverSitemapUrls(origin, 60);
+    } catch {
+      sitemapUrls = [];
+    }
+  }
+
+  // Merge with audit URLs first (likely already verified working)
+  const merged = [...auditUrls, ...sitemapUrls];
+  if (merged.length === 0) return [];
+  return pickDiverse(merged, 18);
+}
+
+interface ManualSample {
+  text: string;
+  source_url: string | null;
+  source_type: SampleSource;
+}
+
+async function loadManualSamples(tenantId: string): Promise<ManualSample[]> {
+  // Manual samples persist across runs; user can keep adding them to lift confidence.
+  const { data: existing } = await supabaseAdmin
+    .from("tone_profiles")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!existing?.id) return [];
+  const { data: rows } = await supabaseAdmin
+    .from("tone_profile_samples")
+    .select("text, source_url, source_type")
+    .eq("tone_profile_id", existing.id)
+    .in("source_type", ["manual_paste", "approved_proposal"])
+    .limit(20);
+  return (rows ?? []).map((r) => ({
+    text: (r.text as string) ?? "",
+    source_url: (r.source_url as string | null) ?? null,
+    source_type: r.source_type as SampleSource,
   }));
-
-  // Diversity-aware pick: 1 homepage, up to 3 service, up to 2 blog, 1 about, 1 contact.
-  const buckets: Record<SampleSource, number> = {
-    homepage: 1, service: 3, blog: 2, about: 1, contact: 1,
-    other: 1, manual_paste: 0, approved_proposal: 0,
-  };
-  const picked: typeof classified = [];
-  for (const c of classified) {
-    const cap = buckets[c.source_type] ?? 0;
-    const have = picked.filter((p) => p.source_type === c.source_type).length;
-    if (have < cap) picked.push(c);
-    if (picked.length >= 8) break;
-  }
-  return picked;
 }
 
-async function fetchRawSamples(picks: Array<{ url: string; source_type: SampleSource }>): Promise<RawSample[]> {
-  const out: RawSample[] = [];
-  for (const p of picks) {
-    const html = await fetchHtml(p.url);
-    if (!html) continue;
-    // Use extractor to get title/meta/h1; combine with visible text for richer sample.
-    const ext = extract(html, p.url);
-    const visible = htmlToVisibleText(html).slice(0, 4000);
-    const text = [
-      ext.title ? `TITLE: ${ext.title}` : "",
-      ext.h1 ? `H1: ${ext.h1}` : "",
-      ext.meta_description ? `META: ${ext.meta_description}` : "",
-      visible,
-    ]
-      .filter(Boolean)
-      .join("\n")
-      .trim();
-    if (text.length < 80) continue;
-    out.push({ url: p.url, source_type: p.source_type, text });
-  }
-  return out;
-}
-
-async function scoreSample(sample: RawSample): Promise<ScoredSample | null> {
+async function scoreObservation(o: PageObservation): Promise<ScoredObservation> {
   const prompt = [
     "Beoordeel de bruikbaarheid van deze webpagina-tekst als 'brand voice sample'.",
     "Wees mild: een normale commerciële pagina met >100 woorden eigen tekst is al bruikbaar (quality 5-7).",
@@ -175,12 +160,12 @@ async function scoreSample(sample: RawSample): Promise<ScoredSample | null> {
     "Output uitsluitend JSON:",
     `{"quality": 0-10, "isCommercial": true|false, "isGeneric": true|false, "language": "nl"|"en"|...}`,
     "",
-    `URL: ${sample.url}`,
-    `Type: ${sample.source_type}`,
+    `URL: ${o.url}`,
+    `Type: ${o.source_type}`,
     "",
-    sample.text.slice(0, 2500),
+    o.text.slice(0, 2500),
   ].join("\n");
-  let quality = 4;
+  let quality = 5;
   let analysis: Record<string, unknown> = {};
   try {
     const r = await llmComplete({
@@ -197,35 +182,72 @@ async function scoreSample(sample: RawSample): Promise<ScoredSample | null> {
       isGeneric?: boolean;
       language?: string;
     };
-    quality = Math.max(0, Math.min(10, Number(j.quality ?? 4)));
+    quality = Math.max(0, Math.min(10, Number(j.quality ?? 5)));
     analysis = {
       isCommercial: !!j.isCommercial,
       isGeneric: !!j.isGeneric,
       language: j.language ?? null,
     };
   } catch (e) {
-    console.error("[tone] sample scoring failed, using fallback", sample.url, (e as Error).message);
+    console.error("[tone] sample scoring failed, fallback q=4", o.url, (e as Error).message);
+    quality = 4;
   }
-  // Lenient threshold: drop only if both low score AND very little text.
-  if (quality < 3 && sample.text.length < 300) return null;
   const isGeneric = (analysis as { isGeneric?: boolean }).isGeneric;
   const weight = isGeneric ? Math.max(0.3, quality / 15) : Math.max(0.4, quality / 10);
-  return { ...sample, quality, weight, analysis };
+  return { ...o, quality, weight, analysis };
 }
 
-function buildExtractPrompt(samples: ScoredSample[], locale: string): string {
-  const samplesBlock = samples
+function buildSynthesisPrompt(
+  scored: ScoredObservation[],
+  manualSamples: ManualSample[],
+  aggregated: ReturnType<typeof aggregateLists>,
+  locale: string,
+): string {
+  const samplesBlock = scored
     .map(
       (s, i) =>
-        `--- SAMPLE ${i + 1} | ${s.source_type} | weight=${s.weight.toFixed(2)} | ${s.url}\n${s.text.slice(0, 2500)}`,
+        `--- SAMPLE ${i + 1} | ${s.source_type} | weight=${s.weight.toFixed(2)} | ${s.url}\n${s.text.slice(0, 2200)}`,
     )
     .join("\n\n");
+
+  const manualBlock = manualSamples.length
+    ? "\n\nMANUAL SAMPLES (operator-provided, hoogste gewicht):\n" +
+      manualSamples
+        .map((m, i) => `--- MANUAL ${i + 1} | ${m.source_type}${m.source_url ? ` | ${m.source_url}` : ""}\n${m.text.slice(0, 2200)}`)
+        .join("\n\n")
+    : "";
+
+  const ctaList = aggregated.ctas.length
+    ? aggregated.ctas.map((c) => `- "${c.text}" (×${c.count})`).join("\n")
+    : "(geen CTA's gevonden — geef lege primary/secondary lijsten)";
+  const claimList = aggregated.claimSentences.length
+    ? aggregated.claimSentences.slice(0, 20).map((c) => `- "${c.text}"`).join("\n")
+    : "(geen claim-zinnen gevonden)";
+  const headlinesList = aggregated.headlines.length
+    ? aggregated.headlines.slice(0, 20).map((h) => `- "${h.text}"`).join("\n")
+    : "(geen headlines gevonden)";
 
   return [
     "Bouw een gedetailleerd LINGUISTISCH MERKMODEL uit onderstaande website-samples.",
     "Niet generiek. Concreet. Beschrijf hoe DIT merk schrijft, niet hoe een 'professioneel merk' schrijft.",
     "",
     `Locale: ${locale}`,
+    "",
+    "STRIKTE REGELS:",
+    "- CTA-velden (primaryCtaPatterns, secondaryCtaPatterns) MOETEN letterlijk komen uit de 'WAARGENOMEN CTA's' lijst hieronder. Verzin geen CTA's. Kies de 3-6 sterkste primary en 2-4 secondary.",
+    "- examples.good MOET 5-8 LETTERLIJKE zinnen uit de samples bevatten (kopieer woord-voor-woord).",
+    "- vocabulary.avoid mag GEEN woord bevatten dat in de samples meer dan 1× positief gebruikt wordt door het merk zelf. Bij twijfel: laat weg.",
+    "- vocabulary.forbidden = hype/overclaim taal die NIET in de samples voorkomt (gegarandeerd, nummer 1, explosieve groei, etc.).",
+    "- claimStyle.allowedClaims: gebruik de 'WAARGENOMEN CLAIM-ZINNEN' als basis; herformuleer alleen voor herbruikbaarheid.",
+    "",
+    "WAARGENOMEN CTA's (sorted by frequency — kies hieruit):",
+    ctaList,
+    "",
+    "WAARGENOMEN CLAIM-ZINNEN:",
+    claimList,
+    "",
+    "WAARGENOMEN HEADLINES:",
+    headlinesList,
     "",
     "Output UITSLUITEND geldige JSON met dit schema (alle velden verplicht, lijsten leeg [] als onbekend):",
     `{
@@ -259,10 +281,10 @@ function buildExtractPrompt(samples: ScoredSample[], locale: string): string {
     "evidenceRequiredFor": ["claims die altijd bewijs nodig hebben"]
   },
   "ctaStyle": {
-    "primaryCtaPatterns": ["concrete CTA voorbeelden"],
-    "secondaryCtaPatterns": ["..."],
+    "primaryCtaPatterns": ["LETTERLIJK uit waargenomen CTA's"],
+    "secondaryCtaPatterns": ["LETTERLIJK uit waargenomen CTA's"],
     "style": "string",
-    "avoid": ["te schreeuwerige CTA's"]
+    "avoid": ["te schreeuwerige CTA's die niet bij dit merk passen"]
   },
   "trustStyle": {
     "primaryTrustDrivers": ["..."],
@@ -279,7 +301,7 @@ function buildExtractPrompt(samples: ScoredSample[], locale: string): string {
     "formality": "u|je|mix"
   },
   "examples": {
-    "good": ["letterlijke zinnen uit samples die merkstem goed vangen, 5-8 stuks"],
+    "good": ["LETTERLIJKE zinnen uit samples die merkstem vangen, 5-8 stuks"],
     "bad": ["zinnen die je NOOIT zou schrijven voor dit merk, 3-5 stuks"],
     "rewritePatterns": [{"bad":"...","good":"...","rule":"..."}]
   },
@@ -290,7 +312,7 @@ function buildExtractPrompt(samples: ScoredSample[], locale: string): string {
 }`,
     "",
     "SAMPLES:",
-    samplesBlock,
+    samplesBlock + manualBlock,
     "",
     "Antwoord ALLEEN met geldige JSON. Geen markdown, geen uitleg.",
   ].join("\n");
@@ -306,44 +328,57 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
     );
 
   try {
-    const picks = await pickSampleUrls(tenantId);
-    if (picks.length === 0) {
-      throw new Error("Geen audit-pagina's beschikbaar. Voer eerst een audit uit.");
+    const picks = await pickFromAuditAndSitemap(tenantId);
+    const manualSamples = await loadManualSamples(tenantId);
+
+    if (picks.length === 0 && manualSamples.length === 0) {
+      throw new Error(
+        "Geen audit-pagina's en geen manual samples beschikbaar. Voer eerst een audit uit of plak handmatige content.",
+      );
     }
 
-    const rawSamples = await fetchRawSamples(picks);
-    if (rawSamples.length === 0) throw new Error("Kon geen pagina-content ophalen.");
-
-    // Sequential scoring to stay within rate limits
-    const scored: ScoredSample[] = [];
-    for (const s of rawSamples) {
-      const r = await scoreSample(s);
-      if (r) scored.push(r);
-    }
-    if (scored.length === 0) {
-      // Fallback: keep top 3 longest raw samples so we can still extract a profile.
-      const fallback = [...rawSamples]
-        .sort((a, b) => b.text.length - a.text.length)
-        .slice(0, 3)
-        .map<ScoredSample>((s) => ({
-          ...s,
-          quality: 4,
-          weight: 0.5,
-          analysis: { fallback: true },
-        }));
-      if (fallback.length === 0) {
-        throw new Error("Kon geen bruikbare pagina-content vinden.");
+    // 2. Observe pages in parallel (limited concurrency to be polite)
+    const observed: PageObservation[] = [];
+    const CONCURRENCY = 4;
+    for (let i = 0; i < picks.length; i += CONCURRENCY) {
+      const batch = picks.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(batch.map((p) => observePage(p.url, p.source_type)));
+      for (const r of results) {
+        if (r) observed.push(r);
       }
-      scored.push(...fallback);
     }
 
-    // 4. Extract full profile
+    if (observed.length === 0 && manualSamples.length === 0) {
+      throw new Error("Kon geen pagina-content ophalen en geen manual samples gevonden.");
+    }
+
+    // 3. Score observations (sequential to stay within rate limits)
+    const scored: ScoredObservation[] = [];
+    for (const o of observed) {
+      scored.push(await scoreObservation(o));
+    }
+
+    // Fold manual samples into observations for the aggregated extraction.
+    const manualAsObs: PageObservation[] = manualSamples
+      .filter((m) => m.text && m.text.length >= 40)
+      .map((m) => ({
+        url: m.source_url ?? "manual://paste",
+        source_type: m.source_type,
+        text: m.text,
+        ctas: [],
+        claimSentences: [],
+        headlines: [],
+      }));
+
+    const aggregated = aggregateLists([...observed]);
+
+    // 4. Synthesis
     const locale = "nl-NL";
     const extractResult = await llmComplete({
-      task: "default", // gemini-2.5-pro
+      task: "default",
       system:
         "Je bent een merkstrateeg én linguïst. Je bouwt een diep, bruikbaar taalprofiel. Output uitsluitend valide JSON volgens het gevraagde schema.",
-      prompt: buildExtractPrompt(scored, locale),
+      prompt: buildSynthesisPrompt(scored, manualSamples, aggregated, locale),
       temperature: 0.2,
       maxTokens: 6000,
       jsonMode: true,
@@ -358,12 +393,37 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
     }
     const profile = ToneProfileSchema.parse(parsed);
 
-    // Confidence: mean quality * (clamped 1..1) with small bonus per sample
-    const avgQuality =
-      scored.reduce((acc, s) => acc + s.quality, 0) / scored.length;
-    const confidence = Math.min(10, avgQuality + Math.min(1.5, scored.length * 0.15));
+    // 5. Confidence — V2 multi-factor
+    const totalWords = [...scored, ...manualAsObs].reduce(
+      (acc, s) => acc + s.text.split(/\s+/).length,
+      0,
+    );
+    const distinctBuckets = new Set(
+      [...scored.map((s) => s.source_type), ...manualAsObs.map((s) => s.source_type)],
+    ).size;
+    const corpusSize = Math.min(1, totalWords / 4000);
+    const sourceDiversity = Math.min(1, distinctBuckets / 6);
+    const avgQuality = scored.length
+      ? scored.reduce((a, s) => a + s.quality, 0) / scored.length
+      : 6;
+    const sampleQuality = avgQuality / 10;
+    const evidenceDensity = Math.min(
+      1,
+      (aggregated.ctas.length + aggregated.claimSentences.length + aggregated.headlines.length) / 25,
+    );
+    const manualBoost = manualSamples.length > 0 ? 0.1 : 0;
+    const confidence = Math.min(
+      10,
+      (corpusSize * 0.25 +
+        sourceDiversity * 0.2 +
+        sampleQuality * 0.25 +
+        evidenceDensity * 0.2 +
+        manualBoost +
+        0.1) *
+        10,
+    );
 
-    // Get current row id
+    // 6. Persist
     const { data: existing } = await supabaseAdmin
       .from("tone_profiles")
       .select("id")
@@ -371,8 +431,13 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
       .single();
     const toneProfileId = existing!.id as string;
 
-    // Replace samples
-    await supabaseAdmin.from("tone_profile_samples").delete().eq("tone_profile_id", toneProfileId);
+    // Replace only the auto-extracted samples; keep manual_paste & approved_proposal rows.
+    await supabaseAdmin
+      .from("tone_profile_samples")
+      .delete()
+      .eq("tone_profile_id", toneProfileId)
+      .not("source_type", "in", "(manual_paste,approved_proposal)");
+
     if (scored.length > 0) {
       await supabaseAdmin.from("tone_profile_samples").insert(
         scored.map((s) => ({
@@ -383,7 +448,12 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
           text: s.text.slice(0, 8000),
           quality_score: s.quality,
           weight: s.weight,
-          analysis: s.analysis as never,
+          analysis: {
+            ...s.analysis,
+            ctas: s.ctas.slice(0, 15),
+            claimSentences: s.claimSentences.slice(0, 15),
+            headlines: s.headlines.slice(0, 15),
+          } as never,
         })),
       );
     }
@@ -395,7 +465,20 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
         confidence_score: confidence,
         source_summary: {
           sample_count: scored.length,
+          manual_count: manualSamples.length,
           avg_quality: avgQuality,
+          distinct_buckets: distinctBuckets,
+          total_words: totalWords,
+          confidence_breakdown: {
+            corpusSize,
+            sourceDiversity,
+            sampleQuality,
+            evidenceDensity,
+            manualBoost,
+          },
+          observed_ctas: aggregated.ctas.length,
+          observed_claims: aggregated.claimSentences.length,
+          observed_headlines: aggregated.headlines.length,
           sources: scored.map((s) => ({ url: s.url, type: s.source_type, q: s.quality })),
         } as never,
         job_status: "done",
