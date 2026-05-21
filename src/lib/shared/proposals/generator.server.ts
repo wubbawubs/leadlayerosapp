@@ -129,8 +129,8 @@ export async function generateProposalsForAudit(auditId: string): Promise<{
         audit_page_id: page.id,
         issue_code: pr.issue_code,
         proposal_type: pr.proposal_type,
-        before: pr.before,
-        after: pr.after,
+        before: pr.before as never,
+        after: pr.after as never,
         rationale: pr.rationale,
         confidence: pr.confidence,
         status: "draft" as const,
@@ -138,6 +138,7 @@ export async function generateProposalsForAudit(auditId: string): Promise<{
       const { error: iErr } = await supabaseAdmin.from("fix_proposals").insert(rows);
       if (iErr) throw iErr;
       proposalsCreated += rows.length;
+
     } catch (e) {
       errors += 1;
       console.error("Proposal generation failed for page", page.url, e);

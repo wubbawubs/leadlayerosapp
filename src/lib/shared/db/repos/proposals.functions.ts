@@ -63,7 +63,7 @@ export const listProposals = createServerFn({ method: "POST" })
     if (gErr) throw gErr;
 
     const groupIds = (groups ?? []).map((g) => g.id);
-    let proposals: Array<{
+    type ProposalRow = {
       id: string;
       group_id: string;
       audit_page_id: string | null;
@@ -74,18 +74,20 @@ export const listProposals = createServerFn({ method: "POST" })
       rationale: string;
       confidence: number;
       status: string;
-    }> = [];
+    };
+    let proposals: ProposalRow[] = [];
     if (groupIds.length > 0) {
       const { data: pRows, error: pErr } = await supabase
         .from("fix_proposals")
         .select(
           "id, group_id, audit_page_id, issue_code, proposal_type, before, after, rationale, confidence, status",
         )
-        .in("group_id", groupIds)
-        .order("confidence", { ascending: false });
+        .in("group_id", groupIds);
       if (pErr) throw pErr;
-      proposals = pRows ?? [];
+      proposals = (pRows ?? []) as ProposalRow[];
     }
+    proposals.sort((a, b) => b.confidence - a.confidence);
+
 
     // Page URL lookup
     const pageIds = Array.from(
@@ -101,8 +103,13 @@ export const listProposals = createServerFn({ method: "POST" })
       pageMap = Object.fromEntries((pages ?? []).map((p) => [p.id, p.url]));
     }
 
-    return { groups: groups ?? [], proposals, pageMap };
-  });
+    const serializable = proposals.map((p) => ({
+      ...p,
+      before: JSON.stringify(p.before ?? {}),
+      after: JSON.stringify(p.after ?? {}),
+    }));
+    return { groups: groups ?? [], proposals: serializable, pageMap };
+
 
 export const decideProposal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
