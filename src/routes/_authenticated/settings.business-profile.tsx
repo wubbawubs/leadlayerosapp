@@ -133,6 +133,61 @@ function BusinessProfilePage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] }),
   });
 
+  // BP-2: suggestions
+  const suggestionsQuery = useQuery({
+    queryKey: ["bp-suggestions", tenantId],
+    queryFn: () => fetchSuggestions({ data: { tenantId: tenantId!, status: "pending" } }),
+    enabled: !!tenantId,
+  });
+  const suggestions = (suggestionsQuery.data?.suggestions ?? []) as Suggestion[];
+
+  const analyzeMutation = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error("Geen tenant");
+      return analyzeFromWebsite({ data: { tenantId } });
+    },
+    onSuccess: (r) => {
+      setMsg(
+        `Analyzer klaar: ${r.suggestionsCreated} suggesties (${r.observedPages} pagina's geanalyseerd, ${r.blockedByLock} geblokkeerd door lock).`,
+      );
+      qc.invalidateQueries({ queryKey: ["bp-suggestions", tenantId] });
+      qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] });
+    },
+    onError: (e) => setMsg(`Analyzer fout: ${(e as Error).message}`),
+  });
+
+  const acceptMutation = useMutation({
+    mutationFn: async (input: { suggestionId: string; lockAfter?: boolean }) => {
+      if (!tenantId) throw new Error("Geen tenant");
+      return acceptSuggestion({ data: { tenantId, ...input } });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bp-suggestions", tenantId] });
+      qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] });
+    },
+    onError: (e) => setMsg(`Accept fout: ${(e as Error).message}`),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async (suggestionId: string) => {
+      if (!tenantId) throw new Error("Geen tenant");
+      return rejectSuggestion({ data: { tenantId, suggestionId } });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bp-suggestions", tenantId] }),
+  });
+
+  const editAcceptMutation = useMutation({
+    mutationFn: async (input: { suggestionId: string; editedValue: unknown }) => {
+      if (!tenantId) throw new Error("Geen tenant");
+      return editAcceptSuggestion({ data: { tenantId, ...input } });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bp-suggestions", tenantId] });
+      qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] });
+    },
+    onError: (e) => setMsg(`Edit fout: ${(e as Error).message}`),
+  });
+
   const isLocked = (path: string) => locked.includes(path);
 
   // ----- field setters -----
