@@ -113,6 +113,30 @@ function SitesPage() {
     connectMutation.mutate();
   }
 
+  const [oauthBanner, setOauthBanner] = useState<
+    null | { kind: "success" | "error"; msg: string }
+  >(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const wpcom = params.get("wpcom");
+    if (!wpcom) return;
+    if (wpcom === "connected") {
+      setOauthBanner({
+        kind: "success",
+        msg: `WordPress.com site connected: ${params.get("site") ?? ""}`,
+      });
+    } else {
+      setOauthBanner({
+        kind: "error",
+        msg: `WordPress.com connect failed: ${params.get("reason") ?? "unknown"}`,
+      });
+    }
+    qc.invalidateQueries({ queryKey: ["site-connections"] });
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [qc]);
+
+
   if (tenantsQuery.isLoading) {
     return <Shell><p className="text-muted-foreground">Loading…</p></Shell>;
   }
