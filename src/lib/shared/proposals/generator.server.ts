@@ -88,61 +88,79 @@ export async function generateProposalsForAudit(auditId: string): Promise<{
     .eq("audit_id", auditId);
   if (pErr) throw pErr;
 
+  const eligible = ((pages ?? []) as AuditPageRow[]).filter(
+    (p) => (p.issues ?? []).length > 0,
+  );
+
+  // Run LLM calls in parallel so the request fits inside the worker budget.
+  const results = await Promise.all(
+    eligible.map(async (page) => {
+      try {
+        const result = await llmComplete({
+          task: "cheap",
+          system:
+            "You are an expert SEO consultant. Output ONLY valid JSON matching the requested schema. Never include explanatory text.",
+          prompt: buildPrompt(page),
+          temperature: 0.3,
+          maxTokens: 1200,
+        });
+        const parsed = ResponseSchema.parse(extractJson(result.text));
+        return { page, proposals: parsed.proposals, llmError: null as unknown };
+      } catch (e) {
+        console.error("Proposal LLM failed for", page.url, e);
+        return { page, proposals: [], llmError: e };
+      }
+    }),
+  );
+
   let groupsCreated = 0;
   let proposalsCreated = 0;
   let errors = 0;
 
-  for (const page of (pages ?? []) as AuditPageRow[]) {
-    const issues = page.issues ?? [];
-    if (issues.length === 0) continue;
-
-    try {
-      const result = await llmComplete({
-        task: "cheap",
-        system:
-          "You are an expert SEO consultant. Output ONLY valid JSON matching the requested schema. Never include explanatory text.",
-        prompt: buildPrompt(page),
-        temperature: 0.3,
-        maxTokens: 1500,
-      });
-
-      const parsed = ResponseSchema.parse(extractJson(result.text));
-      if (parsed.proposals.length === 0) continue;
-
-      const { data: group, error: gErr } = await supabaseAdmin
-        .from("fix_proposal_groups")
-        .insert({
-          tenant_id: audit.tenant_id,
-          audit_id: auditId,
-          audit_page_id: page.id,
-          theme: `Page: ${page.url}`,
-          status: "draft",
-        })
-        .select("id")
-        .single();
-      if (gErr) throw gErr;
-      groupsCreated += 1;
-
-      const rows = parsed.proposals.map((pr) => ({
-        tenant_id: audit.tenant_id,
-        group_id: group.id,
-        audit_page_id: page.id,
-        issue_code: pr.issue_code,
-        proposal_type: pr.proposal_type,
-        before: pr.before as never,
-        after: pr.after as never,
-        rationale: pr.rationale,
-        confidence: pr.confidence,
-        status: "draft" as const,
-      }));
-      const { error: iErr } = await supabaseAdmin.from("fix_proposals").insert(rows);
-      if (iErr) throw iErr;
-      proposalsCreated += rows.length;
-
-    } catch (e) {
+  for (const { page, proposals: pProps, llmError } of results) {
+    if (llmError) {
       errors += 1;
-      console.error("Proposal generation failed for page", page.url, e);
+      continue;
     }
+    if (pProps.length === 0) continue;
+
+    const { data: group, error: gErr } = await supabaseAdmin
+      .from("fix_proposal_groups")
+      .insert({
+        tenant_id: audit.tenant_id,
+        audit_id: auditId,
+        audit_page_id: page.id,
+        theme: `Page: ${page.url}`,
+        status: "draft",
+      })
+      .select("id")
+      .single();
+    if (gErr) {
+      console.error("Group insert failed", gErr);
+      errors += 1;
+      continue;
+    }
+    groupsCreated += 1;
+
+    const rows = pProps.map((pr) => ({
+      tenant_id: audit.tenant_id,
+      group_id: group.id,
+      audit_page_id: page.id,
+      issue_code: pr.issue_code,
+      proposal_type: pr.proposal_type,
+      before: pr.before as never,
+      after: pr.after as never,
+      rationale: pr.rationale,
+      confidence: pr.confidence,
+      status: "draft" as const,
+    }));
+    const { error: iErr } = await supabaseAdmin.from("fix_proposals").insert(rows);
+    if (iErr) {
+      console.error("Proposals insert failed", iErr);
+      errors += 1;
+      continue;
+    }
+    proposalsCreated += rows.length;
   }
 
   return { groupsCreated, proposalsCreated, errors };
