@@ -41,11 +41,28 @@ interface ScoredSample extends RawSample {
 }
 
 function extractJson(text: string): unknown {
-  const cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-  const first = cleaned.indexOf("{");
-  const last = cleaned.lastIndexOf("}");
-  if (first === -1 || last === -1) throw new Error("No JSON object in LLM response");
-  return JSON.parse(cleaned.slice(first, last + 1));
+  if (!text || !text.trim()) throw new Error("LLM returned empty response");
+  let cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+  const first = cleaned.search(/[{[]/);
+  if (first === -1) {
+    throw new Error(`No JSON object in LLM response (got: ${text.slice(0, 200)})`);
+  }
+  const opener = cleaned[first];
+  const closer = opener === "[" ? "]" : "}";
+  const last = cleaned.lastIndexOf(closer);
+  if (last === -1 || last < first) {
+    throw new Error(`Truncated JSON in LLM response (got: ${text.slice(0, 200)})`);
+  }
+  cleaned = cleaned.slice(first, last + 1);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const repaired = cleaned
+      .replace(/,\s*}/g, "}")
+      .replace(/,\s*]/g, "]")
+      .replace(/[\x00-\x1F\x7F]/g, " ");
+    return JSON.parse(repaired);
+  }
 }
 
 async function fetchHtml(url: string, timeoutMs = 8000): Promise<string | null> {
@@ -171,7 +188,8 @@ async function scoreSample(sample: RawSample): Promise<ScoredSample | null> {
       system: "Je beoordeelt teksten kort en mild. Output uitsluitend valide JSON.",
       prompt,
       temperature: 0.1,
-      maxTokens: 200,
+      maxTokens: 300,
+      jsonMode: true,
     });
     const j = extractJson(r.text) as {
       quality?: number;
@@ -327,10 +345,18 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
         "Je bent een merkstrateeg én linguïst. Je bouwt een diep, bruikbaar taalprofiel. Output uitsluitend valide JSON volgens het gevraagde schema.",
       prompt: buildExtractPrompt(scored, locale),
       temperature: 0.2,
-      maxTokens: 3000,
+      maxTokens: 6000,
+      jsonMode: true,
     });
 
-    const profile = ToneProfileSchema.parse(extractJson(extractResult.text));
+    let parsed: unknown;
+    try {
+      parsed = extractJson(extractResult.text);
+    } catch (e) {
+      console.error("[tone] extract failed, raw response:", extractResult.text?.slice(0, 1000));
+      throw new Error(`Profielextractie gaf geen geldige JSON: ${(e as Error).message}`);
+    }
+    const profile = ToneProfileSchema.parse(parsed);
 
     // Confidence: mean quality * (clamped 1..1) with small bonus per sample
     const avgQuality =
