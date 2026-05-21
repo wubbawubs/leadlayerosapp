@@ -22,6 +22,8 @@ export interface LlmCompleteOptions {
   temperature?: number;
   maxTokens?: number;
   jsonMode?: boolean;
+  timeoutMs?: number;
+  retries?: number;
 }
 
 export interface LlmCompleteResult {
@@ -56,9 +58,14 @@ export async function llmComplete(opts: LlmCompleteOptions): Promise<LlmComplete
   }
 
 
-  // Minimal retry: 1 retry on 5xx / network error
+  // Minimal retry: default 1 retry on 5xx / network error. Callers with tight
+  // server-function budgets can set retries=0 + timeoutMs.
   let lastErr: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const attempts = Math.max(1, (opts.retries ?? 1) + 1);
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const ctl = new AbortController();
+    const timeoutMs = opts.timeoutMs ?? 45_000;
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
     try {
       const res = await fetch(GATEWAY_URL, {
         method: "POST",
@@ -67,11 +74,13 @@ export async function llmComplete(opts: LlmCompleteOptions): Promise<LlmComplete
           authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify(body),
+        signal: ctl.signal,
       });
       if (res.status === 429) throw new Error("LLM rate limit (429)");
       if (res.status === 402) throw new Error("LLM credits exhausted (402)");
       if (!res.ok && res.status >= 500) {
-        lastErr = new Error(`LLM gateway ${res.status}`);
+        const text = await res.text().catch(() => "");
+        lastErr = new Error(`LLM gateway ${res.status}${text ? `: ${text.slice(0, 200)}` : ""}`);
         continue;
       }
       if (!res.ok) {
@@ -92,7 +101,12 @@ export async function llmComplete(opts: LlmCompleteOptions): Promise<LlmComplete
         },
       };
     } catch (err) {
-      lastErr = err;
+      lastErr =
+        err instanceof Error && err.name === "AbortError"
+          ? new Error(`LLM request timed out after ${Math.round(timeoutMs / 1000)}s`)
+          : err;
+    } finally {
+      clearTimeout(timer);
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
