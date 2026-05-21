@@ -1,173 +1,104 @@
-# Tone Profile V1 — Linguistic Brand Model
 
-## Doel
+# Tone Profile V2 — van 6.3 naar publish-ready
 
-Geen plat `tone_summary` veld meer. Een gestructureerd, gelaagd taalprofiel per tenant dat proposals **stuurt én blokkeert**. Vervangt de huidige `brand_voice_profiles` als bron van waarheid voor alle proposal-output.
+De huidige 6.3/10 is geen bug, het is een ontwerplimiet. We doen één LLM-call over een handvol pagina's en hopen dat het model én observeert, én abstraheert, én juridisch wikt. Dat is te veel werk voor één pass. De auditor in je rapport wijst exact dit aan: "ingewikkeld" staat fout in avoid, CTA's zijn verzonnen ipv geobserveerd, claims missen scherpte.
 
-## Scope V1 (wat we nu bouwen)
+De fix is structureel: **evidence-first pipeline** in plaats van one-shot extractie.
 
-Wel:
-- 3 nieuwe tabellen: `tone_profiles`, `tone_profile_samples`, `tone_feedback_examples`
-- Analyzer die 5–8 site samples scoort op kwaliteit en alleen goede zwaar meeweegt
-- Volledig JSON-schema (10 lagen: voiceIdentity, sentenceArchitecture, vocabulary, claimStyle, ctaStyle, trustStyle, audienceAdaptation, localeTone, examples, scoringWeights)
-- Operator UI op `/settings/tone-profile` — geen JSON dump, mooie secties met edit/lock per veld
-- "Test output" knop in UI: genereer voorbeeld-meta/H1/CTA met huidige profiel + scores tonen
-- Prompt-context builder die het profiel comprimeert naar wat de LLM nodig heeft
-- Output-evaluator: elke proposal krijgt `toneScore { voiceFit, vocabularyFit, sentenceRhythmFit, claimSafety, ctaFit, localeFit, genericnessRisk }`
-- Blocking gate in generator:
-  - geen profile → status `needs_context`
-  - verboden claim/woord → `rejected`
-  - genericnessRisk > drempel → `regenerate` (max 1x)
-  - toneFitScore < 8 → `needs_review`, niet `draft`
-- Feedback capture: approve/reject/edit op proposals schrijft naar `tone_feedback_examples`
+---
 
-Niet nu (V2+):
-- Tone embeddings / retrieval van approved content
-- Fine-tune dataset export
-- Tone drift detection bij her-crawl
-- Vertical presets
-- Audience adaptation als losse switch per proposal (schema is er, gebruik volgt)
+## Wat we bouwen (V2)
 
-## Architectuur
+### 1. Bredere & rijkere corpus
+- **Sitemap-fetch** naast audit-pagina's: probeer `/sitemap.xml`, `/sitemap_index.xml` en pak tot 25 unieke pagina's met diversiteits-cap per bucket (homepage, service ×5, blog ×5, about, contact, faq, pricing, case).
+- **Manual paste tab** in UI: textarea waar gebruiker eigen tekst, reviews, sales-emails, brand bible kan plakken — krijgt `source_type: manual_paste` en `weight: 1.0`.
+- **Approved-proposals feedback**: bij re-analyze tellen approved proposals als hoogwaardige samples.
 
+### 2. Multi-pass extractie (in plaats van één call)
 ```text
-audit pages  ─┐
-              ├─► sample scorer ─► weighted samples ─► LLM analyzer ─► tone_profiles.profile (JSONB)
-manual paste ─┘                                                                │
-                                                                               ▼
-operator UI (edit/lock per veld) ──────────────────────────────────────► tone_profiles (status: draft|approved|locked)
-                                                                               │
-                                                                               ▼
-proposal generator ──► context builder ──► LLM ──► output evaluator ──► toneScore + verdict
-                                                                               │
-                                              approve/reject/edit ─────────────┴──► tone_feedback_examples
+PASS 1  per-sample observatie (cheap, parallel)
+  → woordfrequentie, CTA-zinnen uit <a>/<button>, claim-zinnen, voorbeeld-zinnen
+PASS 2  corpus-aggregatie (deterministisch, geen LLM)
+  → frequenties tellen, dedupe, top-N per dimensie, conflict-detectie
+PASS 3  synthese (pro, één call)
+  → voice/persona/rhythm-beschrijving op basis van bewijs uit pass 2
+PASS 4  self-critique (cheap)
+  → checkt: staan avoid-woorden tegelijk in de samples positief gebruikt?
+            zijn forbidden-claims daadwerkelijk hype-taal?
+            zijn CTA's letterlijk gevonden of verzonnen?
+  → produceert per-veld confidence en flags voor menselijke review
 ```
 
-## Database
+Resultaat: elk woord/claim/CTA in het profiel heeft een `evidence` veld (sample-URL + letterlijke zin). Niet meer "het model dacht dat".
 
-### `tone_profiles`
-- `tenant_id`, `language`, `locale`
-- `status`: `draft | approved | locked`
-- `profile jsonb` — volgens schema hieronder
-- `confidence_score numeric`
-- `source_summary jsonb` — { sample_count, avg_quality, sources }
-- `analyzed_at`, `job_status`, `job_error`
-- RLS: member select, operator write (zelfde pattern als bestaande tabellen)
+### 3. CTA's & claims uit HTML, niet uit LLM-fantasie
+- CTA's: bij sample-fetch trekken we anchor-/button-tekst < 60 chars eruit (regex op `<a>`, `<button>`). Die lijst voeren we letterlijk aan de synthese — geen verzonnen CTA's meer.
+- Claims: simpele regex op zinnen met modale verbs (`we helpen`, `we maken`, `je krijgt`, `gegarandeerd`, `bewezen`) → LLM classificeert alleen safety, verzint niet.
 
-### `tone_profile_samples`
-- `tenant_id`, `tone_profile_id`
-- `source_type`: `homepage | service | blog | about | contact | manual_paste | approved_proposal`
-- `source_url`, `text`
-- `quality_score numeric` (0–10), `weight numeric default 1`
-- `analysis jsonb` — losse metingen (zinslengte, passieve vorm %, etc.)
-
-### `tone_feedback_examples`
-- `tenant_id`, `tone_profile_id`
-- `example_type`: `approved | rejected | edited | manual_good | manual_bad`
-- `before_text`, `after_text`, `reason`
-- `proposal_id uuid` (nullable)
-
-### Migratie van bestaande `brand_voice_profiles`
-- Blijft staan, wordt **gedeprecateerd** in V1. Generator leest alleen nog `tone_profiles`.
-- Geen data-migratie nodig — V0 brand voice was testdata. Operator klikt 1x "Analyze" op nieuwe pagina.
-
-## Tone Profile JSON-schema
-
-Exact zoals jij beschreef, met Zod-validatie:
-
-```json
-{
-  "voiceIdentity": { "summary", "persona", "emotionalRegister", "authorityStyle", "commercialIntensity" },
-  "sentenceArchitecture": { "averageSentenceLength", "paragraphLength", "preferredStructure", "usesQuestions", "passiveVoicePolicy", "rhythm" },
-  "vocabulary": { "preferred[]", "avoid[]", "forbidden[]", "replacements{}", "technicalTermsPolicy" },
-  "claimStyle": { "allowedClaims[]", "riskyClaims[]", "forbiddenClaims[]", "safeClaimPatterns[]", "evidenceRequiredFor[]" },
-  "ctaStyle": { "primaryCtaPatterns[]", "secondaryCtaPatterns[]", "style", "avoid[]" },
-  "trustStyle": { "primaryTrustDrivers[]", "proofTypes[]", "trustLanguage", "avoid[]" },
-  "audienceAdaptation": {},
-  "localeTone": { "locale", "salesIntensity", "culturalNotes[]", "spelling", "formality" },
-  "examples": { "good[]", "bad[]", "rewritePatterns[]" },
-  "scoringWeights": { ... default weights }
-}
+### 4. Confidence die ergens op slaat
+Nu: `avg(quality) + samples*0.15`. Vervangen door multi-factor:
+```text
+confidence = weightedAvg([
+  corpus_size:      saturating(words / 4000)           # genoeg tekst?
+  source_diversity: distinct_buckets / 6               # genoeg page-types?
+  evidence_density: fields_with_evidence / total       # niet gehallucineerd?
+  internal_consistency: 1 - conflict_rate              # avoid ↔ preferred botsingen
+  sample_quality:   avg(sample.quality) / 10
+]) * 10
 ```
+Per-sectie confidence (voice/vocab/claims/cta/trust) wordt apart getoond, zodat de gebruiker ziet welk deel zwak is.
 
-## Server-side flow
+### 5. Conflict-detectie & UI-flags
+Na pass 4 toont de UI per zwakke sectie een banner:
+- "5 woorden in Avoid komen >2× positief voor in samples — review"
+- "CTA-lijst heeft geen letterlijke match in de site — voeg handmatige voorbeelden toe"
+- "Geen samples van type: about, faq, pricing — confidence beperkt"
 
-1. **`analyzeToneProfile(tenantId)`** serverFn
-   - Pakt laatste succesvolle audit, selecteert tot 8 pagina's (homepage + 3 service + 2 blog + about + contact)
-   - Per sample: LLM-call `scoreSampleQuality` → `{ quality, isCommercial, isGeneric }` (cheap model)
-   - Filter samples met quality < 5
-   - LLM-call `extractToneProfile` met overgebleven samples (gemini-2.5-pro voor diepte)
-   - Zod-valideer, schrijf naar `tone_profiles`, status = `draft`
-   - Sla samples op in `tone_profile_samples`
+Met inline "Move to preferred" / "Remove" / "Add evidence" knoppen — geen handmatige tag-edit nodig.
 
-2. **`testToneOutput(tenantId, kind)`** serverFn — UI knop
-   - kind: `meta | h1 | cta`
-   - Genereer 1 voorbeeld + evaluator-scores, return inline (niet opslaan)
+### 6. Versioning
+Elke run schrijft naar `tone_profile_versions` (nieuwe tabel) met diff t.o.v. vorige. UI krijgt een "What changed" panel zodat re-analyze veilig voelt.
 
-3. **`generator.server.ts` (bestaand)** — uitbreiden
-   - Vervang `getProposalContext` brand voice deel door `tone_profiles.profile`
-   - Inject compressed profile + 3 good + 3 bad examples in prompt
-   - Na LLM-output: roep `evaluateToneOutput(text, profile)` aan
-   - Bepaal verdict + status volgens blocking gate hierboven
+### 7. Approve-flow met output-test gate
+Voor approve: minimum 3 succesvolle test-outputs (meta / h1 / cta) met `verdict == publishable` over de laatste run. Voorkomt dat een zwak profiel zonder check live gaat.
 
-4. **`evaluateToneOutput(text, profile)`** — server-only
-   - Deterministische checks (verboden woorden regex, gemiddelde zinslengte)
-   - LLM-call voor `voiceFit`, `genericnessRisk` (cheap model, strict JSON)
-   - Schrijft naar bestaande `proposal_quality_checks` (al aanwezig sinds S4.5)
+---
 
-5. **Feedback capture** — uitbreiden bestaande approve/reject endpoints
-   - approve → insert in `tone_feedback_examples` (type `approved`)
-   - reject met reden → type `rejected`
-   - edit (nieuwe actie) → type `edited`, before+after
+## Wat dit oplost in het auditor-rapport
 
-## UI
+| Issue rapport | Fix |
+|---|---|
+| "ingewikkeld" fout in Avoid | Conflict-detectie (pass 4) flagt dit; UI biedt 1-klik move |
+| CTA's verzonnen / generiek | CTA's komen uit `<a>`/`<button>` HTML van site zelf |
+| Allowed claims te procesgericht | Claim-extractie pakt alle "we helpen/maken/geven" zinnen; synthese kiest breder |
+| Commercial intensity te laag | Pass 1 telt CTA-dichtheid en sales-werkwoorden → bepaalt intensity deterministisch |
+| Confidence 6.3 onverklaard | Per-sectie confidence + breakdown ("low coverage: missing about/faq") |
+| Geen test of profiel werkt | Approve-gate eist 3 publishable test-outputs |
 
-Route: `/settings/tone-profile`
+---
 
-Secties (collapsible, geen JSON-dump):
-1. **Samenvatting** — voiceIdentity + confidence badge + status pill + "Analyze from website" knop
-2. **Schrijfstijl** — sentenceArchitecture, edit per veld
-3. **Woorden** — 4 tag-inputs (preferred / avoid / forbidden / replacements)
-4. **Claims** — 3 lijsten + safe patterns
-5. **CTA's** — patterns + voorbeelden
-6. **Trust** — drivers + proof types
-7. **Voorbeelden** — good / bad / rewrite patterns (toevoegen/verwijderen)
-8. **Test output** — 3 knoppen, toont gegenereerde tekst + score-bars
-9. **Feedback log** — laatste 20 approved/rejected examples readonly
+## Technische uitvoering
 
-Per veld: lock-toggle (locked → analyzer overschrijft niet meer).
+**Nieuwe / aangepaste files:**
+- `src/lib/shared/tone/corpus.server.ts` — sitemap discovery, HTML parsing, CTA/claim regex-extractie
+- `src/lib/shared/tone/passes.server.ts` — pass1 (per-sample), pass2 (aggregatie), pass3 (synthese), pass4 (critique)
+- `src/lib/shared/tone/confidence.server.ts` — multi-factor scoring
+- `src/lib/shared/tone/analyzer.server.ts` — herschreven als orchestrator over passes
+- `src/lib/shared/tone/schemas.ts` — voeg `evidence`, `frequency`, per-sectie `confidence` toe (backwards compatible: optional fields)
+- `src/lib/shared/tone/repo.functions.ts` — `addManualSample`, `listSampleConflicts`, `acceptConflictResolution`
+- `src/routes/_authenticated/settings.tone-profile.tsx` — manual-paste tab, conflict-banner met 1-klik acties, per-sectie confidence chips, "what changed" diff panel
+- Migratie: `tone_profile_versions` tabel, `tone_profile_samples.source_type` enum uitbreiden, `tone_profile_conflicts` tabel
 
-Status-pill bovenaan: `draft` (grijs) / `approved` (groen) / `locked` (blauw).
+**LLM kosten/budget per run** (orde van grootte): pass 1 cheap × ~15 samples + pass 3 pro × 1 + pass 4 cheap × 1. Vergelijkbaar met nu, maar veel meer signal per token.
 
-## Acceptance criteria
+**Geen breaking change voor `generator.server.ts` / `evaluator.server.ts`**: het V1-schema blijft geldig, V2-velden zijn additief.
 
-V1 is klaar als:
-- Analyzer levert geldig profiel op echte audit-data (handmatig getest op 1 NL site)
-- Operator kan elk veld editten en locken
-- "Approve" knop zet status op `approved`
-- Proposal generator gebruikt het profiel — bewijs: prompt-snapshot in logs bevat profile-block
-- Elke proposal heeft `toneScore` in `proposal_quality_checks`
-- Verboden woord in output → proposal status `rejected`, zichtbaar in UI
-- Geen profile → nieuwe proposals krijgen status `needs_context` (nieuwe enum-waarde)
-- Approve/reject schrijft naar `tone_feedback_examples`
+---
 
-## Wat we expliciet NIET doen in V1
+## Volgorde van uitrol (3 stappen, deploybaar per stap)
 
-- Geen embeddings / vector search
-- Geen audience-switch per proposal (schema staat, UI komt in V2)
-- Geen tone drift detection
-- Geen vertical presets
-- Geen auto-regenerate loop voorbij 1 retry
-- Geen fine-tune export
+1. **Corpus + CTA/claim-extractie + manual paste** (grootste kwaliteitswinst per regel code, lost meteen het CTA-probleem op).
+2. **Multi-pass + conflict-detectie + per-sectie confidence** (lost "ingewikkeld in avoid" en de 6.3-zonder-uitleg op).
+3. **Versioning, diff-panel, approve-gate** (maakt het écht backbone-grade).
 
-## Volgorde van uitvoeren
-
-1. Migratie: 3 nieuwe tabellen + nieuwe enum-waarde `needs_context` op `proposal_status`
-2. Zod-schemas + repos
-3. Sample scorer + analyzer serverFn
-4. Operator UI (read-only eerst, dan edit per sectie)
-5. Generator integratie + evaluator + blocking gate
-6. Feedback capture op approve/reject/edit
-7. End-to-end test op echte audit
-
-Geschat: 1 sprint. Geen S5 erbij. Pas naar S5 als tone scores consistent ≥8 zitten op echte data.
+Zal ik beginnen met stap 1?

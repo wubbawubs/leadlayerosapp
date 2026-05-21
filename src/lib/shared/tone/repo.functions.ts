@@ -200,3 +200,92 @@ export const listToneFeedback = createServerFn({ method: "POST" })
       .limit(20);
     return { feedback: rows ?? [] };
   });
+
+// -------------------- Manual samples (V2) --------------------
+
+async function ensureToneProfileId(tenantId: string): Promise<string> {
+  const { data: existing } = await supabaseAdmin
+    .from("tone_profiles")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (existing?.id) return existing.id as string;
+  const { data: created, error } = await supabaseAdmin
+    .from("tone_profiles")
+    .upsert({ tenant_id: tenantId, job_status: "queued" }, { onConflict: "tenant_id" })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return created!.id as string;
+}
+
+export const addManualSample = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { tenantId: string; text: string; sourceUrl?: string; label?: string }) =>
+    z
+      .object({
+        tenantId: z.string().uuid(),
+        text: z.string().trim().min(40).max(20000),
+        sourceUrl: z.string().trim().max(500).optional(),
+        label: z.string().trim().max(120).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+    const toneProfileId = await ensureToneProfileId(data.tenantId);
+    const { error } = await supabaseAdmin.from("tone_profile_samples").insert({
+      tenant_id: data.tenantId,
+      tone_profile_id: toneProfileId,
+      source_type: "manual_paste",
+      source_url: data.sourceUrl ?? null,
+      text: data.text,
+      quality_score: 8,
+      weight: 1,
+      analysis: { manual: true, label: data.label ?? null } as never,
+    });
+    if (error) throw error;
+    return { ok: true };
+  });
+
+export const listToneSamples = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { tenantId: string }) =>
+    z.object({ tenantId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: existing } = await supabase
+      .from("tone_profiles")
+      .select("id")
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
+    if (!existing?.id) return { samples: [] };
+    const { data: rows } = await supabase
+      .from("tone_profile_samples")
+      .select("id, source_type, source_url, text, quality_score, weight, created_at")
+      .eq("tone_profile_id", existing.id)
+      .order("created_at", { ascending: false })
+      .limit(80);
+    return { samples: rows ?? [] };
+  });
+
+export const deleteToneSample = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { tenantId: string; sampleId: string }) =>
+    z
+      .object({ tenantId: z.string().uuid(), sampleId: z.string().uuid() })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+    await supabaseAdmin
+      .from("tone_profile_samples")
+      .delete()
+      .eq("id", data.sampleId)
+      .eq("tenant_id", data.tenantId);
+    return { ok: true };
+  });
+
