@@ -389,3 +389,148 @@ function TagList({ label, value, onChange }: { label: string; value: string[]; o
     </Field>
   );
 }
+
+interface ToneSample {
+  id: string;
+  source_type: string;
+  source_url: string | null;
+  text: string;
+  quality_score: number | null;
+  weight: number;
+  created_at: string;
+}
+
+function ManualSamplesPanel({
+  samples, pasteText, pasteUrl, pasteLabel,
+  onPasteText, onPasteUrl, onPasteLabel, onAdd, onDelete, isPending,
+}: {
+  samples: ToneSample[];
+  pasteText: string; pasteUrl: string; pasteLabel: string;
+  onPasteText: (v: string) => void; onPasteUrl: (v: string) => void; onPasteLabel: (v: string) => void;
+  onAdd: () => void; onDelete: (id: string) => void; isPending: boolean;
+}) {
+  const manual = samples.filter((s) => s.source_type === "manual_paste" || s.source_type === "approved_proposal");
+  const auto = samples.filter((s) => s.source_type !== "manual_paste" && s.source_type !== "approved_proposal");
+  return (
+    <section className="mb-6 rounded-lg border border-border bg-card/70 p-5">
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="font-display text-lg text-foreground">Corpus</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Voeg eigen content toe (reviews, sales-emails, brand bible, About-tekst). Manual samples wegen het zwaarst en lossen lage confidence op.
+          </p>
+        </div>
+        <div className="text-right text-xs text-muted-foreground">
+          <div>{auto.length} auto · {manual.length} manual</div>
+        </div>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-3">
+        <input
+          className="rounded border border-border bg-background px-3 py-2 text-sm"
+          placeholder="Label (bv 'About-pagina')"
+          value={pasteLabel} onChange={(e) => onPasteLabel(e.target.value)}
+        />
+        <input
+          className="rounded border border-border bg-background px-3 py-2 text-sm md:col-span-2"
+          placeholder="Bron-URL (optioneel)"
+          value={pasteUrl} onChange={(e) => onPasteUrl(e.target.value)}
+        />
+      </div>
+      <textarea
+        className="mt-2 w-full rounded border border-border bg-background px-3 py-2 text-sm"
+        rows={5}
+        placeholder="Plak hier een originele tekst van het merk (min. 40 tekens)…"
+        value={pasteText} onChange={(e) => onPasteText(e.target.value)}
+      />
+      <div className="mt-2 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">{pasteText.length} tekens</span>
+        <button
+          onClick={onAdd}
+          disabled={isPending || pasteText.trim().length < 40}
+          className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+        >
+          {isPending ? "Toevoegen…" : "Add sample"}
+        </button>
+      </div>
+
+      {manual.length > 0 && (
+        <ul className="mt-4 space-y-2">
+          {manual.map((s) => (
+            <li key={s.id} className="flex items-start justify-between gap-3 rounded border border-border bg-background/40 px-3 py-2 text-xs">
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold text-foreground">
+                  {s.source_type === "approved_proposal" ? "Approved proposal" : "Manual paste"}
+                  {s.source_url ? <span className="ml-2 text-muted-foreground">{s.source_url}</span> : null}
+                </div>
+                <div className="mt-1 truncate text-muted-foreground">{s.text.slice(0, 200)}</div>
+              </div>
+              <button
+                onClick={() => onDelete(s.id)}
+                className="shrink-0 rounded border border-border px-2 py-1 text-muted-foreground hover:text-destructive"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+interface SourceSummary {
+  sample_count?: number;
+  manual_count?: number;
+  avg_quality?: number;
+  distinct_buckets?: number;
+  total_words?: number;
+  observed_ctas?: number;
+  observed_claims?: number;
+  observed_headlines?: number;
+  confidence_breakdown?: {
+    corpusSize?: number;
+    sourceDiversity?: number;
+    sampleQuality?: number;
+    evidenceDensity?: number;
+    manualBoost?: number;
+  };
+}
+
+function ConfidenceBreakdown({ summaryJson }: { summaryJson?: string }) {
+  if (!summaryJson) return null;
+  let s: SourceSummary = {};
+  try { s = JSON.parse(summaryJson) as SourceSummary; } catch { return null; }
+  if (!s.confidence_breakdown && !s.sample_count) return null;
+  const cb = s.confidence_breakdown ?? {};
+  const bars: Array<[string, number, string]> = [
+    ["Corpus", (cb.corpusSize ?? 0) * 10, `${s.total_words ?? 0} woorden`],
+    ["Bron-diversiteit", (cb.sourceDiversity ?? 0) * 10, `${s.distinct_buckets ?? 0} page types`],
+    ["Sample kwaliteit", (cb.sampleQuality ?? 0) * 10, `avg ${(s.avg_quality ?? 0).toFixed(1)}/10`],
+    ["Evidence-dichtheid", (cb.evidenceDensity ?? 0) * 10, `${s.observed_ctas ?? 0} CTA's · ${s.observed_claims ?? 0} claims`],
+  ];
+  return (
+    <section className="mb-6 rounded-lg border border-border bg-card/70 p-5">
+      <h2 className="mb-3 font-display text-lg text-foreground">Confidence breakdown</h2>
+      <div className="grid gap-3 md:grid-cols-2">
+        {bars.map(([label, score, hint]) => (
+          <div key={label}>
+            <div className="mb-1 flex justify-between text-xs">
+              <span className="text-foreground">{label}</span>
+              <span className="text-muted-foreground">{score.toFixed(1)}/10 · {hint}</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded bg-secondary">
+              <div className="h-full bg-primary" style={{ width: `${Math.min(100, score * 10)}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      {(s.manual_count ?? 0) === 0 && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Tip: voeg 2-3 manual samples toe (about-pagina, reviews, sales-email) om confidence sterk te boosten.
+        </p>
+      )}
+    </section>
+  );
+}
+
