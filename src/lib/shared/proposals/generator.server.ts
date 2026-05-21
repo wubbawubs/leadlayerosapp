@@ -167,5 +167,9 @@ export async function generateProposalsForAudit(auditId: string): Promise<{
     proposalsCreated += rows.length;
   }
 
+  const firstLlmErr = results.find((r) => r.llmError)?.llmError;
+  if (groupsCreated === 0 && firstLlmErr instanceof Error) {
+    throw new Error(`Proposal generation failed: ${firstLlmErr.message}`);
+  }
   return { groupsCreated, proposalsCreated, errors };
 }
