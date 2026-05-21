@@ -170,7 +170,7 @@ function setAtPath(
 // Corpus collection (reuses tone analyzer's corpus tooling)
 // ----------------------------------------------------------------------------
 
-async function pickCorpusUrls(tenantId: string, maxTotal = 8): Promise<UrlPick[]> {
+async function pickCorpusUrls(tenantId: string, maxTotal = 10): Promise<UrlPick[]> {
   const { data: audit } = await supabaseAdmin
     .from("audits")
     .select("id, site_connection_id")
