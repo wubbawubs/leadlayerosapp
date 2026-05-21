@@ -4,8 +4,8 @@
  */
 import { z } from "zod";
 
-const StrList = (max = 60) =>
-  z.array(z.string().trim().min(1).max(300)).max(max);
+const StrList = (max = 120) =>
+  z.array(z.string().trim().min(1).max(800)).max(max);
 
 export const VoiceIdentitySchema = z.object({
   summary: z.string().trim().min(10).max(4000),
