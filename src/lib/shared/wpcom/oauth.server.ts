@@ -130,6 +130,16 @@ export async function wpcomFetch<T = unknown>(
 }
 
 export function getRedirectUri(request: Request): string {
-  const url = new URL(request.url);
-  return `${url.origin}/api/public/wpcom/callback`;
+  // Prefer forwarded headers so the redirect_uri matches the public origin
+  // (preview/published lovable.app), not the internal worker host (localhost:8080).
+  const h = request.headers;
+  const forwardedHost = h.get("x-forwarded-host") ?? h.get("host");
+  const forwardedProto = h.get("x-forwarded-proto") ?? "https";
+  let origin: string;
+  if (forwardedHost) {
+    origin = `${forwardedProto}://${forwardedHost}`;
+  } else {
+    origin = new URL(request.url).origin;
+  }
+  return `${origin}/api/public/wpcom/callback`;
 }
