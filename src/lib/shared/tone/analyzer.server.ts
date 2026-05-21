@@ -65,7 +65,7 @@ async function pickFromAuditAndSitemap(tenantId: string): Promise<UrlPick[]> {
   // 1) Latest succeeded audit pages
   const { data: audit } = await supabaseAdmin
     .from("audits")
-    .select("id, site_id")
+    .select("id, site_connection_id")
     .eq("tenant_id", tenantId)
     .eq("status", "succeeded")
     .order("finished_at", { ascending: false })
@@ -93,21 +93,22 @@ async function pickFromAuditAndSitemap(tenantId: string): Promise<UrlPick[]> {
     }
   }
 
-  // Fallback origin via site row
-  if (!origin && audit?.site_id) {
-    const { data: site } = await supabaseAdmin
-      .from("sites")
+  // Fallback origin via site_connection row
+  if (!origin && audit?.site_connection_id) {
+    const { data: conn } = await supabaseAdmin
+      .from("site_connections")
       .select("base_url")
-      .eq("id", audit.site_id)
+      .eq("id", audit.site_connection_id)
       .maybeSingle();
-    if (site?.base_url) {
+    if (conn?.base_url) {
       try {
-        origin = new URL(site.base_url as string).origin;
+        origin = new URL(conn.base_url as string).origin;
       } catch {
         /* ignore */
       }
     }
   }
+
 
   // 2) Sitemap discovery (broader coverage)
   let sitemapUrls: string[] = [];
