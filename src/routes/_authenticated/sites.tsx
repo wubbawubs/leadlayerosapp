@@ -239,6 +239,126 @@ function SitesPage() {
   );
 }
 
+function ConnectSiteDialog({
+  open,
+  onOpenChange,
+  tenants,
+  tenantId,
+  onTenantChange,
+  baseUrl,
+  onBaseUrlChange,
+  username,
+  onUsernameChange,
+  appPassword,
+  onAppPasswordChange,
+  error,
+  probeMsg,
+  isPending,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  tenants: { id: string; name: string; geo: string; vertical: string; status: string }[];
+  tenantId: string | null;
+  onTenantChange: (tenantId: string) => void;
+  baseUrl: string;
+  onBaseUrlChange: (value: string) => void;
+  username: string;
+  onUsernameChange: (value: string) => void;
+  appPassword: string;
+  onAppPasswordChange: (value: string) => void;
+  error: string | null;
+  probeMsg: string | null;
+  isPending: boolean;
+  onSubmit: (e: FormEvent) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl border-border bg-card p-0">
+        <DialogHeader className="border-b border-border px-6 py-5">
+          <DialogTitle className="font-display text-3xl font-normal text-foreground">
+            Connect WordPress site
+          </DialogTitle>
+          <DialogDescription>
+            Create an Application Password in WordPress, then paste it here to save and probe the connection.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={onSubmit} className="grid gap-6 px-6 pb-6 md:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-md border border-dashed border-border bg-background/50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+              Setup
+            </p>
+            <ol className="mt-3 space-y-3 text-sm text-muted-foreground">
+              <li><span className="font-medium text-foreground">1.</span> Open WordPress → Users → Profile.</li>
+              <li><span className="font-medium text-foreground">2.</span> Add an Application Password for LeadLayerOS.</li>
+              <li><span className="font-medium text-foreground">3.</span> Copy the generated password and connect.</li>
+            </ol>
+          </div>
+
+          <div className="space-y-4">
+            {tenants.length > 1 && (
+              <Field label="Tenant">
+                <select
+                  value={tenantId ?? ""}
+                  onChange={(e) => onTenantChange(e.target.value)}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                >
+                  {tenants.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
+
+            <Field label="Site URL" hint="Including https://">
+              <input
+                type="text"
+                value={baseUrl}
+                onChange={(e) => onBaseUrlChange(e.target.value)}
+                placeholder="https://example.com"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+              />
+            </Field>
+
+            <Field label="WordPress username">
+              <input
+                value={username}
+                onChange={(e) => onUsernameChange(e.target.value)}
+                placeholder="admin"
+                autoComplete="off"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+              />
+            </Field>
+
+            <Field label="Application password" hint="Spaces are OK.">
+              <input
+                type="password"
+                value={appPassword}
+                onChange={(e) => onAppPasswordChange(e.target.value)}
+                placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
+                autoComplete="new-password"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm"
+              />
+            </Field>
+
+            {error && <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+            {probeMsg && <p className="rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground">{probeMsg}</p>}
+
+            <button
+              type="submit"
+              disabled={isPending || !tenantId}
+              className="w-full rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+            >
+              {isPending ? "Connecting…" : "Connect & probe"}
+            </button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function StatusBadge({
   status,
   hasProbe,
