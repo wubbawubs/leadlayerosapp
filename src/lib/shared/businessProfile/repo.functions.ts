@@ -1,6 +1,7 @@
 /**
- * Business Profile (Growth Intelligence Profile) — repo serverFns. BP-1.
- * No analyzer here; only CRUD + suggestion accept/reject + field lock.
+ * Business Profile (Growth Intelligence Profile) — repo serverFns.
+ * BP-1: CRUD + suggestion accept/reject + field lock.
+ * BP-2: analyze-from-website + apply-on-accept.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -11,6 +12,10 @@ import {
   BusinessProfileSchema,
   type BusinessProfile,
 } from "./schemas";
+import {
+  analyzeBusinessProfileFromWebsite,
+  applySuggestionValue,
+} from "./analyzer.server";
 
 // types.ts hasn't regenerated for business_profiles_v2 yet; cast where needed.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
