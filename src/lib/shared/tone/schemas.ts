@@ -4,47 +4,47 @@
  */
 import { z } from "zod";
 
-const StrList = (max = 60) =>
-  z.array(z.string().trim().min(1).max(300)).max(max);
+const StrList = (max = 120) =>
+  z.array(z.string().trim().min(1).max(800)).max(max);
 
 export const VoiceIdentitySchema = z.object({
-  summary: z.string().trim().min(10).max(1200),
-  persona: z.string().trim().max(200).default(""),
-  emotionalRegister: z.string().trim().max(200).default(""),
-  authorityStyle: z.string().trim().max(300).default(""),
+  summary: z.string().trim().min(10).max(4000),
+  persona: z.string().trim().max(600).default(""),
+  emotionalRegister: z.string().trim().max(600).default(""),
+  authorityStyle: z.string().trim().max(800).default(""),
   commercialIntensity: z.enum(["low", "medium", "high"]).default("medium"),
 });
 
 export const SentenceArchitectureSchema = z.object({
-  averageSentenceLength: z.string().trim().max(60).default(""),
-  paragraphLength: z.string().trim().max(60).default(""),
-  preferredStructure: z.string().trim().max(400).default(""),
+  averageSentenceLength: z.string().trim().max(300).default(""),
+  paragraphLength: z.string().trim().max(300).default(""),
+  preferredStructure: z.string().trim().max(1000).default(""),
   usesQuestions: z.boolean().default(false),
-  passiveVoicePolicy: z.string().trim().max(120).default("avoid"),
-  rhythm: z.string().trim().max(300).default(""),
+  passiveVoicePolicy: z.string().trim().max(400).default("avoid"),
+  rhythm: z.string().trim().max(800).default(""),
 });
 
 export const VocabularySchema = z.object({
-  preferred: StrList(60).default([]),
-  avoid: StrList(60).default([]),
-  forbidden: StrList(60).default([]),
-  replacements: z.record(z.string().trim().min(1).max(80), z.string().trim().max(200)).default({}),
-  technicalTermsPolicy: z.string().trim().max(400).default(""),
+  preferred: StrList(120).default([]),
+  avoid: StrList(120).default([]),
+  forbidden: StrList(120).default([]),
+  replacements: z.record(z.string().trim().min(1).max(200), z.string().trim().max(400)).default({}),
+  technicalTermsPolicy: z.string().trim().max(1000).default(""),
 });
 
 export const ClaimStyleSchema = z.object({
-  allowedClaims: StrList(40).default([]),
-  riskyClaims: StrList(40).default([]),
-  forbiddenClaims: StrList(40).default([]),
-  safeClaimPatterns: StrList(40).default([]),
-  evidenceRequiredFor: StrList(30).default([]),
+  allowedClaims: StrList(80).default([]),
+  riskyClaims: StrList(80).default([]),
+  forbiddenClaims: StrList(80).default([]),
+  safeClaimPatterns: StrList(80).default([]),
+  evidenceRequiredFor: StrList(60).default([]),
 });
 
 export const CtaStyleSchema = z.object({
-  primaryCtaPatterns: StrList(20).default([]),
-  secondaryCtaPatterns: StrList(20).default([]),
-  style: z.string().trim().max(300).default(""),
-  avoid: StrList(20).default([]),
+  primaryCtaPatterns: StrList(40).default([]),
+  secondaryCtaPatterns: StrList(40).default([]),
+  style: z.string().trim().max(800).default(""),
+  avoid: StrList(40).default([]),
 });
 
 export const TrustStyleSchema = z.object({
