@@ -514,7 +514,7 @@ export async function analyzeBusinessProfileFromWebsite(input: {
 
   let parsed: AnalysisResult;
   try {
-    parsed = AnalysisResultSchema.parse(await extractJson(llm.text));
+    parsed = AnalysisResultSchema.parse(extractJson(llm.text));
   } catch (e) {
     console.error("[bp-2] parse failed, raw:", llm.text?.slice(0, 1000));
     throw new Error(`Analyzer JSON ongeldig: ${(e as Error).message}`);
