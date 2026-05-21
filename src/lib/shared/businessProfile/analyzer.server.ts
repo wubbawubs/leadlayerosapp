@@ -48,15 +48,24 @@ const FieldSuggestionSchema = z.object({
   sourceEvidence: z.array(EvidenceSchema).max(8).default([]),
 });
 
+const SectionReasonSchema = z.object({
+  score: z.number().min(0).max(1),
+  strengths: z.array(z.string().max(300)).max(8).default([]),
+  gaps: z.array(z.string().max(300)).max(8).default([]),
+  nextSteps: z.array(z.string().max(300)).max(8).default([]),
+});
+
 const AnalysisResultSchema = z.object({
   fieldSuggestions: z.array(FieldSuggestionSchema).max(80).default([]),
   strategyAngles: z.array(StrategyAngleSchema).max(12).default([]),
   missingContext: z.array(MissingContextItemSchema).max(20).default([]),
   sectionConfidence: z.record(z.string(), z.number().min(0).max(1)).default({}),
+  sectionReasons: z.record(z.string(), SectionReasonSchema).default({}),
   overallConfidence: z.number().min(0).max(1).default(0),
 });
 
 type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
+
 
 // ----------------------------------------------------------------------------
 // Helpers
