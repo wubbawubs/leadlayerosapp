@@ -151,12 +151,12 @@ export async function runAudit(auditId: string): Promise<void> {
           title: extracted?.title ?? null,
           meta_description: extracted?.meta_description ?? null,
           h1: extracted?.h1 ?? null,
-          schema: extracted?.schema ?? null,
+          schema: (extracted?.schema ?? null) as never,
           images_without_alt: extracted?.images_without_alt ?? 0,
           internal_links_count: extracted?.internal_links_count ?? 0,
           external_links_count: extracted?.external_links_count ?? 0,
           word_count: extracted?.word_count ?? 0,
-          issues,
+          issues: issues as never,
         })
         .select("id")
         .single();
