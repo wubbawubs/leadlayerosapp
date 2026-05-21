@@ -174,7 +174,18 @@ function SitesPage() {
                 const { authorizeUrl } = await startOAuth({
                   data: { tenantId },
                 });
-                window.location.href = authorizeUrl;
+                // WordPress.com sends X-Frame-Options: DENY, so we must break
+                // out of the Lovable preview iframe. Try top-level navigation;
+                // if blocked by cross-origin, fall back to opening a new tab.
+                try {
+                  if (window.top && window.top !== window.self) {
+                    window.top.location.href = authorizeUrl;
+                  } else {
+                    window.location.href = authorizeUrl;
+                  }
+                } catch {
+                  window.open(authorizeUrl, "_blank", "noopener,noreferrer");
+                }
               } catch (e) {
                 setConnectError((e as Error).message);
               }
