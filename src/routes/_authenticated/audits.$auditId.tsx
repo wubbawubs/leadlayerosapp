@@ -41,7 +41,7 @@ function AuditDetailPage() {
   const grouped = useMemo(() => {
     const counts = new Map<string, { count: number; severity: string; sample: string }>();
     for (const p of pages) {
-      for (const i of (p.issues ?? []) as Issue[]) {
+      for (const i of (p.issues ?? []) as unknown as Issue[]) {
         const cur = counts.get(i.code) ?? { count: 0, severity: i.severity, sample: i.message };
         cur.count++;
         counts.set(i.code, cur);
@@ -140,7 +140,7 @@ function AuditDetailPage() {
         <h2 className="mb-3 font-display text-2xl text-foreground">Pages</h2>
         <div className="space-y-2">
           {pages.map((p) => {
-            const issues = (p.issues ?? []) as Issue[];
+            const issues = (p.issues ?? []) as unknown as Issue[];
             return (
               <div key={p.id} className="rounded-md border border-border bg-card/70 p-4">
                 <div className="flex items-start justify-between gap-3">
