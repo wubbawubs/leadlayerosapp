@@ -189,8 +189,9 @@ function Shell({
   onSignOut,
 }: {
   children: React.ReactNode;
-  tenants?: { id: string; name: string; geo: string; vertical: string }[];
+  tenants?: { id: string; name: string; geo: string; vertical: string; status: string }[];
   onSignOut?: () => void;
+
 }) {
   return (
     <div className="min-h-screen bg-background bg-blueprint">
