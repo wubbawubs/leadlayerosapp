@@ -17,6 +17,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedSitesRouteImport } from './routes/_authenticated/sites'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedSitesNewRouteImport } from './routes/_authenticated/sites.new'
 import { Route as AuthenticatedOnboardingWelcomeRouteImport } from './routes/_authenticated/onboarding.welcome'
 import { Route as AuthenticatedOnboardingSiteRouteImport } from './routes/_authenticated/onboarding.site'
 import { Route as AuthenticatedOnboardingDoneRouteImport } from './routes/_authenticated/onboarding.done'
@@ -61,6 +62,11 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   path: '/app',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSitesNewRoute = AuthenticatedSitesNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AuthenticatedSitesRoute,
+} as any)
 const AuthenticatedOnboardingWelcomeRoute =
   AuthenticatedOnboardingWelcomeRouteImport.update({
     id: '/welcome',
@@ -93,11 +99,12 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
-  '/sites': typeof AuthenticatedSitesRoute
+  '/sites': typeof AuthenticatedSitesRouteWithChildren
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
+  '/sites/new': typeof AuthenticatedSitesNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -106,11 +113,12 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
-  '/sites': typeof AuthenticatedSitesRoute
+  '/sites': typeof AuthenticatedSitesRouteWithChildren
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
+  '/sites/new': typeof AuthenticatedSitesNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -121,11 +129,12 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
-  '/_authenticated/sites': typeof AuthenticatedSitesRoute
+  '/_authenticated/sites': typeof AuthenticatedSitesRouteWithChildren
   '/_authenticated/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/_authenticated/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/_authenticated/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
+  '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/onboarding/done'
     | '/onboarding/site'
     | '/onboarding/welcome'
+    | '/sites/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | '/onboarding/done'
     | '/onboarding/site'
     | '/onboarding/welcome'
+    | '/sites/new'
   id:
     | '__root__'
     | '/'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding/done'
     | '/_authenticated/onboarding/site'
     | '/_authenticated/onboarding/welcome'
+    | '/_authenticated/sites/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -236,6 +248,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/sites/new': {
+      id: '/_authenticated/sites/new'
+      path: '/new'
+      fullPath: '/sites/new'
+      preLoaderRoute: typeof AuthenticatedSitesNewRouteImport
+      parentRoute: typeof AuthenticatedSitesRoute
+    }
     '/_authenticated/onboarding/welcome': {
       id: '/_authenticated/onboarding/welcome'
       path: '/welcome'
@@ -287,16 +306,27 @@ const AuthenticatedOnboardingRouteWithChildren =
     AuthenticatedOnboardingRouteChildren,
   )
 
+interface AuthenticatedSitesRouteChildren {
+  AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
+}
+
+const AuthenticatedSitesRouteChildren: AuthenticatedSitesRouteChildren = {
+  AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
+}
+
+const AuthenticatedSitesRouteWithChildren =
+  AuthenticatedSitesRoute._addFileChildren(AuthenticatedSitesRouteChildren)
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRouteWithChildren
-  AuthenticatedSitesRoute: typeof AuthenticatedSitesRoute
+  AuthenticatedSitesRoute: typeof AuthenticatedSitesRouteWithChildren
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRouteWithChildren,
-  AuthenticatedSitesRoute: AuthenticatedSitesRoute,
+  AuthenticatedSitesRoute: AuthenticatedSitesRouteWithChildren,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -313,3 +343,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
