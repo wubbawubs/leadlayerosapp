@@ -1,110 +1,99 @@
+# Sprint 1 — Onboarding & Tenant Setup
 
-# LeadLayer S0 — Foundation
+## A. Eerst: sprint-docs syncen met je upload
 
-Doel: complete backend-foundation conform `leadlayer-plan-v3.md` op deze nieuwe Lovable workspace, plus minimale auth-UI met de bestaande LeadLayer brand-tokens (deep navy + oranje accent, italic display). Geen marketing-site, geen onboarding, geen dashboard nog — die komen in S1+.
+Je nieuwe `leadlayer-sprints.md` is het canonieke plan. Ik vervang de bestaande sprint-files 1:1 met jouw inhoud.
 
-## 1. Lovable Cloud aan + secrets
+- `project-docs/sprints__overview.md` — kop, volgorde-advies, algemene werkregels (uit jouw doc § "Volgorde-advies" + "Algemene werkregels")
+- `project-docs/todos__sprint-0.md` t/m `sprint-8.md` — per-sprint blokken uit jouw doc, 1:1 overgenomen (S0 = done-overview, S6/S7/S8 nu ook expliciet)
+- `project-docs/masterplan.md` — sprint-tabel uitbreiden naar S0-S8, status-kolom bijwerken (S0 ✅, S1 ⏳, S6-S8 nieuw 🟦)
+- Oude `project-docs/todos__sprint-1..6.md` (van vorige ronde) worden overschreven met de S0-S8 versie
 
-- `supabase--enable` aanroepen (Cloud aanzetten = Supabase + Auth + Storage).
-- `ai_gateway--create` voor `LOVABLE_API_KEY` (gebruikt door LLMRouter ipv directe OpenAI/Anthropic-keys in MVP — voldoet aan plan zonder vendor lock).
-- `secrets--add_secret` voor: `ENCRYPTION_KEY` (32-byte base64, voor AES-GCM tenant_secrets), `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`, `RESEND_API_KEY`. OpenAI/Anthropic-keys laten we voor later; LLMRouter pakt eerst Lovable AI Gateway.
-- Auth-config: Email/Password + Google (via Lovable broker) aanzetten, auto-confirm uit, HIBP password check aan.
+Geen schema-fix nodig: `tenants`, `memberships`, `onboarding_sessions` zitten al in S0-migratie en matchen jouw S1-spec ("geen nieuwe tabellen").
 
-## 2. Database migraties (3 files, exact uit plan-v3 Contract 1)
+## B. Sprint 1 — 5-stappen ladder
 
-- `0001_init.sql` — extensions (`pgcrypto`, `vector`, `pg_cron`), alle enums (`app_role`, `geo_code`, `vertical_code`, `lead_status`, `issue_severity`, `action_type`, `approval_state`, `workflow_state`, `onboarding_status`, `connection_type`, `connection_status`, `change_status`) en alle tabellen:
-  - Tenancy: `profiles`, `tenants`, `memberships` (PK = `(user_id, tenant_id)`).
-  - Onboarding: `onboarding_sessions`.
-  - Connectivity: `site_connections`.
-  - Secrets vault: `tenant_secrets`, `secret_audit_log`.
-  - Strategy: `master_plans`, `monthly_plans`.
-  - Content: `pages`, `page_snapshots`, `change_groups`, `changes`, `wp_write_operations`.
-  - Audits: `scans`, `issues`, `health_scores`.
-  - Leads: `raw_events`, `leads`, `lead_events`.
-  - Jobs spiegel: `workflow_runs`.
-  - Triggers: `protect_last_owner` (tenant houdt minstens 1 owner), `handle_new_user` (auto-create `profiles` rij bij signup), `updated_at` triggers waar relevant.
-- `0002_rls_policies.sql` — RLS aan op alle tabellen, expliciete policies per tabel. `SECURITY DEFINER` helpers: `is_tenant_member(tenant_id)`, `has_tenant_role(tenant_id, role)`, `has_tenant_min_role(tenant_id, role)`. `raw_events` / `workflow_runs` / `wp_write_operations` / `secret_audit_log` zijn read-only voor `authenticated`; alleen service-role schrijft.
-- `0003_seed_dev.sql` — leeg / klein dev-seed (geen prod data).
+Doel: nieuwe user → signup (al klaar) → `/onboarding/welcome` → `business` → `site` → `done` → `/app` met 1 tenant + owner-membership. Onder 2 min.
 
-## 3. Shared libs (`src/lib/shared/`)
+WP-probe blijft **expliciet uit S1** (= S2 per jouw doc). Site-URL wordt in S1 alleen op `onboarding_sessions.site_url` geparkeerd.
 
-Plat in deze repo conform handover §6 (geen pnpm-workspaces in Lovable):
+### Stap 1 — DB
+Geen nieuwe migratie. Wel kleine RLS-verificatie:
+- bevestigen dat `onboarding_sessions` policy "onboarding self all" upsert toelaat voor `auth.uid()`
+- bevestigen dat `memberships owner manage` insert toelaat als de inserter zelf owner wordt (chicken-en-ei → owner-bootstrap via `SECURITY DEFINER` server-function, zie stap 3)
 
-- `secrets/crypto.ts` — `encrypt(value)` / `decrypt(value, version)` met AES-256-GCM via Node `crypto.createCipheriv`. Output: base64(iv ‖ authTag ‖ ciphertext). Server-only file (`crypto.server.ts`).
-- `secrets/vault.functions.ts` — `setTenantSecret`, `getTenantSecret` als `createServerFn` + `requireSupabaseAuth`, schrijft `tenant_secrets` + `secret_audit_log`.
-- `db/repos/` — repository-pattern per entiteit (`tenants.repo.ts`, `memberships.repo.ts`, `siteConnections.repo.ts`, etc.). Élke query filtert expliciet op `tenant_id`; type-safe wrappers boven supabase client. Onder de hood gebruikt elke repo de `requireSupabaseAuth`-supabase-client uit context (RLS-laag is backstop).
-- `jobs/schemas.ts` — Zod schemas voor élke job-payload (`ProbeSitePayload`, `BaselineSnapshotPayload`, `AuditPayload`, etc.) + helper `assertTenantPayload()` die `tenantId` afdwingt. Wordt later gedeeld met externe worker.
-- `llm/router.ts` — `LLMRouter` met `complete({ task, prompt })` interface. MVP-implementatie: Lovable AI Gateway via `LOVABLE_API_KEY` (Claude Sonnet als default). Retry + fallback skeleton + cost-logging stub. Pluggable backends voor later (OpenAI/Anthropic direct).
-- `locale/` — `LocaleContext` + helpers (`nl-NL` default, `en-US` switch). Server-side helper voor LLM prompt-locale.
+### Stap 2 — Shared contracten (`src/lib/shared/`)
+- `db/repos/onboarding.functions.ts` — `getActiveSession()`, `upsertStep({ step, payload })`, `markCompleted({ tenantId })`
+- `db/repos/tenants.functions.ts` (bestaat al, uitbreiden) — `createTenantWithOwner({ name, geo, vertical })` via `SECURITY DEFINER` SQL-function `create_tenant_with_owner(p_name, p_geo, p_vertical)` zodat membership-insert atomic gebeurt en RLS-deadlock omzeilt
+- `locale/onboarding.ts` — NL/EN copy voor alle 4 stappen
+- Zod-schemas voor `BusinessStepInput` (name, geo, vertical) en `SiteStepInput` (site_url) in `db/repos/onboarding.schemas.ts`
 
-## 4. Auth UI (minimaal)
+### Stap 3 — Worker / Edge
+Niet van toepassing in S1. SQL-function `create_tenant_with_owner` (= "edge function create-tenant" uit je doc, maar als Postgres-function omdat we op TanStack ServerFn zitten — geen Supabase Edge Functions per stack-regel) doet de transactie:
 
-Doel: kunnen inloggen om straks in S1 onboarding te starten. Geen marketing-pagina.
+```sql
+create function public.create_tenant_with_owner(p_name text, p_geo geo_code, p_vertical vertical_code)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_tenant_id uuid;
+begin
+  insert into tenants(name, geo, vertical) values (p_name, p_geo, p_vertical) returning id into v_tenant_id;
+  insert into memberships(user_id, tenant_id, role) values (auth.uid(), v_tenant_id, 'owner');
+  return v_tenant_id;
+end $$;
+revoke execute on function public.create_tenant_with_owner from public;
+grant execute on function public.create_tenant_with_owner to authenticated;
+```
 
-- `src/routes/index.tsx` — minimale landing met LeadLayer-merknaam, oranje primary CTA "Sign in", korte tagline "Lead infrastructure for service businesses". Geen volledige marketing-site (komt in latere ronde / aparte route).
-- `src/routes/login.tsx` — Email/password + "Continue with Google" (Lovable broker).
-- `src/routes/signup.tsx` — Email/password + Google. `emailRedirectTo: window.location.origin`.
-- `src/routes/reset-password.tsx` — verplichte recovery-pagina (`supabase.auth.updateUser({ password })`).
-- `src/routes/_authenticated.tsx` — pathless layout met `beforeLoad` gate (`supabase.auth.getUser()` → redirect `/login`). Bevat `<Outlet />`.
-- `src/routes/_authenticated/app.tsx` — placeholder "Foundation ready. S1 onboarding next." + sign-out knop. Bewijst dat auth-keten end-to-end werkt.
-- `src/hooks/use-auth.ts` — `onAuthStateChange` listener wired in `__root.tsx` met `router.invalidate()` + `queryClient.invalidateQueries()`.
+Migratie-file: `0005_s1_create_tenant_fn.sql`.
 
-## 5. Auth-bearer + server-fn plumbing
+### Stap 4 — Frontend
+Routes (TanStack file-based, geen Next-style folders):
+- `src/routes/_authenticated/onboarding.tsx` — pathless layout met `<Outlet />` + stepper-header
+- `src/routes/_authenticated/onboarding.welcome.tsx` — intro + "Start"
+- `src/routes/_authenticated/onboarding.business.tsx` — form: name + geo (NL/BE/DE/UK) + vertical (uit `vertical_code` enum). Submit → upsertStep.
+- `src/routes/_authenticated/onboarding.site.tsx` — form: site_url. Submit → upsertStep + `createTenantWithOwner` met velden uit business-step. Geen WP-probe.
+- `src/routes/_authenticated/onboarding.done.tsx` — confirmatie + "Open dashboard" → `/app`
+- `src/routes/_authenticated.tsx` — `beforeLoad` uitbreiden: heeft user 0 tenants OR active onboarding niet completed → redirect `/onboarding/welcome` (tenzij user al op `/onboarding/*` is)
+- `src/routes/_authenticated/app.tsx` — tenant-switcher in header (dropdown over `listMyTenants`), placeholder dashboard blijft
 
-- `src/start.ts` — registreer `attachSupabaseAuth` in `functionMiddleware` (zonder bestaande `requestMiddleware: [errorMiddleware]` te overschrijven).
-- Verifieer dat `src/integrations/supabase/{client,client.server,auth-middleware,auth-attacher}.ts` aanwezig zijn (worden door Cloud-enable gegenereerd).
+Bewust géén tenant-switcher als losse component nu — gewoon inline dropdown. Refactor naar `<TenantSwitcher />` zodra we 2e tenant-aware route bouwen (= S2).
 
-## 6. Design tokens (match leadlayer.lovable.app)
+### Stap 5 — Test (handmatige acceptance, geen CI nog)
+- 2 testaccounts (A en B) doorlopen onboarding met verschillende tenant-naam
+- A queryt via `listMyTenants` → ziet enkel eigen tenant
+- B kan tenant van A niet selecteren in switcher
+- Direct call met B's JWT naar `create_tenant_with_owner(...)` slaagt; daarna SELECT op A's tenant returnt 0 rijen
+- Gebroken business-form (geen vertical) → Zod-error, geen DB-call
 
-In `src/styles.css` semantische tokens overschrijven met de bestaande brand:
+## C. Done-criterium (jouw doc, letterlijk)
 
-- `--background` deep navy (oklch ≈ 0.18 0.09 265).
-- `--foreground` near-white.
-- `--primary` LeadLayer-oranje (oklch ≈ 0.72 0.19 50), `--primary-foreground` near-white.
-- `--accent` zelfde oranje, subtieler.
-- `--card` iets lichter navy laag (0.22 0.08 265).
-- `--border` semi-transparant wit op navy.
-- Custom: `--font-display` (italic condensed, vergelijkbaar look met de "YOU'RE LEAKING LEADS" headline — kandidaat: `"Anton"` of `"Bebas Neue"` italic via Google Fonts), `--font-body` Inter-vervanger zoals `"Plus Jakarta Sans"`.
-- Subtle blueprint grid background utility voor hero (radial-/linear-gradient).
+> Nieuwe user kan in <2 min van signup naar lege dashboard.
 
-Geen Marketing-content overnemen — alleen brand-shell zodat auth-flow er al als LeadLayer uitziet.
+Plus: `memberships.role = 'owner'`, `onboarding_sessions.status = 'completed'`, tenant zichtbaar in switcher.
 
-## 7. Worker-laag (bewust skipped)
+## D. Bewust uit S1 (= S2 of later)
 
-Conform jouw keuze: geen worker in Lovable. Wel:
-- `jobs/schemas.ts` ligt klaar (gedeeld contract).
-- `workflow_runs` tabel ligt klaar (UI-spiegel).
-- Geen `enqueue()` implementatie in deze workspace; komt in aparte repo met `pg-boss`.
-- Playwright / WP-probe stub-functies krijgen `// TODO: move to worker` comment, geen edge-implementatie.
+- WordPress REST probe + credentials encryptie
+- `site_connections` rij maken (gebeurt in S2 op basis van `onboarding_sessions.site_url`)
+- Tenant-rename / delete UI
+- Invite-flow voor extra members (S6 polish)
 
-## 8. Acceptance criteria (S0 done)
+## E. Bestanden die deze sprint raken
 
-- [ ] Cloud actief, alle 3 migraties toegepast, alle tabellen + RLS zichtbaar.
-- [ ] `ENCRYPTION_KEY` + Lovable AI Gateway secrets gezet.
-- [ ] Auth werkt: email/password signup + login + Google, signup maakt `profiles`-rij via trigger.
-- [ ] `/reset-password` route bestaat en doet `updateUser({ password })`.
-- [ ] `_authenticated` gate werkt; ongeauthenticeerde user op `/app` → `/login`.
-- [ ] Crypto round-trip: server-fn `setTenantSecret` → `getTenantSecret` levert origineel terug; audit-log rij geschreven.
-- [ ] LLMRouter responsief: dummy server-fn die `router.complete({ prompt: "ping" })` doet returnt tekst via Lovable AI Gateway.
-- [ ] Repository-laag voorbeeld: `tenants.repo.list()` returneert alleen rijen van tenants waar de user member is (handmatige test met 2 accounts).
-- [ ] Brand: navy + oranje + italic display zichtbaar op `/`, `/login`, `/app`.
+```
+project-docs/                          (overschrijven met jouw upload-content)
+supabase/migrations/0005_s1_create_tenant_fn.sql   (nieuw)
+src/lib/shared/db/repos/tenants.functions.ts        (uitbreiden)
+src/lib/shared/db/repos/onboarding.functions.ts     (nieuw)
+src/lib/shared/db/repos/onboarding.schemas.ts       (nieuw)
+src/lib/shared/locale/onboarding.ts                 (nieuw)
+src/routes/_authenticated.tsx                       (gate uitbreiden)
+src/routes/_authenticated/onboarding.tsx            (nieuw, layout)
+src/routes/_authenticated/onboarding.welcome.tsx    (nieuw)
+src/routes/_authenticated/onboarding.business.tsx   (nieuw)
+src/routes/_authenticated/onboarding.site.tsx       (nieuw)
+src/routes/_authenticated/onboarding.done.tsx       (nieuw)
+src/routes/_authenticated/app.tsx                   (switcher inline)
+```
 
-## 9. Wat NIET in deze ronde
-
-- Marketing/landing van leadlayer.lovable.app (Services/Method/Pricing/Results/About) — later ronde of buiten S0.
-- Onboarding wizard, WP probe, tenant-create flow (= S1).
-- Audit, leads, proposals, publish (= S2–S5).
-- Externe Node worker / pg-boss / Playwright (= jouw aparte repo).
-
----
-
-## Technische details (voor reviewers)
-
-- TanStack Start v1, file-based routing in `src/routes/`. Geen `src/pages/`.
-- Alle server-side Supabase access via `createServerFn` + `requireSupabaseAuth`; `supabaseAdmin` alleen in `*.server.ts` voor crypto/vault-writes naar `secret_audit_log` (service-role-only tabel).
-- `crypto.server.ts` gebruikt Node `crypto` (volledig supported in Worker met `nodejs_compat`).
-- LLMRouter eerste implementatie target Lovable AI Gateway (gateway endpoint via `LOVABLE_API_KEY`); `task → model` mapping is een lookup map (`default → claude-sonnet-4`, `cheap → claude-haiku`, etc.) zodat S4 prompts straks alleen `task` hoeven door te geven.
-- Repository-pattern: elke functie krijgt `supabase`-client uit `requireSupabaseAuth` context; geen module-level supabase imports.
-- `protect_last_owner` als BEFORE DELETE/UPDATE trigger op `memberships` met `RAISE EXCEPTION` als laatste owner weg zou vallen.
-- RLS-helpers als `SECURITY DEFINER STABLE` met `SET search_path = public` (geen recursie).
-- `wp_write_operations`, `raw_events`, `workflow_runs`, `secret_audit_log`, `page_snapshots` policies: `SELECT` voor members van tenant; `INSERT/UPDATE/DELETE` alleen via service-role.
+Klaar om te implementeren — geef seintje en ik start met de doc-sync + migratie, dan ServerFns, dan UI.

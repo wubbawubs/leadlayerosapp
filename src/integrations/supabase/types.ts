@@ -968,6 +968,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_tenant_with_owner: {
+        Args: {
+          p_geo: Database["public"]["Enums"]["geo_code"]
+          p_name: string
+          p_vertical: Database["public"]["Enums"]["vertical_code"]
+        }
+        Returns: string
+      }
       has_tenant_min_role: {
         Args: {
           _min_role: Database["public"]["Enums"]["app_role"]
