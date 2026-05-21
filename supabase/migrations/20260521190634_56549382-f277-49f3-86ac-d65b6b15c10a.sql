@@ -1,0 +1,1 @@
+DELETE FROM public.site_connections WHERE id = 'a5f1b58f-b8ae-45fd-a959-282ad0796c31';
