@@ -758,6 +758,7 @@ export type Database = {
           status: Database["public"]["Enums"]["connection_status"]
           tenant_id: string
           type: Database["public"]["Enums"]["connection_type"]
+          username: string | null
         }
         Insert: {
           base_url?: string | null
@@ -769,6 +770,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["connection_status"]
           tenant_id: string
           type: Database["public"]["Enums"]["connection_type"]
+          username?: string | null
         }
         Update: {
           base_url?: string | null
@@ -780,6 +782,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["connection_status"]
           tenant_id?: string
           type?: Database["public"]["Enums"]["connection_type"]
+          username?: string | null
         }
         Relationships: [
           {
