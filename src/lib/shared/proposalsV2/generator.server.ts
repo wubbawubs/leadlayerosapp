@@ -321,6 +321,116 @@ function compactMeta(text: string, maxLen: number): string {
   return cut.replace(/[\s,;:.\-]+$/u, "").trim();
 }
 
+// ---------- Deterministic banned-phrase rewrite (per-locale) ----------
+
+interface BannedRewriteOutcome {
+  text: string;
+  changed: boolean;
+  remaining: string[];
+}
+
+function rewriteBannedPhrases(text: string, locale: string): BannedRewriteOutcome {
+  let out = text;
+  let changed = false;
+  if (locale === "nl-NL") {
+    const before = out;
+    out = out.replace(/(^|[.!?]\s+)Ontdek\b/g, (_m, p1) => `${p1}Bekijk`);
+    out = out.replace(/\bOntdek\b/g, "Bekijk");
+    out = out.replace(/\bontdek\b/g, "lees");
+    out = out.replace(/\bwel resultaat\b/gi, "duidelijke verbeterpunten");
+    out = out.replace(/\bstijgende resultaten\b/gi, "betere vindbaarheid");
+    out = out.replace(/\bcontinue optimalisatie\b/gi, "stap voor stap verbeteren");
+    out = out.replace(/\blaat je bedrijf groeien\b/gi, "word beter vindbaar");
+    out = out.replace(/\bmeer klanten aantrekken\b/gi, "beter zichtbaar worden");
+    out = out.replace(/\bgegarandeerd\b/gi, "");
+    out = out.replace(/\bnummer 1\b/gi, "");
+    out = out.replace(/\brevolutionair\b/gi, "");
+    out = out.replace(/\bsucces\b/gi, "");
+    if (out !== before) changed = true;
+  } else if (locale === "en-US") {
+    const before = out;
+    out = out.replace(/(^|[.!?]\s+)Discover\b/g, (_m, p1) => `${p1}See`);
+    out = out.replace(/\bdiscover\b/gi, "see");
+    out = out.replace(/\bguaranteed\b/gi, "proven");
+    out = out.replace(/\bskyrocket\b/gi, "grow");
+    out = out.replace(/\bunlock the power\b/gi, "use");
+    out = out.replace(/\brevolutionary\b/gi, "");
+    out = out.replace(/\b(#1|number one|world-class|best in class|click here)\b/gi, "");
+    if (out !== before) changed = true;
+  }
+  out = out.replace(/\s{2,}/g, " ").replace(/\s+([,.!?;:])/g, "$1").trim();
+  const locRules = LOCALE_RULES[locale] ?? LOCALE_RULES["nl-NL"];
+  const lower = out.toLowerCase();
+  const remaining = locRules.bannedPhrases.filter((p) => lower.includes(p.toLowerCase()));
+  return { text: out, changed, remaining };
+}
+
+// ---------- Deterministic meta builder (last resort) ----------
+
+function buildDeterministicMeta(ctx: GrowthContext, maxLen: number): string | null {
+  const biz = ctx.business;
+  const page = ctx.page;
+  const offer = biz?.offer as
+    | { mainPromise?: string; safePromise?: string; primaryOffer?: string; uniqueValueProposition?: string }
+    | undefined;
+  const id = biz?.identity as { brandName?: string; businessName?: string } | undefined;
+  const brand = id?.brandName || id?.businessName || "ons team";
+  const pageType = page?.pageType ?? "";
+  const topic = page?.primaryTopic ?? "lokale vindbaarheid";
+  const safe = offer?.safePromise || offer?.mainPromise;
+  const mech = offer?.uniqueValueProposition || offer?.primaryOffer;
+  const url = (page?.pageUrl ?? "").toLowerCase();
+  const isProcess = /werkwijze|process|approach|how-we-work/.test(url) || pageType === "trust";
+
+  let candidate: string | null = null;
+  if (ctx.instructions.locale === "nl-NL") {
+    if (isProcess) {
+      candidate = `Zo werkt ${brand}: van websitescan tot duidelijke verbeterpunten. Jij houdt controle over wat live gaat.`;
+    } else if (pageType === "homepage" || pageType === "service") {
+      candidate = `${safe ?? "Beter vindbaar worden in Google"}. ${mech ?? "Concrete verbeterpunten zonder technisch gedoe"}.`;
+    } else if (pageType === "blog") {
+      candidate = `${topic} helpt ondernemers beter zichtbaar worden in hun regio. Lees praktische uitleg zonder technisch jargon.`;
+    } else {
+      candidate = `${safe ?? "Beter vindbaar worden"}. ${mech ?? "Heldere uitleg zonder jargon"}.`;
+    }
+  } else if (ctx.instructions.locale === "en-US") {
+    if (isProcess) {
+      candidate = `How ${brand} works: from website scan to clear improvements. You stay in control of what goes live.`;
+    } else if (pageType === "homepage" || pageType === "service") {
+      candidate = `${safe ?? "Get found by local customers"}. ${mech ?? "Clear improvements without the technical hassle"}.`;
+    } else if (pageType === "blog") {
+      candidate = `${topic} helps local businesses rank in their area. Practical guidance without the jargon.`;
+    } else {
+      candidate = `${safe ?? "Get found locally"}. ${mech ?? "Clear, practical improvements"}.`;
+    }
+  }
+  if (!candidate) return null;
+  candidate = candidate.replace(/\s{2,}/g, " ").trim();
+  return compactMeta(candidate, maxLen);
+}
+
+// ---------- Alt fallback cleanup ----------
+
+function cleanupAltText(raw: string): string {
+  let out = raw;
+  out = out.replace(/\s*\([^)]*\)\s*/g, " ").trim();
+  out = out.replace(/\bseo\b/g, "SEO");
+  out = out.replace(/\s{2,}/g, " ").trim();
+  if (out.length > 120) out = compactMeta(out, 120);
+  return out;
+}
+
+function dedupeAlts(alts: string[]): string[] {
+  const seen = new Map<string, number>();
+  return alts.map((a) => {
+    const key = a.toLowerCase().trim();
+    const count = (seen.get(key) ?? 0) + 1;
+    seen.set(key, count);
+    if (count === 1) return a;
+    return `${a} — variant ${count}`.slice(0, 120);
+  });
+}
+
 // ---------- Public API ----------
 
 export interface GeneratorResult {
@@ -419,20 +529,80 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
     compactedDeterministically = true;
   }
 
-  // Alt unknown-image safe fallback: we have no image data, so override
-  // any concrete object/people mentions with topic-bound generic alts.
+  // ----- HARD banned-phrase enforcement (V2.3) -----
+  // After all LLM retries, if banned phrases are still in user-facing text,
+  // try a deterministic rewrite. If still bad and the action is meta-like,
+  // fall back to a deterministic context-built meta. If still bad, mark
+  // blocked:banned_phrase_remaining so the evaluator rejects the proposal.
+  const isMetaLike =
+    ctx.action.actionType === "rewrite_meta_description" ||
+    ctx.action.actionType === "write_meta_description" ||
+    ctx.action.actionType === "write_cta" ||
+    ctx.action.actionType === "write_h1" ||
+    ctx.action.actionType === "rewrite_h1";
+
+  if (typeof parsed.after.text === "string" && isMetaLike) {
+    const original = parsed.after.text;
+    const rewrite = rewriteBannedPhrases(original, ctx.instructions.locale);
+    let workingText = rewrite.text;
+    let flags = [...parsed.riskFlags];
+    if (rewrite.changed) flags.push("banned_phrase:deterministic_rewrite");
+
+    if (rewrite.remaining.length > 0 || (maxLen && workingText.length > maxLen)) {
+      // Try deterministic context builder
+      const built = maxLen ? buildDeterministicMeta(ctx, maxLen) : null;
+      if (built) {
+        const builtCheck = rewriteBannedPhrases(built, ctx.instructions.locale);
+        if (builtCheck.remaining.length === 0) {
+          workingText = builtCheck.text;
+          flags.push("banned_phrase:deterministic_fallback");
+        }
+      }
+    }
+    if (maxLen && workingText.length > maxLen) {
+      workingText = compactMeta(workingText, maxLen);
+    }
+    const finalCheck = rewriteBannedPhrases(workingText, ctx.instructions.locale);
+    if (finalCheck.remaining.length > 0) {
+      flags.push(`blocked:banned_phrase_remaining:${finalCheck.remaining.join(",")}`);
+    }
+    if (workingText !== original) {
+      parsed = {
+        ...parsed,
+        after: { ...parsed.after, text: workingText },
+        riskFlags: Array.from(new Set(flags)),
+      };
+    } else if (flags.length !== parsed.riskFlags.length) {
+      parsed = { ...parsed, riskFlags: Array.from(new Set(flags)) };
+    }
+  }
+
+  // Alt unknown-image safe fallback + V2.3 cleanup
   if (ctx.action.actionType === "write_alt_text") {
     const alts = (parsed.after.alts as string[] | undefined) ?? [];
     const topic = ctx.page?.primaryTopic ?? ctx.page?.contentSummary?.slice(0, 60);
     const fallback = locale.altFallback(topic);
     const concreteRe =
       /(tablet|laptop|computer|telefoon|phone|monitor|scherm|toetsenbord|keyboard|vergrootglas|magnifying|grafiek|chart|google|zoekresultaten|search results|hand|handen|persoon|ondernemer|man|vrouw|smiling|glimlach|tevreden|blij|kantoor|office)/i;
-    const safeAlts = alts.map((a) => (concreteRe.test(a) ? fallback : a));
-    if (safeAlts.some((a, i) => a !== alts[i])) {
+    let mutated = false;
+    let safeAlts = alts.map((a) => {
+      if (concreteRe.test(a)) {
+        mutated = true;
+        return fallback;
+      }
+      return a;
+    });
+    // Cleanup: uppercase SEO, strip parens, length cap
+    const cleaned = safeAlts.map((a) => cleanupAltText(a));
+    if (cleaned.some((a, i) => a !== safeAlts[i])) mutated = true;
+    safeAlts = dedupeAlts(cleaned);
+    const flags = [...parsed.riskFlags];
+    if (mutated) flags.push("alt:safe_fallback_applied");
+    if (mutated || safeAlts.some((a, i) => a !== alts[i])) {
       parsed = {
         ...parsed,
         after: { ...parsed.after, alts: safeAlts },
-        riskFlags: Array.from(new Set([...parsed.riskFlags, "alt:safe_fallback_applied"])),
+        riskFlags: Array.from(new Set(flags)),
       };
     }
   }

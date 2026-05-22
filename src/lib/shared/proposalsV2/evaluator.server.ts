@@ -96,46 +96,41 @@ function measureLength(after: Record<string, unknown>, actionType: string): numb
   return 0;
 }
 
-// ---------- Offer alignment ----------
+// ---------- Concept clusters (V2.3) ----------
+// Cluster hits drive businessFit/offerFit even when literal tokens are absent.
 
-// Concept buckets — count a hit if ANY phrase in the bucket appears in the text.
-const CONCEPT_BUCKETS: Record<string, string[]> = {
-  local_visibility: ["lokale vindbaarheid", "lokaal vindbaar", "beter vindbaar", "vindbaarheid", "rank locally", "local visibility", "near me", "in je regio", "in de regio"],
-  icp_smb_owner: ["lokale ondernemer", "ondernemers", "mkb", "small business", "local business"],
-  uvp_no_jargon: ["zonder technisch gedoe", "zonder jargon", "in gewone taal", "no jargon", "without the technical"],
-  clear_steps: ["duidelijke verbeterpunten", "concrete acties", "stap voor stap", "clear improvements", "step by step", "concrete steps"],
-  conversion_cta: ["gratis websitescan", "gratis scan", "vrijblijvend", "free scan", "free website", "free review", "websitecheck"],
-  promise_outcome: ["beter resultaat", "meer klanten", "meer aanvragen", "more leads", "more customers"],
+const NL_CLUSTERS: Record<string, RegExp[]> = {
+  icp: [/lokale ondernemer/i, /\bondernemers?\b/i, /lokale bedrijven/i, /\bmkb\b/i, /kleine onderneming/i],
+  promise: [/beter vindbaar/i, /vindbaarheid/i, /\bgoogle\b/i, /lokale zichtbaarheid/i, /beter zichtbaar/i],
+  mechanism: [/websitescan/i, /websitecheck/i, /\bscan\b/i, /verbeterpunten/i, /controleren/i, /stap voor stap/i],
+  friction: [/zonder technisch gedoe/i, /geen gedoe/i, /gewone taal/i, /begrijpelijk/i, /zonder jargon/i],
+  cta: [/gratis (web)?scan/i, /websitecheck/i, /\bcontact\b/i, /aanvra(ag|gen)/i, /vrijblijvend/i],
 };
 
-function conceptHits(text: string, ctx: GrowthContext): { conceptCount: number; offerTokenHits: number } {
-  const lower = text.toLowerCase();
-  let conceptCount = 0;
-  for (const phrases of Object.values(CONCEPT_BUCKETS)) {
-    if (phrases.some((p) => lower.includes(p))) conceptCount++;
+const EN_CLUSTERS: Record<string, RegExp[]> = {
+  icp: [/local business(es)?/i, /small business(es)?/i, /local owners?/i, /smb/i],
+  promise: [/rank local/i, /local visibility/i, /found by/i, /found locally/i, /near me/i],
+  mechanism: [/website scan/i, /website review/i, /\bscan\b/i, /improvements?/i, /step by step/i],
+  friction: [/without (the )?technical hassle/i, /no jargon/i, /plain (english|language)/i],
+  cta: [/free (website )?scan/i, /free review/i, /\bcontact\b/i, /get started/i],
+};
+
+function clusterHits(text: string, locale: string): { count: number; hit: string[] } {
+  const clusters = locale.startsWith("nl") ? NL_CLUSTERS : EN_CLUSTERS;
+  const hit: string[] = [];
+  for (const [name, regs] of Object.entries(clusters)) {
+    if (regs.some((r) => r.test(text))) hit.push(name);
   }
-  const biz = ctx.business;
-  let offerTokenHits = 0;
-  if (biz) {
-    const offer = biz.offer as {
-      primaryOffer?: string;
-      mainPromise?: string;
-      safePromise?: string;
-      uniqueValueProposition?: string;
-    };
-    const tokens = [offer?.primaryOffer, offer?.mainPromise, offer?.safePromise, offer?.uniqueValueProposition]
-      .filter((s): s is string => typeof s === "string" && s.length > 4)
-      .flatMap((s) =>
-        s
-          .toLowerCase()
-          .split(/[^a-zà-ÿ0-9]+/i)
-          .filter((w) => w.length > 4),
-      );
-    const unique = Array.from(new Set(tokens));
-    offerTokenHits = unique.reduce((n, t) => n + (lower.includes(t) ? 1 : 0), 0);
-  }
-  return { conceptCount, offerTokenHits };
+  return { count: hit.length, hit };
 }
+
+// Soft NL claim phrases — allowed but should flag as needs_review.
+const NL_SOFT_CLAIM_PATTERNS: RegExp[] = [
+  /\bmeer klanten aantrekken\b/i,
+  /\bdirect meer omzet\b/i,
+  /\bdubbele omzet\b/i,
+];
+
 
 // ---------- Main ----------
 export interface EvaluationResult {
@@ -235,6 +230,20 @@ export function evaluateProposalV2(
     }
   }
 
+  // ---- V2.3: blocked banned-phrase remaining → rejected ----
+  if (riskFlags.some((f) => f.startsWith("blocked:banned_phrase_remaining"))) {
+    status = "rejected";
+  }
+
+  // ---- V2.3: soft NL claim sensitivity ----
+  if (ctx.instructions.locale === "nl-NL") {
+    const softHits = NL_SOFT_CLAIM_PATTERNS.filter((r) => r.test(text));
+    if (softHits.length > 0) {
+      riskFlags.push("soft_claim:nl_outcome_too_strong");
+      if (status === "draft") status = "needs_review";
+    }
+  }
+
   // ---- Soft scores (0..10) ----
   const generic = hasGenericPhrase(text);
   const tone = ctx.tone;
@@ -244,20 +253,43 @@ export function evaluateProposalV2(
   const preferredHits = tone ? includesAny(text, tone.preferredWords).length : 0;
   const angle = ctx.instructions.primaryAngle;
   const angleHit = angle ? text.toLowerCase().includes(angle.toLowerCase().slice(0, 30)) : false;
-  const { conceptCount, offerTokenHits } = conceptHits(text, ctx);
-  // Combine literal token hits + conceptual matches (each capped).
-  const combinedFit = Math.min(3, offerTokenHits) + Math.min(3, conceptCount);
+
+  // V2.3 conceptual cluster scoring (replaces token-only conceptHits).
+  const { count: clusters } = clusterHits(text, ctx.instructions.locale);
+  const ctaHit =
+    ctx.instructions.preferredCTA &&
+    text.toLowerCase().includes(ctx.instructions.preferredCTA.toLowerCase().slice(0, 20));
+
+  // Base business/offer fit. Heavy bonus when 3+ clusters land on a
+  // commercial page; cap at 6 when content is generic.
+  const commercialPage =
+    page?.pageType === "homepage" || page?.pageType === "service" || page?.commercialPriority === "high" || page?.commercialPriority === "critical";
+  let businessFit: number;
+  let offerFit: number;
+  if (!biz) {
+    businessFit = 5;
+    offerFit = 5;
+  } else if (clusters >= 3 && commercialPage) {
+    businessFit = 7 + (angleHit ? 1 : 0) + (clusters >= 4 ? 1 : 0);
+    offerFit = 7 + (ctaHit ? 1 : 0) + (clusters >= 4 ? 1 : 0);
+  } else if (clusters >= 2) {
+    businessFit = 6 + (angleHit ? 1 : 0);
+    offerFit = 6 + (ctaHit ? 1 : 0);
+  } else {
+    businessFit = 5 + (angleHit ? 1 : 0);
+    offerFit = 5;
+  }
+  if (forbiddenClaimHits.length > 0) {
+    businessFit -= 4;
+    offerFit -= 4;
+  }
 
   const scores: ProposalV2Scores = {
     seoFit: clamp(6 + (output.keywordsUsed.length > 0 ? 2 : 0) + (page ? 1 : -1)),
     toneFit: clamp(tone ? 6 + Math.min(2, preferredHits) - (forbiddenWordHits.length || weakHits.length ? 3 : 0) : 5),
-    businessFit: clamp(
-      biz
-        ? 5 + combinedFit + (angleHit ? 1 : 0) - (forbiddenClaimHits.length ? 4 : 0)
-        : 5,
-    ),
+    businessFit: clamp(businessFit),
     pageFit: clamp(page ? 6 + (page.confidence >= 0.7 ? 2 : 0) : 4),
-    offerFit: clamp(biz ? 5 + combinedFit + (angleHit ? 1 : 0) : 5),
+    offerFit: clamp(offerFit),
     icpFit: clamp(page?.targetAudience ? 7 : 5),
     locationFit: clamp(
       ctx.instructions.shouldMentionLocation
