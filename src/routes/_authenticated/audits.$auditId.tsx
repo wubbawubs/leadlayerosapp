@@ -746,6 +746,8 @@ interface V2Proposal {
   publishable: boolean;
   modelUsed: string;
   createdAt: string;
+  proposalRunId: string | null;
+  blockReason: string | null;
 }
 
 function ProposalV2Card({ p }: { p: V2Proposal }) {
