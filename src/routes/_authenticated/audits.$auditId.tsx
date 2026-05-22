@@ -203,6 +203,14 @@ function AuditDetailPage() {
             >
               {analyzeMutation.isPending ? "Analyzing pages…" : "Analyze page intelligence"}
             </button>
+            <button
+              type="button"
+              onClick={() => v2Mutation.mutate()}
+              disabled={v2Mutation.isPending}
+              className="inline-flex items-center rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-600 hover:bg-emerald-500/20 disabled:opacity-60"
+            >
+              {v2Mutation.isPending ? "Generating V2…" : "Generate V2 proposals"}
+            </button>
             {piQuery.data && (
               <span className="self-center text-xs text-muted-foreground">
                 {piByAuditPage.size} page{piByAuditPage.size === 1 ? "" : "s"} classified
