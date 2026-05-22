@@ -97,27 +97,44 @@ function measureLength(after: Record<string, unknown>, actionType: string): numb
 }
 
 // ---------- Offer alignment ----------
-function offerHits(text: string, ctx: GrowthContext): number {
-  const biz = ctx.business;
-  if (!biz) return 0;
-  const offer = biz.offer as {
-    primaryOffer?: string;
-    mainPromise?: string;
-    safePromise?: string;
-    uniqueValueProposition?: string;
-  };
-  const tokens = [offer?.primaryOffer, offer?.mainPromise, offer?.safePromise, offer?.uniqueValueProposition]
-    .filter((s): s is string => typeof s === "string" && s.length > 4)
-    .flatMap((s) =>
-      s
-        .toLowerCase()
-        .split(/[^a-zà-ÿ0-9]+/i)
-        .filter((w) => w.length > 4),
-    );
-  if (tokens.length === 0) return 0;
+
+// Concept buckets — count a hit if ANY phrase in the bucket appears in the text.
+const CONCEPT_BUCKETS: Record<string, string[]> = {
+  local_visibility: ["lokale vindbaarheid", "lokaal vindbaar", "beter vindbaar", "vindbaarheid", "rank locally", "local visibility", "near me", "in je regio", "in de regio"],
+  icp_smb_owner: ["lokale ondernemer", "ondernemers", "mkb", "small business", "local business"],
+  uvp_no_jargon: ["zonder technisch gedoe", "zonder jargon", "in gewone taal", "no jargon", "without the technical"],
+  clear_steps: ["duidelijke verbeterpunten", "concrete acties", "stap voor stap", "clear improvements", "step by step", "concrete steps"],
+  conversion_cta: ["gratis websitescan", "gratis scan", "vrijblijvend", "free scan", "free website", "free review", "websitecheck"],
+  promise_outcome: ["beter resultaat", "meer klanten", "meer aanvragen", "more leads", "more customers"],
+};
+
+function conceptHits(text: string, ctx: GrowthContext): { conceptCount: number; offerTokenHits: number } {
   const lower = text.toLowerCase();
-  const unique = Array.from(new Set(tokens));
-  return unique.reduce((n, t) => n + (lower.includes(t) ? 1 : 0), 0);
+  let conceptCount = 0;
+  for (const phrases of Object.values(CONCEPT_BUCKETS)) {
+    if (phrases.some((p) => lower.includes(p))) conceptCount++;
+  }
+  const biz = ctx.business;
+  let offerTokenHits = 0;
+  if (biz) {
+    const offer = biz.offer as {
+      primaryOffer?: string;
+      mainPromise?: string;
+      safePromise?: string;
+      uniqueValueProposition?: string;
+    };
+    const tokens = [offer?.primaryOffer, offer?.mainPromise, offer?.safePromise, offer?.uniqueValueProposition]
+      .filter((s): s is string => typeof s === "string" && s.length > 4)
+      .flatMap((s) =>
+        s
+          .toLowerCase()
+          .split(/[^a-zà-ÿ0-9]+/i)
+          .filter((w) => w.length > 4),
+      );
+    const unique = Array.from(new Set(tokens));
+    offerTokenHits = unique.reduce((n, t) => n + (lower.includes(t) ? 1 : 0), 0);
+  }
+  return { conceptCount, offerTokenHits };
 }
 
 // ---------- Main ----------
