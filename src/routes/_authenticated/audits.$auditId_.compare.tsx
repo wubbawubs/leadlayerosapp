@@ -168,12 +168,12 @@ function ComparePage() {
               <Stat label="Review later" value={v2Metrics.reviewLater} />
               <Stat label="Needs edit" value={v2Metrics.needsEdit} />
               <Stat label="Rejected" value={v2Metrics.rejected} />
-              <Stat label="Score mismatch" value={summary.scoreMismatches} />
+              <Stat label="Correctly blocked" value={summary.correctlyBlocked ?? 0} />
               <Stat
-                label="Approval rate"
+                label="Copy approval rate"
                 value={
-                  summary.reviewed > 0
-                    ? `${Math.round((v2Metrics.approved / summary.reviewed) * 100)}%`
+                  summary.copyReviewed && summary.copyReviewed > 0
+                    ? `${Math.round((summary.copyApprovalRate ?? 0) * 100)}%`
                     : "—"
                 }
               />
@@ -196,6 +196,14 @@ function ComparePage() {
             </>
           )}
         </div>
+      )}
+
+      {v2OnlyMode && summary && (summary.correctlyBlocked ?? 0) > 0 && (
+        <p className="mb-4 text-[11px] text-muted-foreground">
+          Copy approval rate excludes {summary.correctlyBlocked} correctly blocked schema
+          proposal{summary.correctlyBlocked === 1 ? "" : "s"} (denominator: copy proposals only,
+          {" "}{summary.copyTotal ?? 0} total).
+        </p>
       )}
 
       {summary && summary.v2AverageWeighted !== null && (
