@@ -69,7 +69,9 @@ function BusinessProfilePage() {
   const acceptSuggestion = useServerFn(acceptBusinessProfileSuggestion);
   const rejectSuggestion = useServerFn(rejectBusinessProfileSuggestion);
   const editAcceptSuggestion = useServerFn(editAndAcceptBusinessProfileSuggestion);
-  const analyzeFromWebsite = useServerFn(analyzeBusinessProfileFromWebsiteFn);
+  const startJob = useServerFn(startAnalyzerJob);
+  const fetchJob = useServerFn(getAnalyzerJob);
+
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
