@@ -16,7 +16,7 @@ export const BusinessIdentitySchema = z
       .enum(["local_service", "ecommerce", "b2b_service", "professional_service", "other"])
       .optional()
       .default("other"),
-    language: z.string().trim().max(8).optional().default("nl"),
+    language: z.string().trim().max(32).optional().default("nl"),
     country: z.string().trim().max(8).optional().default("NL"),
     websiteUrl: z.string().trim().max(500).optional().default(""),
     shortDescription: z.string().trim().max(800).optional().default(""),
