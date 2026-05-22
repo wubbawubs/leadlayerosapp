@@ -10,6 +10,10 @@ import {
   listPageIntelligenceForAudit,
 } from "@/lib/shared/pageIntelligence/repo.functions";
 import { previewGrowthContextForProposal } from "@/lib/shared/growthContext/repo.functions";
+import {
+  generateProposalV2ForAudit,
+  listProposalV2ForAudit,
+} from "@/lib/shared/proposalsV2/repo.functions";
 
 export const Route = createFileRoute("/_authenticated/audits/$auditId")({
   component: AuditDetailPage,
