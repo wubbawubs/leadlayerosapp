@@ -1,9 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { getAudit } from "@/lib/shared/db/repos/audits.functions";
+import {
+  analyzeAuditPageIntelligence,
+  listPageIntelligenceForAudit,
+} from "@/lib/shared/pageIntelligence/repo.functions";
 
 export const Route = createFileRoute("/_authenticated/audits/$auditId")({
   component: AuditDetailPage,
@@ -15,9 +20,45 @@ interface Issue {
   message: string;
 }
 
+interface PiRow {
+  id: string;
+  page_id: string | null;
+  audit_page_id: string | null;
+  page_url: string | null;
+  page_type: string;
+  intent: string;
+  funnel_stage: string | null;
+  commercial_priority: string;
+  seo_role: string | null;
+  primary_topic: string | null;
+  content_summary: string | null;
+  target_audience: string | null;
+  desired_action: string | null;
+  recommended_cta: string | null;
+  relevant_strategy_angle: string | null;
+  local_relevance: Record<string, unknown>;
+  risk_flags: Array<{ flag: string; level: string; why?: string }>;
+  missing_page_context: Array<{ missing: string; impact?: string }>;
+  source_evidence: Array<{ field: string; quote: string }>;
+  confidence: number;
+}
+
 function AuditDetailPage() {
   const { auditId } = Route.useParams();
+  const qc = useQueryClient();
   const fetchAudit = useServerFn(getAudit);
+  const fetchPi = useServerFn(listPageIntelligenceForAudit);
+  const analyzePi = useServerFn(analyzeAuditPageIntelligence);
+
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const q = useQuery({
     queryKey: ["audit", auditId],
@@ -26,6 +67,32 @@ function AuditDetailPage() {
       const status = query.state.data?.audit?.status;
       return status === "running" || status === "queued" ? 2000 : false;
     },
+  });
+
+  const piQuery = useQuery({
+    queryKey: ["page-intelligence", auditId],
+    queryFn: () => fetchPi({ data: { auditId } }),
+    enabled: q.data?.audit?.status === "succeeded",
+  });
+
+  const piByAuditPage = useMemo(() => {
+    const map = new Map<string, PiRow>();
+    for (const row of (piQuery.data?.items ?? []) as unknown as PiRow[]) {
+      if (row.audit_page_id) map.set(row.audit_page_id, row);
+    }
+    return map;
+  }, [piQuery.data]);
+
+  const analyzeMutation = useMutation({
+    mutationFn: () => analyzePi({ data: { auditId } }),
+    onSuccess: (res) => {
+      const s = res.summary;
+      toast.success(
+        `Analyzed ${s.analyzedCount} pages · ${s.criticalCount} critical · ${s.highCount} high${s.failedCount ? ` · ${s.failedCount} failed` : ""}`,
+      );
+      qc.invalidateQueries({ queryKey: ["page-intelligence", auditId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const pages = q.data?.pages ?? [];
@@ -97,7 +164,7 @@ function AuditDetailPage() {
           </p>
         )}
         {audit.status === "succeeded" && (
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap gap-3">
             <Link
               to="/audits/$auditId/proposals"
               params={{ auditId }}
@@ -105,6 +172,19 @@ function AuditDetailPage() {
             >
               View SEO fix proposals →
             </Link>
+            <button
+              type="button"
+              onClick={() => analyzeMutation.mutate()}
+              disabled={analyzeMutation.isPending}
+              className="inline-flex items-center rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-60"
+            >
+              {analyzeMutation.isPending ? "Analyzing pages…" : "Analyze page intelligence"}
+            </button>
+            {piQuery.data && (
+              <span className="self-center text-xs text-muted-foreground">
+                {piByAuditPage.size} page{piByAuditPage.size === 1 ? "" : "s"} classified
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -153,6 +233,8 @@ function AuditDetailPage() {
         <div className="space-y-2">
           {pages.map((p) => {
             const issues = (p.issues ?? []) as unknown as Issue[];
+            const pi = piByAuditPage.get(p.id);
+            const isOpen = expanded.has(p.id);
             return (
               <div key={p.id} className="rounded-md border border-border bg-card/70 p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -168,6 +250,25 @@ function AuditDetailPage() {
                     <p className="mt-1 text-xs text-muted-foreground">
                       {p.title ?? "(no title)"}
                     </p>
+                    {pi && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <PiBadge variant="type">{pi.page_type}</PiBadge>
+                        <PiBadge variant="intent">{pi.intent}</PiBadge>
+                        <PiBadge variant={priorityVariant(pi.commercial_priority)}>
+                          {pi.commercial_priority}
+                        </PiBadge>
+                        <span className="text-[10px] text-muted-foreground">
+                          conf {Math.round((pi.confidence ?? 0) * 100)}%
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(p.id)}
+                          className="ml-1 text-[11px] text-primary hover:underline"
+                        >
+                          {isOpen ? "Hide details" : "Details"}
+                        </button>
+                      </div>
+                    )}
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       HTTP {p.status_code ?? "—"} · {p.word_count} words · {p.images_without_alt} img w/o alt · {p.internal_links_count} internal / {p.external_links_count} external links
                     </p>
@@ -187,6 +288,7 @@ function AuditDetailPage() {
                     ))}
                   </ul>
                 )}
+                {pi && isOpen && <PiDetails pi={pi} />}
               </div>
             );
           })}
@@ -215,4 +317,97 @@ function SeverityDot({ severity }: { severity: string }) {
     low: "bg-muted-foreground",
   };
   return <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${map[severity] ?? "bg-muted"}`} />;
+}
+
+type BadgeVariant = "type" | "intent" | "low" | "medium" | "high" | "critical";
+
+function priorityVariant(p: string): BadgeVariant {
+  if (p === "critical") return "critical";
+  if (p === "high") return "high";
+  if (p === "medium") return "medium";
+  return "low";
+}
+
+function PiBadge({ variant, children }: { variant: BadgeVariant; children: React.ReactNode }) {
+  const cls: Record<BadgeVariant, string> = {
+    type: "bg-muted text-foreground",
+    intent: "bg-primary/10 text-primary",
+    low: "bg-muted text-muted-foreground",
+    medium: "bg-amber-500/15 text-amber-600",
+    high: "bg-orange-500/15 text-orange-600",
+    critical: "bg-destructive/15 text-destructive",
+  };
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${cls[variant]}`}>
+      {children}
+    </span>
+  );
+}
+
+function PiDetails({ pi }: { pi: PiRow }) {
+  return (
+    <div className="mt-3 space-y-2 rounded-md border border-border/60 bg-background/40 p-3 text-xs">
+      <DetailRow label="Topic" value={pi.primary_topic} />
+      <DetailRow label="Summary" value={pi.content_summary} />
+      <DetailRow label="Audience" value={pi.target_audience} />
+      <DetailRow label="Desired action" value={pi.desired_action} />
+      <DetailRow label="Recommended CTA" value={pi.recommended_cta} />
+      <DetailRow label="Strategy angle" value={pi.relevant_strategy_angle} />
+      <DetailRow label="Funnel" value={pi.funnel_stage} />
+      <DetailRow label="SEO role" value={pi.seo_role} />
+      {pi.local_relevance && (pi.local_relevance as { isLocal?: boolean }).isLocal && (
+        <DetailRow
+          label="Local"
+          value={`${(pi.local_relevance as { location?: string }).location ?? ""} — ${(pi.local_relevance as { reason?: string }).reason ?? ""}`}
+        />
+      )}
+      {pi.risk_flags?.length > 0 && (
+        <div>
+          <p className="mb-1 font-semibold text-foreground">Risk flags</p>
+          <ul className="space-y-1">
+            {pi.risk_flags.map((r, i) => (
+              <li key={i} className="text-muted-foreground">
+                <span className="font-mono text-foreground">[{r.level}]</span> {r.flag}
+                {r.why ? ` — ${r.why}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {pi.missing_page_context?.length > 0 && (
+        <div>
+          <p className="mb-1 font-semibold text-foreground">Missing context</p>
+          <ul className="space-y-1">
+            {pi.missing_page_context.map((m, i) => (
+              <li key={i} className="text-muted-foreground">
+                {m.missing}
+                {m.impact ? ` — ${m.impact}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {pi.source_evidence?.length > 0 && (
+        <div>
+          <p className="mb-1 font-semibold text-foreground">Evidence</p>
+          <ul className="space-y-1">
+            {pi.source_evidence.map((e, i) => (
+              <li key={i} className="text-muted-foreground">
+                <span className="font-mono text-foreground">{e.field}:</span> “{e.quote}”
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
+  return (
+    <p className="text-muted-foreground">
+      <span className="font-semibold text-foreground">{label}:</span> {value}
+    </p>
+  );
 }
