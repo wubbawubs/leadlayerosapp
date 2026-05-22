@@ -277,7 +277,14 @@ function AuditDetailPage() {
                         </a>
                       </td>
                       <td className="px-3 py-2">
-                        <PiBadge variant="type">{pi.page_type}</PiBadge>
+                        <div className="flex flex-col gap-1">
+                          <PiBadge variant="type">{pi.page_type}</PiBadge>
+                          {pi.missing_page_context?.some((m) => m.missing === "rule_based_fallback") && (
+                            <span className="inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-600">
+                              rule-based
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
                         <PiBadge variant="intent">{pi.intent}</PiBadge>

@@ -43,6 +43,12 @@ interface AnalyzeSummary {
 
 /* ---------------- deterministic hints ---------------- */
 
+const PROCESS_URL_RE = /\/(werkwijze|hoe-het-werkt|how-it-works|method|process|aanpak)(?:\/|$)/;
+const SERVICE_TITLE_RE =
+  /\b(wat we doen|onze diensten|diensten|services|aanpak|werkwijze|hoe (we |het )?werk(en|t)|our services|what we do)\b/i;
+const HYPE_CTA_RE =
+  /\b(unlock|discover how|harness|the art of|elevate your|transform your|game[-\s]?chang|next[-\s]?level|supercharge|skyrocket|revolutioni[sz]e)\b/i;
+
 function urlHintType(url: string): PageType | null {
   let path = "";
   try {
@@ -51,6 +57,7 @@ function urlHintType(url: string): PageType | null {
     path = url.toLowerCase();
   }
   if (path === "" || path === "/" || path === "/home") return "homepage";
+  if (PROCESS_URL_RE.test(path)) return "service";
   if (/\/contact(?:\/|$)|\/contact-us(?:\/|$)/.test(path)) return "contact";
   if (/\/(about|over-ons|over)(?:\/|$)/.test(path)) return "about";
   if (/\/faq(?:\/|$)|\/veelgestelde/.test(path)) return "faq";
@@ -59,6 +66,107 @@ function urlHintType(url: string): PageType | null {
   if (/\/(privacy|terms|disclaimer|cookies|algemene-voorwaarden)(?:\/|$)/.test(path)) return "legal";
   if (/\/blog\//.test(path) || /\/\d{4}\/\d{2}\//.test(path)) return "blog";
   return null;
+}
+
+function isProcessPage(url: string): boolean {
+  try {
+    return PROCESS_URL_RE.test(new URL(url).pathname.toLowerCase());
+  } catch {
+    return PROCESS_URL_RE.test(url.toLowerCase());
+  }
+}
+
+function looksLikeServiceContent(page: AuditPageRow): boolean {
+  const blob = `${page.title ?? ""} ${page.h1 ?? ""}`;
+  return SERVICE_TITLE_RE.test(blob);
+}
+
+/**
+ * Deterministic classification when the LLM fails. Better than generic other/low
+ * because we already know a lot from URL + title.
+ */
+function ruleBasedFallback(
+  page: AuditPageRow,
+  hint: PageType | null,
+  error: string,
+): Record<string, unknown> {
+  const note = (extra: string) => [
+    { missing: "rule_based_fallback", impact: extra },
+    { missing: "llm_classification_failed", impact: error.slice(0, 200) },
+  ];
+
+  if (isProcessPage(page.url)) {
+    return {
+      page_type: "service",
+      intent: "trust",
+      funnel_stage: "consideration",
+      commercial_priority: "high",
+      seo_role: "trust_page",
+      confidence: 0.55,
+      missing_page_context: note("Process/werkwijze page classified by URL rule."),
+      risk_flags: [],
+      source_evidence: [],
+      local_relevance: {},
+    };
+  }
+
+  if (hint === "homepage") {
+    return {
+      page_type: "homepage",
+      intent: "commercial",
+      funnel_stage: "awareness",
+      commercial_priority: "critical",
+      seo_role: "conversion_page",
+      confidence: 0.55,
+      missing_page_context: note("Homepage classified by URL rule."),
+      risk_flags: [],
+      source_evidence: [],
+      local_relevance: {},
+    };
+  }
+
+  if (hint === "contact" || hint === "pricing") {
+    return {
+      page_type: hint,
+      intent: hint === "pricing" ? "commercial" : "conversion",
+      funnel_stage: "decision",
+      commercial_priority: "high",
+      seo_role: "conversion_page",
+      confidence: 0.55,
+      missing_page_context: note(`${hint} page classified by URL rule.`),
+      risk_flags: [],
+      source_evidence: [],
+      local_relevance: {},
+    };
+  }
+
+  if (looksLikeServiceContent(page)) {
+    return {
+      page_type: "service",
+      intent: "commercial",
+      funnel_stage: "consideration",
+      commercial_priority: "high",
+      seo_role: "conversion_page",
+      confidence: 0.5,
+      missing_page_context: note("Title/H1 indicate a service page."),
+      risk_flags: [],
+      source_evidence: [],
+      local_relevance: {},
+    };
+  }
+
+  return {
+    page_type: hint ?? "other",
+    intent: "informational",
+    funnel_stage: "awareness",
+    commercial_priority: hint === "about" || hint === "faq" ? "medium" : "low",
+    seo_role: hint === "blog" ? "supporting_content" : null,
+    confidence: 0.3,
+    missing_page_context: note("Generic fallback — LLM failed and no specific rule matched."),
+    risk_flags: [],
+    source_evidence: [],
+    local_relevance: {},
+  };
 }
 
 function isObviouslyLowValue(url: string): boolean {
@@ -133,8 +241,10 @@ Return STRICT JSON only matching this shape:
 }
 
 Rules:
-- Use the deterministic URL hint as a strong prior, but override if title/h1/meta clearly contradict.
-- commercialPriority "critical" = homepage / primary money page; "high" = contact, pricing, top service; "medium" = supporting; "low" = legal/archive/blog noise.
+- The URL hint is a prior, NOT a verdict. TITLE / H1 / META beat the URL hint when they clearly indicate a different page type. Example: URL "/about/" with title "Wat we doen" or "Onze diensten" → pageType "service", not "about". Only keep "about" when the content is mainly company/team/background.
+- "werkwijze", "aanpak", "how it works", "process" pages are pageType "service", intent "trust", funnelStage "consideration", commercialPriority "high", seoRole "trust_page".
+- commercialPriority "critical" = homepage / primary money page; "high" = contact, pricing, top service, process/trust pages; "medium" = supporting; "low" = legal/archive/blog noise.
+- For blog/informational/low pages: only set recommendedCTA if it is grounded in the actual page content or the BUSINESS context. Do NOT invent hype CTAs like "Unlock...", "Discover how...", "The Art of...", "Transform your...". If no grounded CTA exists, return "" for recommendedCTA.
 - Be honest: if information is thin, set confidence low and list missingPageContext.
 - Never invent quotes; sourceEvidence quotes must come verbatim from the input fields.
 
@@ -261,50 +371,95 @@ export async function analyzePageIntelligenceForAudit({
     let row: Record<string, unknown>;
     if (result.ok) {
       const d = result.data;
+
+      // --- Post-LLM normalization ---
+      let pageType = d.pageType;
+      let intent = d.intent;
+      let funnelStage = d.funnelStage;
+      let commercialPriority = d.commercialPriority;
+      let seoRole = d.seoRole;
+      let recommendedCTA = d.recommendedCTA;
+      const missingCtx = [...(d.missingPageContext ?? [])];
+
+      // Content beats URL: title/H1 strongly says service → override "about".
+      if (pageType === "about" && looksLikeServiceContent(page)) {
+        pageType = "service";
+        if (intent === "informational") intent = "trust";
+        if (commercialPriority === "low" || commercialPriority === "medium") {
+          commercialPriority = "high";
+        }
+        if (!seoRole) seoRole = "trust_page";
+        missingCtx.push({
+          missing: "content_beats_url_override",
+          impact: "URL hinted 'about' but title/H1 indicate a service/offer page.",
+        });
+      }
+
+      // Process / werkwijze pages must land as service / trust / high.
+      if (isProcessPage(page.url)) {
+        if (pageType !== "service") pageType = "service";
+        if (intent !== "trust" && intent !== "commercial") intent = "trust";
+        if (!funnelStage) funnelStage = "consideration";
+        if (commercialPriority === "low") commercialPriority = "high";
+        if (!seoRole) seoRole = "trust_page";
+      }
+
+      // Hype-CTA cleanup for blog/low pages: drop ungrounded marketing fluff.
+      if (
+        pageType === "blog" &&
+        (commercialPriority === "low" || commercialPriority === "medium") &&
+        recommendedCTA &&
+        HYPE_CTA_RE.test(recommendedCTA)
+      ) {
+        missingCtx.push({
+          missing: "cta_stripped_hype",
+          impact: `Removed ungrounded hype CTA: "${recommendedCTA}"`,
+        });
+        recommendedCTA = "";
+      }
+
       analyzedCount++;
-      if (d.commercialPriority === "critical") criticalCount++;
-      if (d.commercialPriority === "high") highCount++;
+      if (commercialPriority === "critical") criticalCount++;
+      if (commercialPriority === "high") highCount++;
       row = {
         tenant_id: tenantId,
         audit_id: auditId,
         audit_page_id: page.id,
         page_id: page.page_id,
         page_url: page.url,
-        page_type: d.pageType,
-        intent: d.intent,
-        funnel_stage: d.funnelStage ?? null,
-        commercial_priority: d.commercialPriority,
-        seo_role: d.seoRole ?? null,
+        page_type: pageType,
+        intent,
+        funnel_stage: funnelStage ?? null,
+        commercial_priority: commercialPriority,
+        seo_role: seoRole ?? null,
         primary_topic: d.primaryTopic || null,
         content_summary: d.contentSummary || null,
         target_audience: d.targetAudience || null,
         desired_action: d.desiredAction || null,
-        recommended_cta: d.recommendedCTA || null,
+        recommended_cta: recommendedCTA || null,
         relevant_strategy_angle: d.relevantStrategyAngle || null,
         local_relevance: d.localRelevance ?? {},
         risk_flags: d.riskFlags ?? [],
-        missing_page_context: d.missingPageContext ?? [],
+        missing_page_context: missingCtx,
         confidence: d.confidence,
         source_evidence: d.sourceEvidence ?? [],
         model_used: MODEL,
         analyzed_at: new Date().toISOString(),
       };
     } else {
+      // --- Deterministic rule-based fallback (no generic other/low when we can do better) ---
       failedCount++;
+      const fb = ruleBasedFallback(page, hint, result.error);
+      if (fb.commercial_priority === "critical") criticalCount++;
+      if (fb.commercial_priority === "high") highCount++;
       row = {
         tenant_id: tenantId,
         audit_id: auditId,
         audit_page_id: page.id,
         page_id: page.page_id,
         page_url: page.url,
-        page_type: hint ?? "other",
-        intent: "informational",
-        commercial_priority: "low",
-        confidence: 0,
-        missing_page_context: [
-          { missing: "LLM classification failed", impact: result.error },
-        ],
-        model_used: MODEL,
+        ...fb,
+        model_used: `${MODEL} (fallback)`,
         analyzed_at: new Date().toISOString(),
       };
     }
