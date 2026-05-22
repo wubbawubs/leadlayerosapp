@@ -102,9 +102,10 @@ function AuditDetailPage() {
 
   const fetchV2List = useServerFn(listProposalV2ForAudit);
   const generateV2 = useServerFn(generateProposalV2ForAudit);
+  const [v2LatestOnly, setV2LatestOnly] = useState(true);
   const v2Query = useQuery({
-    queryKey: ["proposal-v2", auditId],
-    queryFn: () => fetchV2List({ data: { auditId } }),
+    queryKey: ["proposal-v2", auditId, v2LatestOnly],
+    queryFn: () => fetchV2List({ data: { auditId, latestRunOnly: v2LatestOnly } }),
     enabled: q.data?.audit?.status === "succeeded",
   });
   const v2Mutation = useMutation({
