@@ -1,5 +1,8 @@
 /**
- * Proposal V2 — server functions.
+ * Proposal V2 — server functions (V2.2).
+ * - Per-batch proposalRunId
+ * - latestRunOnly filter
+ * - Returns runId + blockReason for the UI
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -19,6 +22,10 @@ async function assertMember(supabase: any, userId: string, tenantId: string) {
   if (error) throw error;
   if (!data) throw new Error("Forbidden: not a member of this tenant");
   return data.role as string;
+}
+
+function newRunId(): string {
+  return crypto.randomUUID();
 }
 
 export const generateProposalV2ForIssue = createServerFn({ method: "POST" })
@@ -43,13 +50,15 @@ export const generateProposalV2ForIssue = createServerFn({ method: "POST" })
     if (!audit) throw new Error("Audit not found");
     await assertMember(supabase, userId, audit.tenant_id);
 
+    const proposalRunId = newRunId();
     const result = await runProposalV2({
       tenantId: audit.tenant_id,
       auditId: data.auditId,
       pageId: data.pageId,
       issueId: data.issueId,
+      proposalRunId,
     });
-    return { ok: true as const, proposal: result };
+    return { ok: true as const, proposal: result, proposalRunId };
   });
 
 export const generateProposalV2ForAudit = createServerFn({ method: "POST" })
@@ -85,6 +94,7 @@ export const generateProposalV2ForAudit = createServerFn({ method: "POST" })
     const limit = data.limit ?? 12;
     const slice = jobs.slice(0, limit);
 
+    const proposalRunId = newRunId();
     let generated = 0;
     const failures: Array<{ pageId: string; issueCode: string; error: string }> = [];
     for (const j of slice) {
@@ -94,6 +104,7 @@ export const generateProposalV2ForAudit = createServerFn({ method: "POST" })
           auditId: data.auditId,
           pageId: j.pageId,
           issueId: `${j.pageId}:${j.issueCode}`,
+          proposalRunId,
         });
         generated++;
       } catch (e) {
@@ -102,13 +113,18 @@ export const generateProposalV2ForAudit = createServerFn({ method: "POST" })
         failures.push({ pageId: j.pageId, issueCode: j.issueCode, error: msg });
       }
     }
-    return { ok: true as const, attempted: slice.length, generated, failures };
+    return { ok: true as const, attempted: slice.length, generated, failures, proposalRunId };
   });
 
 export const listProposalV2ForAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { auditId: string }) =>
-    z.object({ auditId: z.string().uuid() }).parse(input),
+  .inputValidator((input: { auditId: string; latestRunOnly?: boolean }) =>
+    z
+      .object({
+        auditId: z.string().uuid(),
+        latestRunOnly: z.boolean().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -124,13 +140,30 @@ export const listProposalV2ForAudit = createServerFn({ method: "POST" })
     const { data: rows, error: lErr } = await supabaseAdmin
       .from("proposal_v2")
       .select(
-        "id, page_id, issue_id, action_type, status, title, summary, reasoning, before, after, scores, context_used, keywords_used, risk_flags, publishable, model_used, created_at",
+        "id, page_id, issue_id, action_type, status, title, summary, reasoning, before, after, scores, context_used, keywords_used, risk_flags, publishable, model_used, created_at, proposal_run_id, block_reason",
       )
       .eq("audit_id", data.auditId)
       .order("created_at", { ascending: false });
     if (lErr) throw lErr;
 
-    const pageIds = Array.from(new Set((rows ?? []).map((r) => r.page_id as string)));
+    // Determine runs (ordered by most recent created_at within each run).
+    const runs = new Map<string, string>(); // runId -> first-seen created_at (which is newest because of DESC sort)
+    for (const r of rows ?? []) {
+      const runId = (r.proposal_run_id as string | null) ?? "legacy";
+      if (!runs.has(runId)) runs.set(runId, r.created_at as string);
+    }
+    const runSummaries = Array.from(runs.entries()).map(([runId, createdAt]) => ({
+      runId,
+      createdAt,
+    }));
+    const latestRunId = runSummaries[0]?.runId ?? null;
+
+    const latestOnly = data.latestRunOnly !== false; // default true
+    const filteredRows = latestOnly && latestRunId
+      ? (rows ?? []).filter((r) => ((r.proposal_run_id as string | null) ?? "legacy") === latestRunId)
+      : (rows ?? []);
+
+    const pageIds = Array.from(new Set(filteredRows.map((r) => r.page_id as string)));
     let pageMap: Record<string, string> = {};
     if (pageIds.length > 0) {
       const { data: pages } = await supabaseAdmin
@@ -140,7 +173,7 @@ export const listProposalV2ForAudit = createServerFn({ method: "POST" })
       pageMap = Object.fromEntries((pages ?? []).map((p) => [p.id as string, p.url as string]));
     }
 
-    const serializable = (rows ?? []).map((r) => ({
+    const serializable = filteredRows.map((r) => ({
       id: r.id as string,
       pageId: r.page_id as string,
       pageUrl: pageMap[r.page_id as string] ?? null,
@@ -159,7 +192,14 @@ export const listProposalV2ForAudit = createServerFn({ method: "POST" })
       publishable: !!r.publishable,
       modelUsed: (r.model_used as string) ?? "",
       createdAt: r.created_at as string,
+      proposalRunId: (r.proposal_run_id as string | null) ?? null,
+      blockReason: (r.block_reason as string | null) ?? null,
     }));
 
-    return { proposals: serializable };
+    return {
+      proposals: serializable,
+      runs: runSummaries,
+      latestRunId,
+      latestRunOnly: latestOnly,
+    };
   });
