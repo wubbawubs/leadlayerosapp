@@ -248,7 +248,9 @@ function AuditDetailPage() {
                   <th className="px-3 py-2 font-semibold">CTA</th>
                   <th className="px-3 py-2 font-semibold text-right">Risks</th>
                   <th className="px-3 py-2 font-semibold text-right">Conf</th>
+                  <th className="px-3 py-2 font-semibold text-right"></th>
                 </tr>
+
               </thead>
               <tbody>
                 {pages.map((p) => {
