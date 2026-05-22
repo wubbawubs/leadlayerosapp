@@ -43,6 +43,12 @@ interface AnalyzeSummary {
 
 /* ---------------- deterministic hints ---------------- */
 
+const PROCESS_URL_RE = /\/(werkwijze|hoe-het-werkt|how-it-works|method|process|aanpak)(?:\/|$)/;
+const SERVICE_TITLE_RE =
+  /\b(wat we doen|onze diensten|diensten|services|aanpak|werkwijze|hoe (we |het )?werk(en|t)|our services|what we do)\b/i;
+const HYPE_CTA_RE =
+  /\b(unlock|discover how|harness|the art of|elevate your|transform your|game[-\s]?chang|next[-\s]?level|supercharge|skyrocket|revolutioni[sz]e)\b/i;
+
 function urlHintType(url: string): PageType | null {
   let path = "";
   try {
@@ -51,6 +57,7 @@ function urlHintType(url: string): PageType | null {
     path = url.toLowerCase();
   }
   if (path === "" || path === "/" || path === "/home") return "homepage";
+  if (PROCESS_URL_RE.test(path)) return "service";
   if (/\/contact(?:\/|$)|\/contact-us(?:\/|$)/.test(path)) return "contact";
   if (/\/(about|over-ons|over)(?:\/|$)/.test(path)) return "about";
   if (/\/faq(?:\/|$)|\/veelgestelde/.test(path)) return "faq";
@@ -59,6 +66,19 @@ function urlHintType(url: string): PageType | null {
   if (/\/(privacy|terms|disclaimer|cookies|algemene-voorwaarden)(?:\/|$)/.test(path)) return "legal";
   if (/\/blog\//.test(path) || /\/\d{4}\/\d{2}\//.test(path)) return "blog";
   return null;
+}
+
+function isProcessPage(url: string): boolean {
+  try {
+    return PROCESS_URL_RE.test(new URL(url).pathname.toLowerCase());
+  } catch {
+    return PROCESS_URL_RE.test(url.toLowerCase());
+  }
+}
+
+function looksLikeServiceContent(page: AuditPageRow): boolean {
+  const blob = `${page.title ?? ""} ${page.h1 ?? ""}`;
+  return SERVICE_TITLE_RE.test(blob);
 }
 
 function isObviouslyLowValue(url: string): boolean {
