@@ -4,11 +4,7 @@
  */
 import { llmComplete } from "@/lib/shared/llm/router.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import {
-  PageIntelligenceLLMSchema,
-  type PageIntelligenceLLM,
-  type PageType,
-} from "./schemas";
+import { PageIntelligenceLLMSchema, type PageIntelligenceLLM, type PageType } from "./schemas";
 
 const MAX_PAGES = 25;
 const MODEL = "google/gemini-2.5-flash";
@@ -41,6 +37,40 @@ interface AnalyzeSummary {
   highCount: number;
 }
 
+async function clearExistingPageIntelligence(
+  tenantId: string,
+  auditId: string,
+  pages: AuditPageRow[],
+) {
+  const auditPageIds = pages.map((p) => p.id).filter(Boolean);
+  const pageIds = pages.map((p) => p.page_id).filter((id): id is string => !!id);
+
+  const { error: auditErr } = await supabaseAdmin
+    .from("page_intelligence")
+    .delete()
+    .eq("tenant_id", tenantId)
+    .eq("audit_id", auditId);
+  if (auditErr) throw auditErr;
+
+  if (auditPageIds.length > 0) {
+    const { error } = await supabaseAdmin
+      .from("page_intelligence")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .in("audit_page_id", auditPageIds);
+    if (error) throw error;
+  }
+
+  if (pageIds.length > 0) {
+    const { error } = await supabaseAdmin
+      .from("page_intelligence")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .in("page_id", pageIds);
+    if (error) throw error;
+  }
+}
+
 /* ---------------- deterministic hints ---------------- */
 
 const PROCESS_URL_RE = /\/(werkwijze|hoe-het-werkt|how-it-works|method|process|aanpak)(?:\/|$)/;
@@ -63,7 +93,8 @@ function urlHintType(url: string): PageType | null {
   if (/\/faq(?:\/|$)|\/veelgestelde/.test(path)) return "faq";
   if (/\/pricing(?:\/|$)|\/tarieven(?:\/|$)|\/prijzen(?:\/|$)/.test(path)) return "pricing";
   if (/\/(case-?study|cases|case|portfolio|projecten)(?:\/|$)/.test(path)) return "case_study";
-  if (/\/(privacy|terms|disclaimer|cookies|algemene-voorwaarden)(?:\/|$)/.test(path)) return "legal";
+  if (/\/(privacy|terms|disclaimer|cookies|algemene-voorwaarden)(?:\/|$)/.test(path))
+    return "legal";
   if (/\/blog\//.test(path) || /\/\d{4}\/\d{2}\//.test(path)) return "blog";
   return null;
 }
@@ -282,12 +313,18 @@ async function classifyOne(
     });
     const text = res.text.trim();
     const jsonText = text.startsWith("```")
-      ? text.replace(/^```(?:json)?/, "").replace(/```$/, "").trim()
+      ? text
+          .replace(/^```(?:json)?/, "")
+          .replace(/```$/, "")
+          .trim()
       : text;
     const raw = JSON.parse(jsonText);
     const parsed = PageIntelligenceLLMSchema.safeParse(raw);
     if (!parsed.success) {
-      return { ok: false, error: `Schema invalid: ${parsed.error.issues[0]?.message ?? "unknown"}` };
+      return {
+        ok: false,
+        error: `Schema invalid: ${parsed.error.issues[0]?.message ?? "unknown"}`,
+      };
     }
     return { ok: true, data: parsed.data };
   } catch (e) {
@@ -313,6 +350,10 @@ export async function analyzePageIntelligenceForAudit({
   if (pErr) throw pErr;
   const allPages = (rawPages ?? []) as AuditPageRow[];
 
+  if (forceRefresh) {
+    await clearExistingPageIntelligence(tenantId, auditId, allPages);
+  }
+
   // Filter low-value, dedupe by URL
   const seen = new Set<string>();
   const candidates: Array<{ page: AuditPageRow; hint: PageType | null }> = [];
@@ -332,14 +373,27 @@ export async function analyzePageIntelligenceForAudit({
   let toAnalyze = selected;
   if (!forceRefresh) {
     const pageIds = selected.map((c) => c.page.page_id).filter((id): id is string => !!id);
-    if (pageIds.length > 0) {
+    const auditPageIds = selected.map((c) => c.page.id);
+    if (pageIds.length > 0 || auditPageIds.length > 0) {
       const { data: existing } = await supabaseAdmin
         .from("page_intelligence")
-        .select("page_id")
+        .select("page_id, audit_page_id")
         .eq("tenant_id", tenantId)
-        .in("page_id", pageIds);
+        .or(
+          [
+            pageIds.length > 0 ? `page_id.in.(${pageIds.join(",")})` : null,
+            auditPageIds.length > 0 ? `audit_page_id.in.(${auditPageIds.join(",")})` : null,
+          ]
+            .filter(Boolean)
+            .join(","),
+        );
       const existingSet = new Set((existing ?? []).map((r) => r.page_id));
-      toAnalyze = selected.filter((c) => !c.page.page_id || !existingSet.has(c.page.page_id));
+      const existingAuditPageSet = new Set((existing ?? []).map((r) => r.audit_page_id));
+      toAnalyze = selected.filter(
+        (c) =>
+          !existingAuditPageSet.has(c.page.id) &&
+          (!c.page.page_id || !existingSet.has(c.page.page_id)),
+      );
     }
   }
 
@@ -356,8 +410,7 @@ export async function analyzePageIntelligenceForAudit({
     .eq("tenant_id", tenantId)
     .maybeSingle();
   const angles = (bpv2?.strategy_angles ?? []) as Array<{ angle?: string; isPrimary?: boolean }>;
-  const primaryAngle =
-    angles.find((a) => a.isPrimary)?.angle ?? angles[0]?.angle ?? "";
+  const primaryAngle = angles.find((a) => a.isPrimary)?.angle ?? angles[0]?.angle ?? "";
 
   let analyzedCount = 0;
   let failedCount = 0;
@@ -473,7 +526,12 @@ export async function analyzePageIntelligenceForAudit({
       if (uErr) {
         failedCount++;
         analyzedCount = Math.max(0, analyzedCount - 1);
-        console.error("page_intelligence upsert failed", JSON.stringify(uErr), "row keys:", Object.keys(row));
+        console.error(
+          "page_intelligence upsert failed",
+          JSON.stringify(uErr),
+          "row keys:",
+          Object.keys(row),
+        );
       }
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

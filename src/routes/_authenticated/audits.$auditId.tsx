@@ -84,7 +84,7 @@ function AuditDetailPage() {
   }, [piQuery.data]);
 
   const analyzeMutation = useMutation({
-    mutationFn: () => analyzePi({ data: { auditId } }),
+    mutationFn: () => analyzePi({ data: { auditId, forceRefresh: true } }),
     onSuccess: (res) => {
       const s = res.summary;
       toast.success(
@@ -189,7 +189,6 @@ function AuditDetailPage() {
         )}
       </div>
 
-
       {/* Summary cards */}
       <div className="mb-8 grid gap-3 sm:grid-cols-4">
         <SummaryCard label="Pages" value={summary.pages_total ?? audit.pages_count} />
@@ -250,7 +249,6 @@ function AuditDetailPage() {
                   <th className="px-3 py-2 font-semibold text-right">Conf</th>
                   <th className="px-3 py-2 font-semibold text-right"></th>
                 </tr>
-
               </thead>
               <tbody>
                 {pages.map((p) => {
@@ -279,7 +277,9 @@ function AuditDetailPage() {
                       <td className="px-3 py-2">
                         <div className="flex flex-col gap-1">
                           <PiBadge variant="type">{pi.page_type}</PiBadge>
-                          {pi.missing_page_context?.some((m) => m.missing === "rule_based_fallback") && (
+                          {pi.missing_page_context?.some(
+                            (m) => m.missing === "rule_based_fallback",
+                          ) && (
                             <span className="inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-600">
                               rule-based
                             </span>
@@ -323,19 +323,17 @@ function AuditDetailPage() {
                         </button>
                       </td>
                     </tr>
-
                   );
                 })}
               </tbody>
             </table>
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Klik per pagina hieronder op "Details" voor volledige analyse (audience, strategie, risks, evidence).
+            Klik per pagina hieronder op "Details" voor volledige analyse (audience, strategie,
+            risks, evidence).
           </p>
         </section>
       )}
-
-
 
       {/* Pages */}
       <section>
@@ -346,7 +344,11 @@ function AuditDetailPage() {
             const pi = piByAuditPage.get(p.id);
             const isOpen = expanded.has(p.id);
             return (
-              <div key={p.id} id={`page-${p.id}`} className="scroll-mt-20 rounded-md border border-border bg-card/70 p-4">
+              <div
+                key={p.id}
+                id={`page-${p.id}`}
+                className="scroll-mt-20 rounded-md border border-border bg-card/70 p-4"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <a
@@ -357,9 +359,7 @@ function AuditDetailPage() {
                     >
                       {p.url}
                     </a>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {p.title ?? "(no title)"}
-                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">{p.title ?? "(no title)"}</p>
                     {pi && (
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <PiBadge variant="type">{pi.page_type}</PiBadge>
@@ -380,7 +380,9 @@ function AuditDetailPage() {
                       </div>
                     )}
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      HTTP {p.status_code ?? "—"} · {p.word_count} words · {p.images_without_alt} img w/o alt · {p.internal_links_count} internal / {p.external_links_count} external links
+                      HTTP {p.status_code ?? "—"} · {p.word_count} words · {p.images_without_alt}{" "}
+                      img w/o alt · {p.internal_links_count} internal / {p.external_links_count}{" "}
+                      external links
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-foreground">
@@ -426,7 +428,9 @@ function SeverityDot({ severity }: { severity: string }) {
     medium: "bg-amber-500",
     low: "bg-muted-foreground",
   };
-  return <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${map[severity] ?? "bg-muted"}`} />;
+  return (
+    <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${map[severity] ?? "bg-muted"}`} />
+  );
 }
 
 type BadgeVariant = "type" | "intent" | "low" | "medium" | "high" | "critical";
@@ -448,7 +452,9 @@ function PiBadge({ variant, children }: { variant: BadgeVariant; children: React
     critical: "bg-destructive/15 text-destructive",
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${cls[variant]}`}>
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${cls[variant]}`}
+    >
       {children}
     </span>
   );
