@@ -100,6 +100,24 @@ function AuditDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const fetchV2List = useServerFn(listProposalV2ForAudit);
+  const generateV2 = useServerFn(generateProposalV2ForAudit);
+  const v2Query = useQuery({
+    queryKey: ["proposal-v2", auditId],
+    queryFn: () => fetchV2List({ data: { auditId } }),
+    enabled: q.data?.audit?.status === "succeeded",
+  });
+  const v2Mutation = useMutation({
+    mutationFn: () => generateV2({ data: { auditId, limit: 12 } }),
+    onSuccess: (res) => {
+      toast.success(
+        `V2: generated ${res.generated}/${res.attempted}${res.failures.length ? ` · ${res.failures.length} failed` : ""}`,
+      );
+      qc.invalidateQueries({ queryKey: ["proposal-v2", auditId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const pages = q.data?.pages ?? [];
   const audit = q.data?.audit;
   const summary = (audit?.summary ?? {}) as {
