@@ -411,23 +411,51 @@ function buildDeterministicMeta(ctx: GrowthContext, maxLen: number): string | nu
 
 // ---------- Alt fallback cleanup ----------
 
-function cleanupAltText(raw: string): string {
+function cleanupAltText(raw: string, locale: string): string {
   let out = raw;
   out = out.replace(/\s*\([^)]*\)\s*/g, " ").trim();
+  // Strip internal labels that sometimes leak from earlier fallback logic.
+  out = out.replace(/\s*[-–—]?\s*\b(variant|option)\s*\d+\b\s*/gi, " ").trim();
+  // Brand + term normalisation
+  out = out.replace(/\bklikklaar\b/gi, "KlikKlaar");
+  out = out.replace(/\bseo\s+diensten\b/gi, "SEO-diensten");
+  out = out.replace(/\bwebsite\s+scan\b/gi, "websitescan");
+  out = out.replace(/\bseo\s+scan\b/gi, "SEO-scan");
   out = out.replace(/\bseo\b/g, "SEO");
-  out = out.replace(/\s{2,}/g, " ").trim();
+  // NL locale: kill obvious English leftovers
+  if (locale === "nl-NL") {
+    out = out.replace(/\bSEO\s+process\s+and\s+methodology\b/gi, "uitleg over onze werkwijze");
+    out = out.replace(/\bimage\s+of\b/gi, "afbeelding bij");
+    out = out.replace(/\bfeaturing\b/gi, "met");
+  }
+  out = out.replace(/\s{2,}/g, " ").replace(/\s+([,.!?;:])/g, "$1").trim();
   if (out.length > 120) out = compactMeta(out, 120);
   return out;
 }
 
-function dedupeAlts(alts: string[]): string[] {
-  const seen = new Map<string, number>();
-  return alts.map((a) => {
-    const key = a.toLowerCase().trim();
-    const count = (seen.get(key) ?? 0) + 1;
-    seen.set(key, count);
-    if (count === 1) return a;
-    return `${a} — variant ${count}`.slice(0, 120);
+function dedupeAlts(alts: string[], fallback: string): string[] {
+  const seen = new Set<string>();
+  return alts.map((a, idx) => {
+    const key = a.trim().toLowerCase();
+    if (!seen.has(key) && key.length > 0) {
+      seen.add(key);
+      return a;
+    }
+    // Build a distinct safe alternative without leaking "variant N".
+    const candidates = [
+      `${fallback} (${idx + 1})`.replace(/\s+\(\d+\)$/, ""),
+      `${fallback} — extra weergave`,
+      `${fallback} — aanvullende afbeelding`,
+      `${fallback} — tweede afbeelding`,
+    ];
+    for (const c of candidates) {
+      const ck = c.toLowerCase();
+      if (!seen.has(ck)) {
+        seen.add(ck);
+        return c.slice(0, 120);
+      }
+    }
+    return `${fallback} ${idx + 1}`.slice(0, 120);
   });
 }
 
