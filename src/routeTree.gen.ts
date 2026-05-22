@@ -29,6 +29,7 @@ import { Route as AuthenticatedAuditsAuditIdRouteImport } from './routes/_authen
 import { Route as ApiPublicWpcomCallbackRouteImport } from './routes/api/public/wpcom/callback'
 import { Route as AuthenticatedSitesSiteIdAuditsRouteImport } from './routes/_authenticated/sites.$siteId.audits'
 import { Route as AuthenticatedAuditsAuditIdProposalsRouteImport } from './routes/_authenticated/audits.$auditId_.proposals'
+import { Route as AuthenticatedAuditsAuditIdCompareRouteImport } from './routes/_authenticated/audits.$auditId_.compare'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -138,6 +139,12 @@ const AuthenticatedAuditsAuditIdProposalsRoute =
     path: '/audits/$auditId/proposals',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAuditsAuditIdCompareRoute =
+  AuthenticatedAuditsAuditIdCompareRouteImport.update({
+    id: '/audits/$auditId_/compare',
+    path: '/audits/$auditId/compare',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -156,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
   '/sites/': typeof AuthenticatedSitesIndexRoute
+  '/audits/$auditId/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
@@ -177,6 +185,7 @@ export interface FileRoutesByTo {
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
   '/sites': typeof AuthenticatedSitesIndexRoute
+  '/audits/$auditId/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
@@ -200,6 +209,7 @@ export interface FileRoutesById {
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
   '/_authenticated/sites/': typeof AuthenticatedSitesIndexRoute
+  '/_authenticated/audits/$auditId_/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
   '/_authenticated/audits/$auditId_/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/_authenticated/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
@@ -223,6 +233,7 @@ export interface FileRouteTypes {
     | '/sites/new'
     | '/api/public/run-analyzer-job'
     | '/sites/'
+    | '/audits/$auditId/compare'
     | '/audits/$auditId/proposals'
     | '/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
     | '/sites/new'
     | '/api/public/run-analyzer-job'
     | '/sites'
+    | '/audits/$auditId/compare'
     | '/audits/$auditId/proposals'
     | '/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
@@ -266,6 +278,7 @@ export interface FileRouteTypes {
     | '/_authenticated/sites/new'
     | '/api/public/run-analyzer-job'
     | '/_authenticated/sites/'
+    | '/_authenticated/audits/$auditId_/compare'
     | '/_authenticated/audits/$auditId_/proposals'
     | '/_authenticated/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
@@ -423,6 +436,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuditsAuditIdProposalsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/audits/$auditId_/compare': {
+      id: '/_authenticated/audits/$auditId_/compare'
+      path: '/audits/$auditId/compare'
+      fullPath: '/audits/$auditId/compare'
+      preLoaderRoute: typeof AuthenticatedAuditsAuditIdCompareRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
@@ -454,6 +474,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsToneProfileRoute: typeof AuthenticatedSettingsToneProfileRoute
   AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
   AuthenticatedSitesIndexRoute: typeof AuthenticatedSitesIndexRoute
+  AuthenticatedAuditsAuditIdCompareRoute: typeof AuthenticatedAuditsAuditIdCompareRoute
   AuthenticatedAuditsAuditIdProposalsRoute: typeof AuthenticatedAuditsAuditIdProposalsRoute
   AuthenticatedSitesSiteIdAuditsRoute: typeof AuthenticatedSitesSiteIdAuditsRoute
 }
@@ -467,6 +488,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsToneProfileRoute: AuthenticatedSettingsToneProfileRoute,
   AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
   AuthenticatedSitesIndexRoute: AuthenticatedSitesIndexRoute,
+  AuthenticatedAuditsAuditIdCompareRoute:
+    AuthenticatedAuditsAuditIdCompareRoute,
   AuthenticatedAuditsAuditIdProposalsRoute:
     AuthenticatedAuditsAuditIdProposalsRoute,
   AuthenticatedSitesSiteIdAuditsRoute: AuthenticatedSitesSiteIdAuditsRoute,
