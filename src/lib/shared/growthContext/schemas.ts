@@ -120,6 +120,8 @@ export const GrowthContextSchema = z.object({
   instructions: z.object({
     language: z.string(),
     locale: z.string(),
+    country: z.string().default("NL"),
+    salesIntensity: z.enum(["low", "medium", "high"]).default("low"),
     preferredCTA: z.string(),
     primaryAngle: z.string(),
     mustUse: z.array(z.string()),
@@ -129,6 +131,7 @@ export const GrowthContextSchema = z.object({
     pagePriority: z.string(),
   }),
 });
+
 
 export type GrowthContext = z.infer<typeof GrowthContextSchema>;
 
@@ -153,12 +156,12 @@ const ACTION_BY_ISSUE: Record<string, ActionContextDef> = {
     outputSchema: { text: "string" },
     qualityThreshold: 7,
     requiresApproval: true,
-    maxLength: 160,
+    maxLength: 155,
     generationRules: [
-      "120-160 characters",
-      "Include primary keyword/topic naturally",
+      "Strict: 120-155 characters total",
+      "Anchor on primary offer + page intent — not generic SEO advice",
       "End with a soft CTA aligned with preferredCTA",
-      "No generic hype words",
+      "No hype, no unsupported claims",
     ],
   },
   missing_meta: {
@@ -168,13 +171,14 @@ const ACTION_BY_ISSUE: Record<string, ActionContextDef> = {
     outputSchema: { text: "string" },
     qualityThreshold: 7,
     requiresApproval: true,
-    maxLength: 160,
+    maxLength: 155,
     generationRules: [
-      "120-160 characters",
-      "Anchor on primaryTopic and desiredAction",
+      "Strict: 120-155 characters total",
+      "Anchor on primaryTopic + desiredAction + offer",
       "Match tone: formality + ctaStyle",
     ],
   },
+
   missing_h1: {
     actionType: "write_h1",
     riskLevel: "medium",
@@ -204,11 +208,14 @@ const ACTION_BY_ISSUE: Record<string, ActionContextDef> = {
     requiresApproval: true,
     maxLength: 120,
     generationRules: [
-      "Describe the image factually",
-      "No keyword stuffing",
-      "Skip decorative images (return empty string)",
+      "Describe the image factually — only what can be confirmed from filename, surrounding text, or page topic",
+      "NEVER invent specific visual details (no 'tevreden ondernemer', 'stijgende grafiek', 'glimlachende klant') unless image context proves it",
+      "If image context is weak, write a safe, generic-but-relevant description anchored to page topic",
+      "No marketing claims, no success/growth/result language",
+      "Max 120 characters per alt",
     ],
   },
+
   no_schema: {
     actionType: "propose_schema",
     riskLevel: "high",
