@@ -42,6 +42,9 @@ interface Suggestion {
   confidence: number;
   rationale: string;
   status: string;
+  source_type?: "evidence_based" | "inferred" | "recommended" | "missing";
+  requires_review?: boolean;
+  can_use_in_proposals?: boolean;
 }
 
 function splitLines(s: string): string[] {
