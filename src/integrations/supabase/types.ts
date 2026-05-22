@@ -1359,6 +1359,7 @@ export type Database = {
           score_mismatch: boolean
           tenant_id: string
           updated_at: string
+          v2_run_id: string | null
           winner: string
         }
         Insert: {
@@ -1378,6 +1379,7 @@ export type Database = {
           score_mismatch?: boolean
           tenant_id: string
           updated_at?: string
+          v2_run_id?: string | null
           winner?: string
         }
         Update: {
@@ -1397,6 +1399,7 @@ export type Database = {
           score_mismatch?: boolean
           tenant_id?: string
           updated_at?: string
+          v2_run_id?: string | null
           winner?: string
         }
         Relationships: []
