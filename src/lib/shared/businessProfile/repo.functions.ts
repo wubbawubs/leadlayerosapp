@@ -497,10 +497,7 @@ export const getAnalyzerJob = createServerFn({ method: "POST" })
       createdAt: job.created_at as string,
     };
 
-      startedAt: (job.started_at as string | null) ?? null,
-      finishedAt: (job.finished_at as string | null) ?? null,
-      createdAt: job.created_at as string,
-    };
+
   });
 
 
