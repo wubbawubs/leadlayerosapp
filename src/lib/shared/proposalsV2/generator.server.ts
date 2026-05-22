@@ -620,10 +620,10 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
       }
       return a;
     });
-    // Cleanup: uppercase SEO, strip parens, length cap
-    const cleaned = safeAlts.map((a) => cleanupAltText(a));
+    // Cleanup: uppercase SEO, strip parens, brand/term normalisation, length cap
+    const cleaned = safeAlts.map((a) => cleanupAltText(a, ctx.instructions.locale));
     if (cleaned.some((a, i) => a !== safeAlts[i])) mutated = true;
-    safeAlts = dedupeAlts(cleaned);
+    safeAlts = dedupeAlts(cleaned, fallback);
     const flags = [...parsed.riskFlags];
     if (mutated) flags.push("alt:safe_fallback_applied");
     if (mutated || safeAlts.some((a, i) => a !== alts[i])) {
