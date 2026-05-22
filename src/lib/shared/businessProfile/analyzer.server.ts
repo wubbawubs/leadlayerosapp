@@ -685,8 +685,34 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     strategy = { strategyAngles: [], missingContext: [], sectionReasons: {} };
   }
 
+  // Merge vertical-defaults as 'recommended' suggestions for fields the LLM
+  // (and the current profile) left empty. Defaults never overwrite — they are
+  // operator-curated baselines.
+  const identity = (currentProfile?.business_identity ?? {}) as Record<string, unknown>;
+  const defaults = getBusinessProfileDefaults({
+    vertical: (identity.vertical as string | undefined) ?? null,
+    businessType: (identity.businessType as string | undefined) ?? null,
+    country: (identity.country as string | undefined) ?? "NL",
+    language: (identity.language as string | undefined) ?? "nl",
+  });
+  const llmPaths = new Set(extraction.fieldSuggestions.map((s) => s.fieldPath));
+  const defaultSuggestions: FieldSuggestion[] = [];
+  for (const d of defaults) {
+    if (llmPaths.has(d.fieldPath)) continue; // LLM already produced something
+    const cur = getAtPath(currentProfile as Record<string, unknown> | null, d.fieldPath);
+    if (isMeaningful(cur)) continue; // profile already has something
+    defaultSuggestions.push({
+      fieldPath: d.fieldPath,
+      suggestedValue: d.suggestedValue,
+      confidence: 0.4,
+      sourceType: "recommended",
+      rationale: d.rationale,
+      sourceEvidence: [],
+    });
+  }
+
   const parsed: AnalysisResult = {
-    fieldSuggestions: extraction.fieldSuggestions,
+    fieldSuggestions: [...extraction.fieldSuggestions, ...defaultSuggestions],
     sectionConfidence: extraction.sectionConfidence,
     overallConfidence: extraction.overallConfidence,
     strategyAngles: strategy.strategyAngles,
@@ -743,6 +769,7 @@ export async function analyzeBusinessProfileFromWebsite(input: {
       skippedRejected++;
       continue;
     }
+    const flags = classifySuggestion(s);
     rows.push({
       tenant_id: tenantId,
       business_profile_id: businessProfileId,
@@ -754,6 +781,9 @@ export async function analyzeBusinessProfileFromWebsite(input: {
       confidence: s.confidence,
       rationale: s.rationale ?? "",
       status: "pending",
+      source_type: s.sourceType,
+      requires_review: flags.requiresReview,
+      can_use_in_proposals: flags.canUseInProposals,
     });
   }
   if (rows.length) {
