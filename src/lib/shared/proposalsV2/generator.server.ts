@@ -707,13 +707,31 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
       }
       return a;
     });
-    // Cleanup: uppercase SEO, strip parens, brand/term normalisation, length cap
+    // Always run cleanup on every alt (not just mutated ones).
     const cleaned = safeAlts.map((a) => cleanupAltText(a, ctx.instructions.locale));
     if (cleaned.some((a, i) => a !== safeAlts[i])) mutated = true;
+    // Dedupe — track whether dedupe had to substitute anything.
+    const preDedupe = cleaned.slice();
     safeAlts = dedupeAlts(cleaned, fallback);
+    const duplicatesReplaced = safeAlts.some((a, i) => a !== preDedupe[i]);
     const flags = [...parsed.riskFlags];
     if (mutated) flags.push("alt:safe_fallback_applied");
-    if (mutated || safeAlts.some((a, i) => a !== alts[i])) {
+    if (duplicatesReplaced) flags.push("alt:duplicate");
+    // Internal label leak (post-cleanup safety net)
+    if (safeAlts.some((a) => /\b(variant|option)\s*\d+\b/i.test(a))) {
+      flags.push("alt:internal_label_leak");
+    }
+    // NL locale: English leftovers
+    if (
+      ctx.instructions.locale === "nl-NL" &&
+      safeAlts.some((a) => /\b(the|and|with|process|methodology|services|image of|featuring)\b/i.test(a))
+    ) {
+      flags.push("language:mismatch_alt");
+    }
+    if (safeAlts.some((a) => detectAltAwkward(a))) {
+      flags.push("alt:awkward_fallback");
+    }
+    if (mutated || safeAlts.some((a, i) => a !== alts[i]) || flags.length !== parsed.riskFlags.length) {
       parsed = {
         ...parsed,
         after: { ...parsed.after, alts: safeAlts },
