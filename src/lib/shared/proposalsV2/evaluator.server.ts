@@ -244,18 +244,20 @@ export function evaluateProposalV2(
   const preferredHits = tone ? includesAny(text, tone.preferredWords).length : 0;
   const angle = ctx.instructions.primaryAngle;
   const angleHit = angle ? text.toLowerCase().includes(angle.toLowerCase().slice(0, 30)) : false;
-  const oHits = offerHits(text, ctx);
+  const { conceptCount, offerTokenHits } = conceptHits(text, ctx);
+  // Combine literal token hits + conceptual matches (each capped).
+  const combinedFit = Math.min(3, offerTokenHits) + Math.min(3, conceptCount);
 
   const scores: ProposalV2Scores = {
     seoFit: clamp(6 + (output.keywordsUsed.length > 0 ? 2 : 0) + (page ? 1 : -1)),
     toneFit: clamp(tone ? 6 + Math.min(2, preferredHits) - (forbiddenWordHits.length || weakHits.length ? 3 : 0) : 5),
     businessFit: clamp(
       biz
-        ? 5 + Math.min(3, oHits) + (angleHit ? 1 : 0) - (forbiddenClaimHits.length ? 4 : 0)
+        ? 5 + combinedFit + (angleHit ? 1 : 0) - (forbiddenClaimHits.length ? 4 : 0)
         : 5,
     ),
     pageFit: clamp(page ? 6 + (page.confidence >= 0.7 ? 2 : 0) : 4),
-    offerFit: clamp(biz ? 5 + Math.min(3, oHits) + (angleHit ? 1 : 0) : 5),
+    offerFit: clamp(biz ? 5 + combinedFit + (angleHit ? 1 : 0) : 5),
     icpFit: clamp(page?.targetAudience ? 7 : 5),
     locationFit: clamp(
       ctx.instructions.shouldMentionLocation
