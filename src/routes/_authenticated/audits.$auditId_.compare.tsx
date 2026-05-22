@@ -301,6 +301,16 @@ function ComparisonCard({
   const hasV1 = Boolean(item.v1);
   const buttons = hasV1 ? COMPARE_BUTTONS : V2_ONLY_BUTTONS;
 
+  // Detect schema proposals correctly blocked due to missing verified proof —
+  // surface as "correctly blocked" hint so operators don't mark them as "Needs edit".
+  const isSchemaCorrectlyBlocked =
+    !!item.v2 &&
+    item.v2.actionType === "propose_schema" &&
+    (item.v2.status === "rejected" || !!item.v2.blockReason) &&
+    /(verified|proof|business proof|verifiedProofPoints|business identity)/i.test(
+      `${item.v2.blockReason ?? ""} ${item.v2.reasoning ?? ""}`,
+    );
+
   return (
     <div className="rounded-lg border border-border bg-card/70 p-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -313,6 +323,17 @@ function ComparisonCard({
           </div>
           {item.issueMessage && (
             <div className="mt-1 text-xs text-muted-foreground">{item.issueMessage}</div>
+          )}
+          {item.hasPriorReview && item.winner === "unreviewed" && (
+            <div className="mt-2 text-[11px] italic text-muted-foreground">
+              Previous review exists from an older run.
+            </div>
+          )}
+          {isSchemaCorrectlyBlocked && (
+            <div className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/5 px-2 py-1 text-[11px] text-emerald-700">
+              ✓ Correctly blocked — schema should not be generated without verified business proof.
+              Use "Good, review later" or tag <code>correct_safety_block</code> instead of "Needs edit".
+            </div>
           )}
         </div>
         <div
