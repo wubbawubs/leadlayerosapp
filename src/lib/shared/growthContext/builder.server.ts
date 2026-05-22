@@ -29,36 +29,19 @@ function tryParseTone(profile: unknown): ToneProfile | null {
   }
 }
 
-function tryParseBusiness(row: Record<string, unknown> | null): BusinessProfile | null {
-  if (!row) return null;
-  // Strict parse first.
+type BusinessParseOutcome =
+  | { kind: "strict"; profile: BusinessProfile }
+  | { kind: "tolerant"; profile: BusinessProfile }
+  | { kind: "failed" };
+
+function tryParseBusiness(row: Record<string, unknown> | null): BusinessParseOutcome {
+  if (!row) return { kind: "failed" };
   try {
-    return BusinessProfileSchema.parse({
-      status: row.status,
-      confidence_score: row.confidence_score,
-      business_identity: row.business_identity ?? {},
-      offer_profile: row.offer_profile ?? {},
-      icp_profile: row.icp_profile ?? {},
-      location_profile: row.location_profile ?? {},
-      conversion_profile: row.conversion_profile ?? {},
-      proof_profile: row.proof_profile ?? {},
-      claim_guardrails: row.claim_guardrails ?? {},
-      strategy_angles: row.strategy_angles ?? [],
-      missing_context: row.missing_context ?? [],
-      locked_fields: row.locked_fields ?? [],
-      confidence_reasons: row.confidence_reasons ?? {},
-    });
-  } catch {
-    // Tolerant fallback: known sections sometimes drift (e.g. confidence_reasons
-    // with score>10, oversized strings). Drop only the offending side-data and
-    // keep core sections so businessProfile context isn't lost wholesale.
-    try {
-      return BusinessProfileSchema.parse({
+    return {
+      kind: "strict",
+      profile: BusinessProfileSchema.parse({
         status: row.status,
-        confidence_score:
-          typeof row.confidence_score === "number"
-            ? Math.min(10, Math.max(0, row.confidence_score))
-            : 0,
+        confidence_score: row.confidence_score,
         business_identity: row.business_identity ?? {},
         offer_profile: row.offer_profile ?? {},
         icp_profile: row.icp_profile ?? {},
@@ -66,15 +49,74 @@ function tryParseBusiness(row: Record<string, unknown> | null): BusinessProfile 
         conversion_profile: row.conversion_profile ?? {},
         proof_profile: row.proof_profile ?? {},
         claim_guardrails: row.claim_guardrails ?? {},
-        strategy_angles: [],
-        missing_context: [],
-        locked_fields: [],
-        confidence_reasons: {},
-      });
+        strategy_angles: row.strategy_angles ?? [],
+        missing_context: row.missing_context ?? [],
+        locked_fields: row.locked_fields ?? [],
+        confidence_reasons: row.confidence_reasons ?? {},
+      }),
+    };
+  } catch {
+    try {
+      return {
+        kind: "tolerant",
+        profile: BusinessProfileSchema.parse({
+          status: row.status,
+          confidence_score:
+            typeof row.confidence_score === "number"
+              ? Math.min(10, Math.max(0, row.confidence_score))
+              : 0,
+          business_identity: row.business_identity ?? {},
+          offer_profile: row.offer_profile ?? {},
+          icp_profile: row.icp_profile ?? {},
+          location_profile: row.location_profile ?? {},
+          conversion_profile: row.conversion_profile ?? {},
+          proof_profile: row.proof_profile ?? {},
+          claim_guardrails: row.claim_guardrails ?? {},
+          strategy_angles: [],
+          missing_context: [],
+          locked_fields: [],
+          confidence_reasons: {},
+        }),
+      };
     } catch {
-      return null;
+      return { kind: "failed" };
     }
   }
+}
+
+// Raw-row hydration: used when both strict and tolerant schema parses fail.
+// Pulls JSON fields directly so the generator gets identity/offer/CTA/etc.
+// even when the BP can't be fully validated.
+function hydrateBusinessFromRaw(row: Record<string, unknown>) {
+  const asObj = (v: unknown): Record<string, unknown> =>
+    v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  const identity = asObj(row.business_identity);
+  const offer = asObj(row.offer_profile);
+  const icp = asObj(row.icp_profile);
+  const location = asObj(row.location_profile);
+  const conversion = asObj(row.conversion_profile);
+  const proof = asObj(row.proof_profile);
+  const claims = asObj(row.claim_guardrails);
+  const angles = Array.isArray(row.strategy_angles)
+    ? (row.strategy_angles as Array<{ angle?: string; isPrimary?: boolean; score?: number }>)
+    : [];
+  const primaryStrategyAngle =
+    angles.find((a) => a?.isPrimary)?.angle ??
+    [...angles].sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0))[0]?.angle ??
+    null;
+  return {
+    status: (row.status as string) ?? "draft",
+    confidenceScore:
+      typeof row.confidence_score === "number" ? Math.min(10, Math.max(0, row.confidence_score)) : 0,
+    identity,
+    offer,
+    icp,
+    location,
+    conversion,
+    proof,
+    claims,
+    primaryStrategyAngle,
+  };
 }
 
 export async function buildGrowthContext(input: BuildInput): Promise<GrowthContext> {
