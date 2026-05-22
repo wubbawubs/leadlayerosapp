@@ -763,7 +763,7 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
     }
   }
 
-  // Alt unknown-image safe fallback + V2.3 cleanup
+  // Alt unknown-image safe fallback + V2.3 cleanup + Hard Gate
   if (ctx.action.actionType === "write_alt_text") {
     const alts = (parsed.after.alts as string[] | undefined) ?? [];
     const topic = ctx.page?.primaryTopic ?? ctx.page?.contentSummary?.slice(0, 60);
@@ -788,20 +788,50 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
     const flags = [...parsed.riskFlags];
     if (mutated) flags.push("alt:safe_fallback_applied");
     if (duplicatesReplaced) flags.push("alt:duplicate");
-    // Internal label leak (post-cleanup safety net)
-    if (safeAlts.some((a) => /\b(variant|option)\s*\d+\b/i.test(a))) {
-      flags.push("alt:internal_label_leak");
+
+    // ----- HARD GATE (nl-NL): if any alt still fails validation, replace
+    // the whole set with deterministic page-aware safe pool entries.
+    if (ctx.instructions.locale === "nl-NL") {
+      const failsPre = safeAlts.some((a) => !isAltAcceptableNl(a));
+      if (failsPre) {
+        if (safeAlts.some((a) => /\b(and|the|with|process|methodology|services|image\s+of|featuring)\b/i.test(a))) {
+          flags.push("language:mismatch_alt");
+        }
+        if (safeAlts.some((a) => detectAltAwkward(a))) {
+          flags.push("alt:awkward_fallback");
+        }
+        if (safeAlts.some((a) => /\b(variant|option|versie)\s*\d*\b/i.test(a))) {
+          flags.push("alt:internal_label_leak");
+        }
+        const pool = safePoolNl(ctx.page?.pageType, ctx.page?.pageUrl);
+        const replaced = pickFromPool(pool, Math.max(1, safeAlts.length));
+        safeAlts = replaced;
+        mutated = true;
+        flags.push("alt:safe_fallback_applied");
+
+        // Second-pass guarantee: if for any reason the pool itself doesn't
+        // pass validation (shouldn't happen), force ultra-generic safe set.
+        const failsPost = safeAlts.some((a) => !isAltAcceptableNl(a));
+        if (failsPost) {
+          safeAlts = pickFromPool(
+            Array.from({ length: safeAlts.length }, (_, i) =>
+              `Afbeelding bij websiteverbetering ${i + 1}`,
+            ),
+            safeAlts.length,
+          );
+          flags.push("alt:fallback_failed");
+        }
+      }
+    } else {
+      // Non-NL: keep legacy detector flags only (no hard pool gate).
+      if (safeAlts.some((a) => /\b(variant|option)\s*\d+\b/i.test(a))) {
+        flags.push("alt:internal_label_leak");
+      }
+      if (safeAlts.some((a) => detectAltAwkward(a))) {
+        flags.push("alt:awkward_fallback");
+      }
     }
-    // NL locale: English leftovers
-    if (
-      ctx.instructions.locale === "nl-NL" &&
-      safeAlts.some((a) => /\b(the|and|with|process|methodology|services|image of|featuring)\b/i.test(a))
-    ) {
-      flags.push("language:mismatch_alt");
-    }
-    if (safeAlts.some((a) => detectAltAwkward(a))) {
-      flags.push("alt:awkward_fallback");
-    }
+
     if (mutated || safeAlts.some((a, i) => a !== alts[i]) || flags.length !== parsed.riskFlags.length) {
       parsed = {
         ...parsed,
