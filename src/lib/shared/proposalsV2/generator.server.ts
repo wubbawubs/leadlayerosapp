@@ -781,62 +781,63 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
     // Always run cleanup on every alt (not just mutated ones).
     const cleaned = safeAlts.map((a) => cleanupAltText(a, ctx.instructions.locale));
     if (cleaned.some((a, i) => a !== safeAlts[i])) mutated = true;
-    // Dedupe — track whether dedupe had to substitute anything.
-    const preDedupe = cleaned.slice();
     safeAlts = dedupeAlts(cleaned, fallback);
-    const duplicatesReplaced = safeAlts.some((a, i) => a !== preDedupe[i]);
-    const flags = [...parsed.riskFlags];
-    if (mutated) flags.push("alt:safe_fallback_applied");
-    if (duplicatesReplaced) flags.push("alt:duplicate");
+
+    // Strip any pre-existing alt-related risk flags — we recompute them
+    // against the FINAL after.alts below so flags never lag behind output.
+    const ALT_FLAG_RE = /^(alt:|language:mismatch_alt$)/;
+    const flags = parsed.riskFlags.filter((f) => !ALT_FLAG_RE.test(f));
+    let fallbackFailed = false;
 
     // ----- HARD GATE (nl-NL): if any alt still fails validation, replace
     // the whole set with deterministic page-aware safe pool entries.
     if (ctx.instructions.locale === "nl-NL") {
       const failsPre = safeAlts.some((a) => !isAltAcceptableNl(a));
       if (failsPre) {
-        if (safeAlts.some((a) => /\b(and|the|with|process|methodology|services|image\s+of|featuring)\b/i.test(a))) {
-          flags.push("language:mismatch_alt");
-        }
-        if (safeAlts.some((a) => detectAltAwkward(a))) {
-          flags.push("alt:awkward_fallback");
-        }
-        if (safeAlts.some((a) => /\b(variant|option|versie)\s*\d*\b/i.test(a))) {
-          flags.push("alt:internal_label_leak");
-        }
         const pool = safePoolNl(ctx.page?.pageType, ctx.page?.pageUrl ?? undefined);
-        const replaced = pickFromPool(pool, Math.max(1, safeAlts.length));
-        safeAlts = replaced;
+        safeAlts = pickFromPool(pool, Math.max(1, safeAlts.length));
         mutated = true;
-        flags.push("alt:safe_fallback_applied");
 
         // Second-pass guarantee: if for any reason the pool itself doesn't
         // pass validation (shouldn't happen), force ultra-generic safe set.
-        const failsPost = safeAlts.some((a) => !isAltAcceptableNl(a));
-        if (failsPost) {
+        if (safeAlts.some((a) => !isAltAcceptableNl(a))) {
           safeAlts = pickFromPool(
             Array.from({ length: safeAlts.length }, (_, i) =>
               `Afbeelding bij websiteverbetering ${i + 1}`,
             ),
             safeAlts.length,
           );
-          flags.push("alt:fallback_failed");
+          fallbackFailed = true;
         }
-      }
-    } else {
-      // Non-NL: keep legacy detector flags only (no hard pool gate).
-      if (safeAlts.some((a) => /\b(variant|option)\s*\d+\b/i.test(a))) {
-        flags.push("alt:internal_label_leak");
-      }
-      if (safeAlts.some((a) => detectAltAwkward(a))) {
-        flags.push("alt:awkward_fallback");
       }
     }
 
-    if (mutated || safeAlts.some((a, i) => a !== alts[i]) || flags.length !== parsed.riskFlags.length) {
+    // ----- Recompute alt flags against the FINAL safeAlts only.
+    const finalHasDuplicates =
+      new Set(safeAlts.map((a) => a.toLowerCase().trim())).size < safeAlts.length;
+    if (finalHasDuplicates) flags.push("alt:duplicate");
+    if (safeAlts.some((a) => /\b(and|the|with|process|methodology|services|image\s+of|featuring)\b/i.test(a))) {
+      flags.push("language:mismatch_alt");
+    }
+    if (safeAlts.some((a) => /\b(variant|option|versie)\s*\d*\b/i.test(a))) {
+      flags.push("alt:internal_label_leak");
+    }
+    if (safeAlts.some((a) => detectAltAwkward(a))) {
+      flags.push("alt:awkward_fallback");
+    }
+    if (mutated) flags.push("alt:safe_fallback_applied");
+    if (fallbackFailed) flags.push("alt:fallback_failed");
+
+    const nextFlags = Array.from(new Set(flags));
+    const altsChanged = safeAlts.length !== alts.length || safeAlts.some((a, i) => a !== alts[i]);
+    const flagsChanged =
+      nextFlags.length !== parsed.riskFlags.length ||
+      nextFlags.some((f, i) => f !== parsed.riskFlags[i]);
+    if (altsChanged || flagsChanged) {
       parsed = {
         ...parsed,
         after: { ...parsed.after, alts: safeAlts },
-        riskFlags: Array.from(new Set(flags)),
+        riskFlags: nextFlags,
       };
     }
   }
