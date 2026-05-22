@@ -4,6 +4,8 @@
  * BP-2: analyze-from-website + apply-on-accept.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
+import { createHmac } from "crypto";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
