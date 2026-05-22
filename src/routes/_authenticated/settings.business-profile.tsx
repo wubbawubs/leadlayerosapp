@@ -160,20 +160,74 @@ function BusinessProfilePage() {
   });
   const suggestions = (suggestionsQuery.data?.suggestions ?? []) as Suggestion[];
 
-  const analyzeMutation = useMutation({
-    mutationFn: async () => {
-      if (!tenantId) throw new Error("Geen tenant");
-      return analyzeFromWebsite({ data: { tenantId } });
+  // Async analyzer job: start -> poll -> invalidate. Persists jobId in
+  // sessionStorage so a refresh during a 2-3 min run resumes polling.
+  const jobStorageKey = tenantId ? `bp-analyzer-job:${tenantId}` : null;
+  const [jobId, setJobId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!jobStorageKey) return;
+    const stored = sessionStorage.getItem(jobStorageKey);
+    if (stored) setJobId(stored);
+    else setJobId(null);
+  }, [jobStorageKey]);
+
+  const jobQuery = useQuery({
+    queryKey: ["bp-analyzer-job", jobId],
+    queryFn: () => fetchJob({ data: { jobId: jobId! } }),
+    enabled: !!jobId,
+    refetchInterval: (q) => {
+      const s = q.state.data?.status;
+      return s === "succeeded" || s === "failed" ? false : 2000;
     },
-    onSuccess: (r) => {
+  });
+  const job = jobQuery.data;
+  const jobActive = job?.status === "queued" || job?.status === "running";
+
+  useEffect(() => {
+    if (!job || !jobStorageKey) return;
+    if (job.status === "succeeded") {
       setMsg(
-        `Analyzer klaar: ${r.suggestionsCreated} suggesties (${r.observedPages} pagina's geanalyseerd, ${r.blockedByLock} geblokkeerd door lock).`,
+        `Analyzer klaar: ${job.result.suggestionsCreated} suggesties uit ${job.result.observedPages} pagina's.`,
       );
       qc.invalidateQueries({ queryKey: ["bp-suggestions", tenantId] });
       qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] });
+      sessionStorage.removeItem(jobStorageKey);
+    } else if (job.status === "failed") {
+      setMsg(`Analyzer fout: ${job.errorMessage ?? "onbekende fout"}`);
+      sessionStorage.removeItem(jobStorageKey);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.status]);
+
+  const stageCopy: Record<string, string> = {
+    queued: "Analyse klaarzetten…",
+    crawl: "Pagina's ophalen…",
+    stage_a: "Feiten extraheren…",
+    stage_b: "Strategie bepalen…",
+    persist: "Suggesties opslaan…",
+    done: "Afronden…",
+  };
+
+  const stuck =
+    job?.status === "running" &&
+    !!job.startedAt &&
+    Date.now() - new Date(job.startedAt).getTime() > 5 * 60 * 1000;
+
+  const analyzeMutation = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error("Geen tenant");
+      return startJob({ data: { tenantId } });
+    },
+    onSuccess: (r) => {
+      if (!jobStorageKey) return;
+      sessionStorage.setItem(jobStorageKey, r.jobId);
+      setJobId(r.jobId);
+      setMsg(r.reused ? "Bestaande analyse hervat…" : "Analyse gestart…");
     },
     onError: (e) => setMsg(`Analyzer fout: ${(e as Error).message}`),
   });
+
+
 
   const acceptMutation = useMutation({
     mutationFn: async (input: { suggestionId: string; lockAfter?: boolean }) => {
