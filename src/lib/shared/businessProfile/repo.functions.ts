@@ -427,9 +427,6 @@ export const startAnalyzerJob = createServerFn({ method: "POST" })
       throw new Error("Kon publieke origin niet bepalen.");
     }
 
-    const body = JSON.stringify({ jobId, tenantId: data.tenantId });
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createHmac } = require("crypto") as typeof import("crypto");
     const signature = createHmac("sha256", secret).update(body).digest("hex");
 
     // Fire-and-forget — do NOT await. Drop network errors silently; the job
