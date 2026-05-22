@@ -258,6 +258,7 @@ export type Database = {
       business_profile_suggestions: {
         Row: {
           business_profile_id: string | null
+          can_use_in_proposals: boolean
           confidence: number
           created_at: string
           current_value: Json | null
@@ -266,14 +267,17 @@ export type Database = {
           field_path: string
           id: string
           rationale: string | null
+          requires_review: boolean
           section: string
           source_evidence: Json
+          source_type: string
           status: string
           suggested_value: Json
           tenant_id: string
         }
         Insert: {
           business_profile_id?: string | null
+          can_use_in_proposals?: boolean
           confidence?: number
           created_at?: string
           current_value?: Json | null
@@ -282,14 +286,17 @@ export type Database = {
           field_path: string
           id?: string
           rationale?: string | null
+          requires_review?: boolean
           section: string
           source_evidence?: Json
+          source_type?: string
           status?: string
           suggested_value: Json
           tenant_id: string
         }
         Update: {
           business_profile_id?: string | null
+          can_use_in_proposals?: boolean
           confidence?: number
           created_at?: string
           current_value?: Json | null
@@ -298,8 +305,10 @@ export type Database = {
           field_path?: string
           id?: string
           rationale?: string | null
+          requires_review?: boolean
           section?: string
           source_evidence?: Json
+          source_type?: string
           status?: string
           suggested_value?: Json
           tenant_id?: string

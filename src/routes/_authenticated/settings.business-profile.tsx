@@ -42,6 +42,9 @@ interface Suggestion {
   confidence: number;
   rationale: string;
   status: string;
+  source_type?: "evidence_based" | "inferred" | "recommended" | "missing";
+  requires_review?: boolean;
+  can_use_in_proposals?: boolean;
 }
 
 function splitLines(s: string): string[] {
@@ -1059,10 +1062,38 @@ function SuggestionCard({
       ? "text-amber-700 dark:text-amber-300"
       : "text-muted-foreground";
 
+  const sourceType = s.source_type ?? "evidence_based";
+  const sourceLabel =
+    sourceType === "evidence_based"
+      ? "Evidence"
+      : sourceType === "inferred"
+      ? "Inferred"
+      : sourceType === "recommended"
+      ? "Recommended"
+      : "Missing";
+  const sourceTone =
+    sourceType === "evidence_based"
+      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+      : sourceType === "inferred"
+      ? "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200"
+      : sourceType === "recommended"
+      ? "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
+      : "bg-muted text-muted-foreground";
+
   return (
     <div className="rounded-md border border-border bg-card p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
-        <div className="font-mono text-xs text-muted-foreground">{s.field_path}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${sourceTone}`}>
+            {sourceLabel}
+          </span>
+          {s.requires_review && (
+            <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-800 dark:bg-orange-900/40 dark:text-orange-200">
+              Needs review
+            </span>
+          )}
+          <div className="font-mono text-xs text-muted-foreground">{s.field_path}</div>
+        </div>
         <span className={`text-xs font-semibold ${confTone}`}>{confPct}% confidence</span>
       </div>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">

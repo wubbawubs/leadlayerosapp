@@ -27,6 +27,11 @@ import {
   SECTION_KEYS,
   type SectionKey,
 } from "./schemas";
+import {
+  filterCtaCandidates,
+  getBusinessProfileDefaults,
+  type SourceType,
+} from "./defaults.server";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const admin = supabaseAdmin as any;
@@ -41,10 +46,15 @@ const EvidenceSchema = z.object({
   reason: z.string().max(500).default(""),
 });
 
+const SourceTypeSchema = z
+  .enum(["evidence_based", "inferred", "recommended", "missing"])
+  .default("evidence_based");
+
 const FieldSuggestionSchema = z.object({
-  fieldPath: z.string().min(1).max(160), // e.g. "offer_profile.primaryOffer"
+  fieldPath: z.string().min(1).max(160),
   suggestedValue: z.any(),
   confidence: z.number().min(0).max(1),
+  sourceType: SourceTypeSchema,
   rationale: z.string().max(800).default(""),
   sourceEvidence: z.array(EvidenceSchema).max(8).default([]),
 });
@@ -57,7 +67,7 @@ const SectionReasonSchema = z.object({
 });
 
 const ExtractionResultSchema = z.object({
-  fieldSuggestions: z.array(FieldSuggestionSchema).max(80).default([]),
+  fieldSuggestions: z.array(FieldSuggestionSchema).max(120).default([]),
   sectionConfidence: z.record(z.string(), z.number().min(0).max(1)).default({}),
   overallConfidence: z.number().min(0).max(1).default(0),
 });
@@ -69,7 +79,7 @@ const StrategyResultSchema = z.object({
 });
 
 const AnalysisResultSchema = z.object({
-  fieldSuggestions: z.array(FieldSuggestionSchema).max(80).default([]),
+  fieldSuggestions: z.array(FieldSuggestionSchema).max(120).default([]),
   strategyAngles: z.array(StrategyAngleSchema).max(12).default([]),
   missingContext: z.array(MissingContextItemSchema).max(20).default([]),
   sectionConfidence: z.record(z.string(), z.number().min(0).max(1)).default({}),
@@ -78,6 +88,25 @@ const AnalysisResultSchema = z.object({
 });
 
 type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
+type FieldSuggestion = z.infer<typeof FieldSuggestionSchema>;
+
+function classifySuggestion(s: { sourceType: SourceType; confidence: number }): {
+  requiresReview: boolean;
+  canUseInProposals: boolean;
+} {
+  const c = s.confidence;
+  switch (s.sourceType) {
+    case "evidence_based":
+      return { requiresReview: c < 0.75, canUseInProposals: c >= 0.75 };
+    case "inferred":
+      return { requiresReview: true, canUseInProposals: c >= 0.65 };
+    case "recommended":
+      return { requiresReview: true, canUseInProposals: false };
+    case "missing":
+    default:
+      return { requiresReview: true, canUseInProposals: false };
+  }
+}
 
 
 // ----------------------------------------------------------------------------
@@ -268,8 +297,12 @@ function buildSharedContext(input: PromptInput, sampleChars: number, sampleCount
     )
     .join("\n\n");
 
+  const filteredCtas = filterCtaCandidates(aggregated.ctas);
   const ctaList =
-    aggregated.ctas.slice(0, 25).map((c) => `- "${c.text}" (×${c.count})`).join("\n") || "(geen)";
+    filteredCtas
+      .slice(0, 25)
+      .map((c) => `- "${c.text}" (×${c.count}, type=${c.ctaClass})`)
+      .join("\n") || "(geen product/lead-CTA's gevonden — stel zelf een passende CTA voor)";
   const claimList =
     aggregated.claimSentences.slice(0, 20).map((c) => `- "${c.text}"`).join("\n") || "(geen)";
 
@@ -288,6 +321,7 @@ function buildSharedContext(input: PromptInput, sampleChars: number, sampleCount
         2,
       ).slice(0, 4000)
     : "(leeg)";
+
 
   const toneBlock = toneContext
     ? [
@@ -325,18 +359,38 @@ function buildSharedContext(input: PromptInput, sampleChars: number, sampleCount
 function buildExtractionPrompt(input: PromptInput): string {
   const ctx = buildSharedContext(input, 2200, 10);
   return [
-    "STAGE A — FEITEN-EXTRACTIE voor een GROWTH INTELLIGENCE PROFILE.",
-    "Je leest échte website-content en stelt per veld een waarde voor. Niets wordt automatisch overschreven — operator beslist.",
+    "STAGE A — COMPLETENESS-MODE Growth Intelligence Profile builder.",
+    "Je leest échte website-content en vult ZOVEEL MOGELIJK velden van het Business Profile. Niets wordt automatisch overschreven — operator beslist.",
+    "",
+    "KERN-REGEL: laat een veld NIET leeg als een nuttige inferred of recommended waarde gegeven kan worden. Maar presenteer afgeleide/aanbevolen waarden NOOIT als geverifieerde feiten.",
+    "",
+    "Elke suggestie MOET een sourceType bevatten:",
+    "  1. 'evidence_based' — direct ondersteund door een quote uit de samples. Vereist sourceEvidence.",
+    "  2. 'inferred' — logisch afgeleid uit meerdere signalen (vertical, tone, offer, content-structuur). Geef rationale.",
+    "  3. 'recommended' — strategische aanbeveling op basis van vertical/business model, niet uit de site bewezen. Geef rationale.",
+    "  (4. 'missing' — gebruik dit NIET hier; ontbrekende context komt in Stage B.)",
+    "",
+    "Confidence richtlijn per sourceType:",
+    "  - evidence_based: 0.75-0.95 afhankelijk van aantal/sterkte van bronnen",
+    "  - inferred: 0.45-0.75",
+    "  - recommended: 0.30-0.55",
     "",
     "HARDE REGELS:",
-    "- Verzin GEEN cijfers, klantaantallen, percentages of cases. Niet letterlijk in samples → hoort in `unverifiedProofPoints` of (Stage B) missingContext, NIET in `verifiedProofPoints`.",
-    "- Elke suggestie MOET sourceEvidence hebben (url + quote uit samples) tenzij confidence < 0.5.",
-    "- Confidence: 0.9+ alleen bij meerdere expliciete bronnen, 0.7-0.85 bij duidelijke inferentie, 0.4-0.6 bij zwakke aanwijzing, < 0.4 → overslaan (komt in Stage B).",
+    "- Verzin GEEN cijfers, klantaantallen, percentages of cases. Cijfers zonder bron → unverifiedProofPoints, NOOIT verifiedProofPoints.",
     "- LOCKED VELDEN (geen suggesties): " + ctx.lockedBlock,
-    "- Alle tekstwaarden MOETEN het Tone Profile volgen. Geen 'U/uw' als tone 'je/jij' voorschrijft. Geen verboden woorden.",
+    "- Tone Profile letterlijk volgen. Geen verboden woorden.",
     "- Suggesteer NIET hetzelfde als huidige profiel of recent afgewezen suggesties.",
     "- Toegestane top-level secties: business_identity, offer_profile, icp_profile, location_profile, conversion_profile, proof_profile, claim_guardrails.",
     "- Lijst-velden → array van strings. Scalars → string/number/enum.",
+    "",
+    "MINIMUM COMPLETENESS-DOELEN (vul deze als ze niet locked zijn):",
+    "  business_identity: businessName, brandName, industry, vertical, businessType, language, country, shortDescription, maturity",
+    "  offer_profile: primaryOffer, secondaryOffers, mainPromise, safePromise, uniqueValueProposition, offerMechanism, offerMaturity",
+    "  icp_profile: idealCustomers, bestFitSegments, painPoints, buyingTriggers, objections, desiredLeadTypes, undesiredLeadTypes",
+    "  location_profile: serviceAreas, regionType, localSearchPatterns, locationPageOpportunities (mag inferred/recommended zijn)",
+    "  conversion_profile: primaryCta (KIES UIT WAARGENOMEN PRODUCT/LEAD CTA's — NIET uit nav/account/template ruis), secondaryCta, conversionBarriers, trustElementsNeeded",
+    "  proof_profile: verifiedProofPoints (alleen letterlijk in samples), unverifiedProofPoints, proofGaps, requiresVerification",
+    "  claim_guardrails: allowedClaims, riskyClaims, forbiddenClaims, safeAlternatives",
     "",
     ctx.toneBlock,
     "",
@@ -346,7 +400,7 @@ function buildExtractionPrompt(input: PromptInput): string {
     "RECENT AFGEWEZEN SUGGESTIES (niet opnieuw voorstellen):",
     ctx.rejectBlock,
     "",
-    "WAARGENOMEN CTA's:",
+    "WAARGENOMEN CTA's (alleen product/lead — nav/account/template is al weggefilterd):",
     ctx.ctaList,
     "",
     "WAARGENOMEN CLAIM-ZINNEN:",
@@ -358,7 +412,7 @@ function buildExtractionPrompt(input: PromptInput): string {
     "Output UITSLUITEND geldige JSON in dit schema:",
     `{
   "fieldSuggestions": [
-    {"fieldPath":"offer_profile.primaryOffer","suggestedValue":"...","confidence":0.0-1.0,"rationale":"...","sourceEvidence":[{"url":"...","quote":"...","reason":"..."}]}
+    {"fieldPath":"offer_profile.primaryOffer","suggestedValue":"...","sourceType":"evidence_based|inferred|recommended","confidence":0.0-1.0,"rationale":"...","sourceEvidence":[{"url":"...","quote":"...","reason":"..."}]}
   ],
   "sectionConfidence": {
     "business_identity":0.0-1.0,"offer_profile":0.0-1.0,"icp_profile":0.0-1.0,
@@ -366,7 +420,7 @@ function buildExtractionPrompt(input: PromptInput): string {
   },
   "overallConfidence": 0.0-1.0
 }`,
-    "Limieten: max 40 fieldSuggestions. Houd rationale en evidence-quotes kort (max ~120 chars).",
+    "Limieten: max 70 fieldSuggestions. Houd rationale en evidence-quotes kort (max ~120 chars).",
     "",
     "Antwoord ALLEEN met geldige JSON. Geen markdown.",
   ].join("\n");
@@ -631,8 +685,34 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     strategy = { strategyAngles: [], missingContext: [], sectionReasons: {} };
   }
 
+  // Merge vertical-defaults as 'recommended' suggestions for fields the LLM
+  // (and the current profile) left empty. Defaults never overwrite — they are
+  // operator-curated baselines.
+  const identity = (currentProfile?.business_identity ?? {}) as Record<string, unknown>;
+  const defaults = getBusinessProfileDefaults({
+    vertical: (identity.vertical as string | undefined) ?? null,
+    businessType: (identity.businessType as string | undefined) ?? null,
+    country: (identity.country as string | undefined) ?? "NL",
+    language: (identity.language as string | undefined) ?? "nl",
+  });
+  const llmPaths = new Set(extraction.fieldSuggestions.map((s) => s.fieldPath));
+  const defaultSuggestions: FieldSuggestion[] = [];
+  for (const d of defaults) {
+    if (llmPaths.has(d.fieldPath)) continue; // LLM already produced something
+    const cur = getAtPath(currentProfile as Record<string, unknown> | null, d.fieldPath);
+    if (isMeaningful(cur)) continue; // profile already has something
+    defaultSuggestions.push({
+      fieldPath: d.fieldPath,
+      suggestedValue: d.suggestedValue,
+      confidence: 0.4,
+      sourceType: "recommended",
+      rationale: d.rationale,
+      sourceEvidence: [],
+    });
+  }
+
   const parsed: AnalysisResult = {
-    fieldSuggestions: extraction.fieldSuggestions,
+    fieldSuggestions: [...extraction.fieldSuggestions, ...defaultSuggestions],
     sectionConfidence: extraction.sectionConfidence,
     overallConfidence: extraction.overallConfidence,
     strategyAngles: strategy.strategyAngles,
@@ -689,6 +769,7 @@ export async function analyzeBusinessProfileFromWebsite(input: {
       skippedRejected++;
       continue;
     }
+    const flags = classifySuggestion(s);
     rows.push({
       tenant_id: tenantId,
       business_profile_id: businessProfileId,
@@ -700,6 +781,9 @@ export async function analyzeBusinessProfileFromWebsite(input: {
       confidence: s.confidence,
       rationale: s.rationale ?? "",
       status: "pending",
+      source_type: s.sourceType,
+      requires_review: flags.requiresReview,
+      can_use_in_proposals: flags.canUseInProposals,
     });
   }
   if (rows.length) {
