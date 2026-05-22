@@ -338,7 +338,32 @@ export const rejectBusinessProfileSuggestion = createServerFn({ method: "POST" }
     return { ok: true };
   });
 
-export const analyzeBusinessProfileFromWebsiteFn = createServerFn({ method: "POST" })
+// ----------------------------------------------------------------------------
+// Async analyzer job pattern — kicks off background work and polls for status.
+// Replaces the old synchronous analyzeBusinessProfileFromWebsiteFn which hit
+// the ~100s proxy HTTP timeout because the full analyzer pipeline can take
+// 2-3 minutes (Stage A + Stage B + crawl + persist).
+// ----------------------------------------------------------------------------
+
+function getPublicOrigin(): string {
+  // Read request via TanStack runtime, fall back to env.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getRequest } = require("@tanstack/react-start/server") as {
+      getRequest: () => Request;
+    };
+    const req = getRequest();
+    const h = req.headers;
+    const host = h.get("x-forwarded-host") ?? h.get("host");
+    const proto = h.get("x-forwarded-proto") ?? "https";
+    if (host) return `${proto}://${host}`;
+    return new URL(req.url).origin;
+  } catch {
+    return process.env.SITE_URL ?? "";
+  }
+}
+
+export const startAnalyzerJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { tenantId: string }) =>
     z.object({ tenantId: z.string().uuid() }).parse(input),
@@ -346,9 +371,123 @@ export const analyzeBusinessProfileFromWebsiteFn = createServerFn({ method: "POS
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertOperator(supabase, userId, data.tenantId);
-    const result = await analyzeBusinessProfileFromWebsite({ tenantId: data.tenantId });
-    return result;
+
+    // Reuse an existing recent queued/running job to avoid double-runs
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data: existing } = await admin
+      .from("business_profile_analyzer_jobs")
+      .select("id, status, created_at")
+      .eq("tenant_id", data.tenantId)
+      .in("status", ["queued", "running"])
+      .gte("created_at", tenMinAgo)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing?.id) {
+      return { jobId: existing.id as string, reused: true };
+    }
+
+    // Insert new job
+    const { data: row, error: insErr } = await admin
+      .from("business_profile_analyzer_jobs")
+      .insert({
+        tenant_id: data.tenantId,
+        created_by: userId,
+        status: "queued",
+        stage: "queued",
+      })
+      .select("id")
+      .single();
+    if (insErr || !row) {
+      throw new Error(`Kon analyse-job niet aanmaken: ${insErr?.message ?? "unknown"}`);
+    }
+    const jobId = row.id as string;
+
+    // Fire-and-forget background invocation. HMAC-signed body.
+    const secret = process.env.ANALYZER_JOB_SECRET;
+    if (!secret) {
+      await admin
+        .from("business_profile_analyzer_jobs")
+        .update({
+          status: "failed",
+          finished_at: new Date().toISOString(),
+          error_message: "Server is niet geconfigureerd (ANALYZER_JOB_SECRET ontbreekt).",
+        })
+        .eq("id", jobId);
+      throw new Error("ANALYZER_JOB_SECRET ontbreekt op de server.");
+    }
+
+    const origin = getPublicOrigin();
+    if (!origin) {
+      await admin
+        .from("business_profile_analyzer_jobs")
+        .update({
+          status: "failed",
+          finished_at: new Date().toISOString(),
+          error_message: "Kon publieke URL niet bepalen.",
+        })
+        .eq("id", jobId);
+      throw new Error("Kon publieke origin niet bepalen.");
+    }
+
+    const body = JSON.stringify({ jobId, tenantId: data.tenantId });
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createHmac } = require("crypto") as typeof import("crypto");
+    const signature = createHmac("sha256", secret).update(body).digest("hex");
+
+    // Fire-and-forget — do NOT await. Drop network errors silently; the job
+    // row stays 'queued' and the UI surfaces a stuck-job warning after 5min.
+    void fetch(`${origin}/api/public/run-analyzer-job`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-analyzer-signature": signature,
+      },
+      body,
+    }).catch((e) => {
+      console.error("[startAnalyzerJob] fire-and-forget failed", e);
+    });
+
+    return { jobId, reused: false };
   });
+
+export const getAnalyzerJob = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { jobId: string }) =>
+    z.object({ jobId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: job, error } = await admin
+      .from("business_profile_analyzer_jobs")
+      .select(
+        "id, tenant_id, status, stage, result, error_message, started_at, finished_at, created_at",
+      )
+      .eq("id", data.jobId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!job) throw new Error("Job niet gevonden");
+    // Verify membership of the job's tenant
+    const { data: m } = await supabase
+      .from("memberships")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("tenant_id", job.tenant_id)
+      .maybeSingle();
+    if (!m) throw new Error("Forbidden");
+    return {
+      id: job.id as string,
+      status: job.status as "queued" | "running" | "succeeded" | "failed",
+      stage: job.stage as string,
+      result: job.result as Record<string, unknown>,
+      errorMessage: (job.error_message as string | null) ?? null,
+      startedAt: (job.started_at as string | null) ?? null,
+      finishedAt: (job.finished_at as string | null) ?? null,
+      createdAt: job.created_at as string,
+    };
+  });
+
+
 
 // ----------------------------------------------------------------------------
 // Strategy angles — mark a single angle as primary (or clear)
