@@ -703,3 +703,174 @@ function GcDebugButton({
     </span>
   );
 }
+
+interface V2Proposal {
+  id: string;
+  pageUrl: string | null;
+  issueId: string;
+  actionType: string;
+  status: string;
+  title: string;
+  summary: string;
+  reasoning: string;
+  beforeJson: string;
+  afterJson: string;
+  scoresJson: string;
+  contextUsedJson: string;
+  keywordsUsed: string[];
+  riskFlags: string[];
+  publishable: boolean;
+  modelUsed: string;
+  createdAt: string;
+}
+
+function ProposalV2Card({ p }: { p: V2Proposal }) {
+  const [open, setOpen] = useState(false);
+  const scores = (() => {
+    try {
+      return JSON.parse(p.scoresJson) as Record<string, number>;
+    } catch {
+      return {};
+    }
+  })();
+  const ctxUsed = (() => {
+    try {
+      return JSON.parse(p.contextUsedJson) as {
+        toneProfile?: boolean;
+        businessProfile?: boolean;
+        pageIntelligence?: boolean;
+        claimGuardrails?: boolean;
+        primaryAngle?: string;
+      };
+    } catch {
+      return {};
+    }
+  })();
+  const statusStyle: Record<string, string> = {
+    draft: "bg-emerald-500/15 text-emerald-600",
+    needs_review: "bg-amber-500/15 text-amber-600",
+    needs_context: "bg-sky-500/15 text-sky-600",
+    rejected: "bg-destructive/15 text-destructive",
+  };
+  return (
+    <div className="rounded-md border border-border bg-card/70 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-600">
+              V2
+            </span>
+            <span className="font-mono text-xs text-muted-foreground">{p.actionType}</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusStyle[p.status] ?? "bg-muted text-foreground"}`}
+            >
+              {p.status}
+            </span>
+            {p.publishable && (
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                publishable
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm font-semibold text-foreground">{p.title}</p>
+          <p className="text-xs text-muted-foreground">{p.summary}</p>
+          {p.pageUrl && (
+            <a
+              href={p.pageUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-block truncate font-mono text-[11px] text-muted-foreground hover:text-foreground"
+              title={p.pageUrl}
+            >
+              {p.pageUrl}
+            </a>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="shrink-0 text-[11px] text-primary hover:underline"
+        >
+          {open ? "Hide" : "Details"}
+        </button>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+        {ctxUsed.toneProfile && (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-foreground">Tone</span>
+        )}
+        {ctxUsed.businessProfile && (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-foreground">Business</span>
+        )}
+        {ctxUsed.pageIntelligence && (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-foreground">Page</span>
+        )}
+        {ctxUsed.claimGuardrails && (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-foreground">Claims</span>
+        )}
+        {ctxUsed.primaryAngle && (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
+            angle: {ctxUsed.primaryAngle}
+          </span>
+        )}
+      </div>
+      {p.riskFlags.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {p.riskFlags.map((f) => (
+            <span
+              key={f}
+              className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-600"
+            >
+              ⚠ {f}
+            </span>
+          ))}
+        </div>
+      )}
+      {open && (
+        <div className="mt-3 space-y-2 border-t border-border/60 pt-3 text-xs">
+          <div>
+            <p className="mb-1 font-semibold text-foreground">Reasoning</p>
+            <p className="whitespace-pre-wrap text-muted-foreground">{p.reasoning}</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div>
+              <p className="mb-1 font-semibold text-foreground">Before</p>
+              <pre className="overflow-x-auto rounded bg-muted/40 p-2 text-[11px]">
+                {p.beforeJson}
+              </pre>
+            </div>
+            <div>
+              <p className="mb-1 font-semibold text-foreground">After</p>
+              <pre className="overflow-x-auto rounded bg-muted/40 p-2 text-[11px]">
+                {p.afterJson}
+              </pre>
+            </div>
+          </div>
+          <div>
+            <p className="mb-1 font-semibold text-foreground">Scores</p>
+            <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+              {Object.entries(scores).map(([k, v]) => (
+                <div
+                  key={k}
+                  className="flex items-center justify-between rounded bg-muted/40 px-2 py-1"
+                >
+                  <span className="text-muted-foreground">{k}</span>
+                  <span className="font-mono text-foreground">
+                    {typeof v === "number" ? v.toFixed(1) : String(v)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {p.keywordsUsed.length > 0 && (
+            <p className="text-[11px] text-muted-foreground">
+              keywords: {p.keywordsUsed.join(", ")}
+            </p>
+          )}
+          <p className="text-[10px] text-muted-foreground">
+            model: {p.modelUsed} · {new Date(p.createdAt).toLocaleString()}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
