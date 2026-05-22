@@ -309,11 +309,12 @@ export function evaluateProposalV2(
     ctx.instructions.preferredCTA &&
     text.toLowerCase().includes(ctx.instructions.preferredCTA.toLowerCase().slice(0, 20));
 
-  // Treat BP as present when readiness says so, even if strict parse failed.
-  const bpPresent =
-    !!biz ||
-    (ctx.readiness.breakdown?.business_profile ?? 0) > 0 ||
-    !(ctx.readiness.missing ?? []).includes("business_profile");
+  // BP only counts as present for scoring when it was actually hydrated with
+  // usable fields. Diagnostics is the source of truth; fall back to ctx.business
+  // shape when diagnostics is absent (older snapshots).
+  const bpPresent = ctx.diagnostics
+    ? ctx.diagnostics.businessHydrated
+    : !!biz && Object.keys(biz.identity ?? {}).length > 0;
 
   // Base business/offer fit. Heavy bonus when 3+ clusters land on a
   // commercial page; cap at 6 when content is generic.

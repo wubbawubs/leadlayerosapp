@@ -26,15 +26,16 @@ export interface PersistedProposalV2 {
 }
 
 function contextUsed(ctx: GrowthContext) {
-  // businessProfile=true when the row exists (readiness already accounts for it).
-  // Strict parse failures shouldn't make us claim the profile is missing.
-  const bpPresent =
-    !!ctx.business ||
-    (ctx.readiness.breakdown?.business_profile ?? 0) > 0 ||
-    !(ctx.readiness.missing ?? []).includes("business_profile");
+  // businessProfile=true ONLY when the BP was actually hydrated into ctx.business
+  // with at least one usable section. A bare row with no usable fields is NOT
+  // counted as "business profile used" — that would mislead the evaluator.
+  const diag = ctx.diagnostics;
+  const businessHydrated = diag
+    ? diag.businessHydrated
+    : !!ctx.business && Object.keys(ctx.business.identity ?? {}).length > 0;
   return {
     toneProfile: !!ctx.tone,
-    businessProfile: bpPresent && !(ctx.readiness.missing ?? []).includes("business_profile"),
+    businessProfile: businessHydrated,
     pageIntelligence: !!ctx.page,
     primaryAngle: ctx.instructions.primaryAngle || undefined,
     claimGuardrails:
