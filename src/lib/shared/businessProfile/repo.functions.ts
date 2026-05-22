@@ -475,12 +475,28 @@ export const getAnalyzerJob = createServerFn({ method: "POST" })
       .eq("tenant_id", job.tenant_id)
       .maybeSingle();
     if (!m) throw new Error("Forbidden");
+    const r = (job.result ?? {}) as {
+      suggestionsCreated?: number;
+      observedPages?: number;
+      overallConfidence?: number;
+      durationMs?: number;
+    };
     return {
       id: job.id as string,
       status: job.status as "queued" | "running" | "succeeded" | "failed",
       stage: job.stage as string,
-      result: job.result as Record<string, unknown>,
+      result: {
+        suggestionsCreated: Number(r.suggestionsCreated ?? 0),
+        observedPages: Number(r.observedPages ?? 0),
+        overallConfidence: Number(r.overallConfidence ?? 0),
+        durationMs: Number(r.durationMs ?? 0),
+      },
       errorMessage: (job.error_message as string | null) ?? null,
+      startedAt: (job.started_at as string | null) ?? null,
+      finishedAt: (job.finished_at as string | null) ?? null,
+      createdAt: job.created_at as string,
+    };
+
       startedAt: (job.started_at as string | null) ?? null,
       finishedAt: (job.finished_at as string | null) ?? null,
       createdAt: job.created_at as string,
