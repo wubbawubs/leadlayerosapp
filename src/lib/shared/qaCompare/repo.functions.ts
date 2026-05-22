@@ -43,6 +43,7 @@ export const REASON_TAGS = [
   "less_generic",
   "better_cta",
   "better_alt_text",
+  "correct_safety_block",
   "v2_score_too_low",
   "v2_score_too_high",
   "v1_more_natural",
