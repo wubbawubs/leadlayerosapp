@@ -1386,6 +1386,78 @@ export type Database = {
         }
         Relationships: []
       }
+      proposal_v2: {
+        Row: {
+          action_type: string
+          after: Json
+          audit_id: string
+          before: Json
+          context_snapshot: Json
+          context_used: Json
+          created_at: string
+          id: string
+          issue_id: string
+          keywords_used: Json
+          model_used: string | null
+          page_id: string
+          publishable: boolean
+          reasoning: string
+          risk_flags: Json
+          scores: Json
+          status: string
+          summary: string
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          action_type: string
+          after?: Json
+          audit_id: string
+          before?: Json
+          context_snapshot?: Json
+          context_used?: Json
+          created_at?: string
+          id?: string
+          issue_id: string
+          keywords_used?: Json
+          model_used?: string | null
+          page_id: string
+          publishable?: boolean
+          reasoning?: string
+          risk_flags?: Json
+          scores?: Json
+          status?: string
+          summary?: string
+          tenant_id: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          after?: Json
+          audit_id?: string
+          before?: Json
+          context_snapshot?: Json
+          context_used?: Json
+          created_at?: string
+          id?: string
+          issue_id?: string
+          keywords_used?: Json
+          model_used?: string | null
+          page_id?: string
+          publishable?: boolean
+          reasoning?: string
+          risk_flags?: Json
+          scores?: Json
+          status?: string
+          summary?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       raw_events: {
         Row: {
           id: string
