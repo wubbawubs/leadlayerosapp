@@ -165,7 +165,13 @@ export const StrategyAngleSchema = z.object({
   score: z.number().min(0).max(10).optional().default(5),
   why: z.string().trim().max(800).optional().default(""),
   bestFor: StrArr.optional().default([]),
-  riskLevel: z.enum(["low", "medium", "high"]).optional().default("low"),
+  riskLevel: looseEnum(["low", "medium", "high"], "low", {
+    laag: "low",
+    gemiddeld: "medium",
+    middel: "medium",
+    medium_risk: "medium",
+    hoog: "high",
+  }),
   isPrimary: z.boolean().optional().default(false),
 });
 
@@ -173,7 +179,12 @@ export const MissingContextItemSchema = z.object({
   missing: z.string().trim().min(1).max(400),
   impact: z.string().trim().max(600).optional().default(""),
   recommendedQuestion: z.string().trim().max(400).optional().default(""),
-  priority: z.enum(["low", "medium", "high"]).optional().default("medium"),
+  priority: looseEnum(["low", "medium", "high"], "medium", {
+    laag: "low",
+    gemiddeld: "medium",
+    middel: "medium",
+    hoog: "high",
+  }),
   answer: z.string().trim().max(2000).optional().default(""),
   mapToField: z.string().trim().max(160).optional().default(""),
   resolvedAt: z.string().optional().default(""),
