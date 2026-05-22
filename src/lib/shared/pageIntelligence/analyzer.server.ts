@@ -153,8 +153,10 @@ Return STRICT JSON only matching this shape:
 }
 
 Rules:
-- Use the deterministic URL hint as a strong prior, but override if title/h1/meta clearly contradict.
-- commercialPriority "critical" = homepage / primary money page; "high" = contact, pricing, top service; "medium" = supporting; "low" = legal/archive/blog noise.
+- The URL hint is a prior, NOT a verdict. TITLE / H1 / META beat the URL hint when they clearly indicate a different page type. Example: URL "/about/" with title "Wat we doen" or "Onze diensten" → pageType "service", not "about". Only keep "about" when the content is mainly company/team/background.
+- "werkwijze", "aanpak", "how it works", "process" pages are pageType "service", intent "trust", funnelStage "consideration", commercialPriority "high", seoRole "trust_page".
+- commercialPriority "critical" = homepage / primary money page; "high" = contact, pricing, top service, process/trust pages; "medium" = supporting; "low" = legal/archive/blog noise.
+- For blog/informational/low pages: only set recommendedCTA if it is grounded in the actual page content or the BUSINESS context. Do NOT invent hype CTAs like "Unlock...", "Discover how...", "The Art of...", "Transform your...". If no grounded CTA exists, return "" for recommendedCTA.
 - Be honest: if information is thin, set confidence low and list missingPageContext.
 - Never invent quotes; sourceEvidence quotes must come verbatim from the input fields.
 
