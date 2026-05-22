@@ -413,26 +413,39 @@ function buildDeterministicMeta(ctx: GrowthContext, maxLen: number): string | nu
 
 function cleanupAltText(raw: string, locale: string): string {
   let out = raw;
-  // Strip parenthetical marketing fragments entirely.
-  out = out.replace(/\s*\([^)]*\)\s*/g, " ").trim();
+  // Strip parenthetical / bracketed marketing fragments entirely.
+  out = out.replace(/\s*\([^)]*\)\s*/g, " ");
+  out = out.replace(/\s*\[[^\]]*\]\s*/g, " ");
   // Strip internal labels.
-  out = out.replace(/\s*[-–—]?\s*\b(variant|option)\s*\d+\b\s*/gi, " ").trim();
+  out = out.replace(/\s*[-–—]?\s*\b(variant|option|versie|variation)\s*\d*\b\s*/gi, " ");
   out = out.replace(/\bextra\s+weergave\b/gi, " ");
+  out = out.replace(/\bafbeelding\s+van\b/gi, "Afbeelding bij");
   // Brand + term normalisation
   out = out.replace(/\bklikklaar\b/gi, "KlikKlaar");
   out = out.replace(/\bseo[-\s]+diensten\b/gi, "SEO-diensten");
   out = out.replace(/\bwebsite\s+scan\b/gi, "websitescan");
-  out = out.replace(/\bseo\s+scan\b/gi, "SEO-scan");
-  out = out.replace(/\bseo\b/g, "SEO");
+  out = out.replace(/\bseo[-\s]+scan\b/gi, "SEO-scan");
+  out = out.replace(/\bseo[-\s]+proces\b/gi, "SEO-proces");
+  out = out.replace(/\bseo[-\s]+aanpak\b/gi, "SEO-aanpak");
   // NL locale: kill obvious English leftovers
   if (locale === "nl-NL") {
-    out = out.replace(/\bSEO\s+process\s+and\s+methodology\b/gi, "uitleg over onze werkwijze");
+    out = out.replace(/\bSEO\s+services?\s+and\s+methodology\b/gi, "SEO-diensten en werkwijze");
+    out = out.replace(/\bSEO\s+process\s+and\s+methodology\b/gi, "SEO-proces en werkwijze");
     out = out.replace(/\bprocess\s+and\s+methodology\b/gi, "werkwijze");
+    out = out.replace(/\bservices\s+and\s+methodology\b/gi, "diensten en werkwijze");
     out = out.replace(/\bmethodology\b/gi, "werkwijze");
     out = out.replace(/\bservices\b/gi, "diensten");
-    out = out.replace(/\bimage\s+of\b/gi, "afbeelding bij");
+    out = out.replace(/\bimage\s+of\b/gi, "Afbeelding bij");
     out = out.replace(/\bfeaturing\b/gi, "met");
+    // Glue/connector words.
+    out = out.replace(/\s+and\s+/gi, " en ");
+    out = out.replace(/\bwith\s+/gi, "met ");
+    out = out.replace(/\bthe\s+/gi, "");
   }
+  // Re-normalize SEO casing AFTER english cleanup (services→diensten may
+  // re-introduce a lowercase "seo diensten").
+  out = out.replace(/\bseo[-\s]+diensten\b/gi, "SEO-diensten");
+  out = out.replace(/\bseo\b/g, "SEO");
   out = out.replace(/\s{2,}/g, " ").replace(/\s+([,.!?;:])/g, "$1").trim();
   if (out.length > 120) out = compactMeta(out, 120);
   return out;
@@ -441,22 +454,80 @@ function cleanupAltText(raw: string, locale: string): string {
 // Awkward survivors after cleanup (parens, internal labels, lowercase seo).
 export function detectAltAwkward(text: string): boolean {
   if (!text || text.length < 5) return true;
-  if (/\b(variant|option)\s*\d+\b/i.test(text)) return true;
+  if (/\b(variant|option|versie)\s*\d*\b/i.test(text)) return true;
   if (/\bextra\s+weergave\b/i.test(text)) return true;
-  if (/\([^)]*\)/.test(text)) return true;
+  if (/\([^)]*\)|\[[^\]]*\]/.test(text)) return true;
   if (/\bseo\s+diensten\b/.test(text)) return true;
   return false;
 }
 
+// Hard gate: returns true if alt is acceptable for nl-NL output.
+function isAltAcceptableNl(text: string): boolean {
+  if (!text || text.trim().length < 5) return false;
+  if (text.length > 120) return false;
+  if (detectAltAwkward(text)) return false;
+  if (/\b(and|the|with|process|methodology|services|image\s+of|featuring)\b/i.test(text)) return false;
+  // Lowercase "seo " followed by word → not allowed.
+  if (/\bseo\s+[a-z]/.test(text)) return false;
+  return true;
+}
+
+// Deterministic safe pool (nl-NL).
+const SAFE_POOL_NL_GENERIC = [
+  "Afbeelding bij SEO-diensten voor lokale ondernemers",
+  "Afbeelding bij online vindbaarheid voor lokale bedrijven",
+  "Afbeelding bij websiteverbetering en duidelijke verbeterpunten",
+  "Afbeelding bij de werkwijze van KlikKlaar",
+  "Afbeelding bij lokale vindbaarheid in Google",
+  "Afbeelding bij duidelijke SEO-aanpak voor ondernemers",
+];
+
+function safePoolNl(pageType: string | undefined, url: string | undefined): string[] {
+  const u = (url ?? "").toLowerCase();
+  if (/werkwijze|process|aanpak/.test(u) || pageType === "trust") {
+    return [
+      "Afbeelding bij de werkwijze van KlikKlaar",
+      "Afbeelding bij duidelijke SEO-aanpak voor ondernemers",
+      "Afbeelding bij websiteverbetering en duidelijke verbeterpunten",
+      ...SAFE_POOL_NL_GENERIC,
+    ];
+  }
+  if (pageType === "homepage" || pageType === "service") {
+    return [
+      "Afbeelding bij SEO-diensten voor lokale ondernemers",
+      "Afbeelding bij lokale vindbaarheid in Google",
+      "Afbeelding bij online vindbaarheid voor lokale bedrijven",
+      ...SAFE_POOL_NL_GENERIC,
+    ];
+  }
+  return SAFE_POOL_NL_GENERIC;
+}
+
+function pickFromPool(pool: string[], count: number): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const p of pool) {
+    if (out.length >= count) break;
+    const k = p.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(p.slice(0, 120));
+  }
+  let i = 1;
+  while (out.length < count) {
+    const candidate = `Afbeelding bij websiteverbetering ${i++}`.slice(0, 120);
+    const k = candidate.toLowerCase();
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(candidate);
+    }
+  }
+  return out;
+}
+
 function dedupeAlts(alts: string[], fallback: string): string[] {
   const seen = new Set<string>();
-  const distinctNl = [
-    "Afbeelding bij SEO-diensten voor lokale ondernemers",
-    "Afbeelding bij online vindbaarheid voor lokale bedrijven",
-    "Afbeelding bij websiteverbetering en duidelijke verbeterpunten",
-    "Afbeelding bij de werkwijze van KlikKlaar",
-    "Afbeelding bij lokale vindbaarheid in Google",
-  ];
+  const distinctNl = SAFE_POOL_NL_GENERIC;
   return alts.map((a, idx) => {
     const key = a.trim().toLowerCase();
     if (key.length > 0 && !seen.has(key)) {
