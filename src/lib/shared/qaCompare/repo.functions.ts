@@ -406,15 +406,15 @@ export const updateProposalComparison = createServerFn({ method: "POST" })
     await assertMember(supabase, userId, row.tenant_id as string);
 
     const reviewed = data.winner !== "unreviewed";
-    const update: Record<string, unknown> = {
+    const update = {
       winner: data.winner,
       reviewed_at: reviewed ? new Date().toISOString() : null,
       reviewed_by: reviewed ? userId : null,
+      ...(data.reasonTags !== undefined ? { reason_tags: data.reasonTags } : {}),
+      ...(data.notes !== undefined ? { notes: data.notes } : {}),
+      ...(data.scoreMismatch !== undefined ? { score_mismatch: data.scoreMismatch } : {}),
+      ...(data.reason !== undefined ? { reason: data.reason } : {}),
     };
-    if (data.reasonTags !== undefined) update.reason_tags = data.reasonTags;
-    if (data.notes !== undefined) update.notes = data.notes;
-    if (data.scoreMismatch !== undefined) update.score_mismatch = data.scoreMismatch;
-    if (data.reason !== undefined) update.reason = data.reason;
 
     const { error: uErr } = await supabaseAdmin
       .from("proposal_comparisons")
