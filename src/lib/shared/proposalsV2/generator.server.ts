@@ -413,18 +413,23 @@ function buildDeterministicMeta(ctx: GrowthContext, maxLen: number): string | nu
 
 function cleanupAltText(raw: string, locale: string): string {
   let out = raw;
+  // Strip parenthetical marketing fragments entirely.
   out = out.replace(/\s*\([^)]*\)\s*/g, " ").trim();
-  // Strip internal labels that sometimes leak from earlier fallback logic.
+  // Strip internal labels.
   out = out.replace(/\s*[-–—]?\s*\b(variant|option)\s*\d+\b\s*/gi, " ").trim();
+  out = out.replace(/\bextra\s+weergave\b/gi, " ");
   // Brand + term normalisation
   out = out.replace(/\bklikklaar\b/gi, "KlikKlaar");
-  out = out.replace(/\bseo\s+diensten\b/gi, "SEO-diensten");
+  out = out.replace(/\bseo[-\s]+diensten\b/gi, "SEO-diensten");
   out = out.replace(/\bwebsite\s+scan\b/gi, "websitescan");
   out = out.replace(/\bseo\s+scan\b/gi, "SEO-scan");
   out = out.replace(/\bseo\b/g, "SEO");
   // NL locale: kill obvious English leftovers
   if (locale === "nl-NL") {
     out = out.replace(/\bSEO\s+process\s+and\s+methodology\b/gi, "uitleg over onze werkwijze");
+    out = out.replace(/\bprocess\s+and\s+methodology\b/gi, "werkwijze");
+    out = out.replace(/\bmethodology\b/gi, "werkwijze");
+    out = out.replace(/\bservices\b/gi, "diensten");
     out = out.replace(/\bimage\s+of\b/gi, "afbeelding bij");
     out = out.replace(/\bfeaturing\b/gi, "met");
   }
@@ -433,15 +438,24 @@ function cleanupAltText(raw: string, locale: string): string {
   return out;
 }
 
+// Awkward survivors after cleanup (parens, internal labels, lowercase seo).
+export function detectAltAwkward(text: string): boolean {
+  if (!text || text.length < 5) return true;
+  if (/\b(variant|option)\s*\d+\b/i.test(text)) return true;
+  if (/\bextra\s+weergave\b/i.test(text)) return true;
+  if (/\([^)]*\)/.test(text)) return true;
+  if (/\bseo\s+diensten\b/.test(text)) return true;
+  return false;
+}
+
 function dedupeAlts(alts: string[], fallback: string): string[] {
   const seen = new Set<string>();
-  // Distinct, natural-sounding safe alternatives — no "variant", no internal labels,
-  // no half-English. Keep nl-NL phrasing.
   const distinctNl = [
-    "Afbeelding bij lokale SEO voor ondernemers",
+    "Afbeelding bij SEO-diensten voor lokale ondernemers",
     "Afbeelding bij online vindbaarheid voor lokale bedrijven",
     "Afbeelding bij websiteverbetering en duidelijke verbeterpunten",
-    "Afbeelding bij de werkwijze voor lokale SEO",
+    "Afbeelding bij de werkwijze van KlikKlaar",
+    "Afbeelding bij lokale vindbaarheid in Google",
   ];
   return alts.map((a, idx) => {
     const key = a.trim().toLowerCase();
