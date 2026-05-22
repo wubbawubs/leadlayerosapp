@@ -213,7 +213,7 @@ function AuditDetailPage() {
               {v2Mutation.isPending ? "Generating V2…" : "Generate V2 proposals"}
             </button>
             <Link
-              to="/audits/$auditId_/compare"
+              to="/audits/$auditId/compare"
               params={{ auditId }}
               className="inline-flex items-center rounded-md border border-violet-500/40 bg-violet-500/10 px-4 py-2 text-sm font-medium text-violet-600 hover:bg-violet-500/20"
             >
