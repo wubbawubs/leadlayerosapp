@@ -348,16 +348,11 @@ export const rejectBusinessProfileSuggestion = createServerFn({ method: "POST" }
 // ----------------------------------------------------------------------------
 
 function getPublicOrigin(): string {
-  // Read request via TanStack runtime, fall back to env.
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getRequest } = require("@tanstack/react-start/server") as {
-      getRequest: () => Request;
-    };
     const req = getRequest();
     const h = req.headers;
     const host = h.get("x-forwarded-host") ?? h.get("host");
-    const proto = h.get("x-forwarded-proto") ?? "https";
+    const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
     if (host) return `${proto}://${host}`;
     return new URL(req.url).origin;
   } catch {
