@@ -15,7 +15,9 @@ import {
   acceptBusinessProfileSuggestion,
   rejectBusinessProfileSuggestion,
   editAndAcceptBusinessProfileSuggestion,
-  analyzeBusinessProfileFromWebsiteFn,
+  startAnalyzerJob,
+  getAnalyzerJob,
+
 } from "@/lib/shared/businessProfile/repo.functions";
 import {
   BusinessProfileSchema,
