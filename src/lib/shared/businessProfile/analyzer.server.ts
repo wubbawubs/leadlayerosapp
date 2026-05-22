@@ -577,7 +577,9 @@ export interface AnalyzerResult {
   blockedByLock: number;
   observedPages: number;
   overallConfidence: number;
+  durationMs: number;
 }
+
 
 export type AnalyzerStage = "crawl" | "stage_a" | "stage_b" | "persist" | "done";
 
