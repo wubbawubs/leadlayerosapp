@@ -340,6 +340,8 @@ export const listProposalComparisons = createServerFn({ method: "POST" })
         scoreMismatch: !!r.score_mismatch,
         notes: (r.notes as string) ?? "",
         reviewedAt: r.reviewed_at as string | null,
+        v2RunId: (r.v2_run_id as string | null) ?? null,
+        hasPriorReview: priorReviewIndex.get(`${r.page_id}::${r.issue_id}`) === true,
         v1: v1
           ? {
               id: (v1 as { id: string }).id,
