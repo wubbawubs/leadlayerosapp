@@ -1,104 +1,126 @@
 
-# Tone Profile V2 — van 6.3 naar publish-ready
+## Waarom
 
-De huidige 6.3/10 is geen bug, het is een ontwerplimiet. We doen één LLM-call over een handvol pagina's en hopen dat het model én observeert, én abstraheert, én juridisch wikt. Dat is te veel werk voor één pass. De auditor in je rapport wijst exact dit aan: "ingewikkeld" staat fout in avoid, CTA's zijn verzonnen ipv geobserveerd, claims missen scherpte.
+De analyzer-pipeline (Stage A ~75s + Stage B ~60s + crawl + DB-writes) duurt 135–150s. De hosting-proxy kapt elke HTTP-request rond ~100s af → `504 upstream request timeout`. Trimmen = brein dommer maken. We lossen het architecturaal op met een job-pattern dat tegelijk de standaard wordt voor alle latere zware engines (Page Intelligence, Proposal V2, QA Compare, Safe Publish, Landing Page Factory).
 
-De fix is structureel: **evidence-first pipeline** in plaats van one-shot extractie.
+Eén HTTP-call duurt voortaan <2s. De echte analyzer draait in een background-route die geen proxy-limiet heeft.
 
----
-
-## Wat we bouwen (V2)
-
-### 1. Bredere & rijkere corpus
-- **Sitemap-fetch** naast audit-pagina's: probeer `/sitemap.xml`, `/sitemap_index.xml` en pak tot 25 unieke pagina's met diversiteits-cap per bucket (homepage, service ×5, blog ×5, about, contact, faq, pricing, case).
-- **Manual paste tab** in UI: textarea waar gebruiker eigen tekst, reviews, sales-emails, brand bible kan plakken — krijgt `source_type: manual_paste` en `weight: 1.0`.
-- **Approved-proposals feedback**: bij re-analyze tellen approved proposals als hoogwaardige samples.
-
-### 2. Multi-pass extractie (in plaats van één call)
 ```text
-PASS 1  per-sample observatie (cheap, parallel)
-  → woordfrequentie, CTA-zinnen uit <a>/<button>, claim-zinnen, voorbeeld-zinnen
-PASS 2  corpus-aggregatie (deterministisch, geen LLM)
-  → frequenties tellen, dedupe, top-N per dimensie, conflict-detectie
-PASS 3  synthese (pro, één call)
-  → voice/persona/rhythm-beschrijving op basis van bewijs uit pass 2
-PASS 4  self-critique (cheap)
-  → checkt: staan avoid-woorden tegelijk in de samples positief gebruikt?
-            zijn forbidden-claims daadwerkelijk hype-taal?
-            zijn CTA's letterlijk gevonden of verzonnen?
-  → produceert per-veld confidence en flags voor menselijke review
+[UI] ──startAnalyzerJob───────▶ [serverFn]   (insert job, fire-and-forget)
+                                    │
+                                    └── POST /api/public/run-analyzer-job (HMAC)
+                                            │
+                                            ├── status=running, stage=crawl
+                                            ├── analyzeBusinessProfileFromWebsite()
+                                            │     ├── stage=stage_a
+                                            │     ├── stage=stage_b
+                                            │     └── stage=persist
+                                            └── status=succeeded|failed
+
+[UI] ──getAnalyzerJob(jobId) every 2s──────▶ stage + result/error
 ```
 
-Resultaat: elk woord/claim/CTA in het profiel heeft een `evidence` veld (sample-URL + letterlijke zin). Niet meer "het model dacht dat".
+## Wat we bouwen
 
-### 3. CTA's & claims uit HTML, niet uit LLM-fantasie
-- CTA's: bij sample-fetch trekken we anchor-/button-tekst < 60 chars eruit (regex op `<a>`, `<button>`). Die lijst voeren we letterlijk aan de synthese — geen verzonnen CTA's meer.
-- Claims: simpele regex op zinnen met modale verbs (`we helpen`, `we maken`, `je krijgt`, `gegarandeerd`, `bewezen`) → LLM classificeert alleen safety, verzint niet.
+### 1. Migration: `business_profile_analyzer_jobs`
 
-### 4. Confidence die ergens op slaat
-Nu: `avg(quality) + samples*0.15`. Vervangen door multi-factor:
-```text
-confidence = weightedAvg([
-  corpus_size:      saturating(words / 4000)           # genoeg tekst?
-  source_diversity: distinct_buckets / 6               # genoeg page-types?
-  evidence_density: fields_with_evidence / total       # niet gehallucineerd?
-  internal_consistency: 1 - conflict_rate              # avoid ↔ preferred botsingen
-  sample_quality:   avg(sample.quality) / 10
-]) * 10
-```
-Per-sectie confidence (voice/vocab/claims/cta/trust) wordt apart getoond, zodat de gebruiker ziet welk deel zwak is.
+Kolommen: `id`, `tenant_id`, `created_by`, `status` (queued|running|succeeded|failed, check-constraint), `stage` (text), `started_at`, `finished_at`, `result jsonb default '{}'`, `error_message`, `created_at`, `updated_at`.
 
-### 5. Conflict-detectie & UI-flags
-Na pass 4 toont de UI per zwakke sectie een banner:
-- "5 woorden in Avoid komen >2× positief voor in samples — review"
-- "CTA-lijst heeft geen letterlijke match in de site — voeg handmatige voorbeelden toe"
-- "Geen samples van type: about, faq, pricing — confidence beperkt"
+Indexen: `(tenant_id, status, created_at desc)`, `(created_by, created_at desc)`.
 
-Met inline "Move to preferred" / "Remove" / "Add evidence" knoppen — geen handmatige tag-edit nodig.
+RLS:
+- `select`: `is_tenant_member(tenant_id)`
+- `insert`: `has_tenant_min_role(tenant_id, 'operator')` met `created_by = auth.uid()`
+- `update`/`delete`: geen authenticated-policy → alleen `supabaseAdmin` (service role) via de public route kan schrijven
 
-### 6. Versioning
-Elke run schrijft naar `tone_profile_versions` (nieuwe tabel) met diff t.o.v. vorige. UI krijgt een "What changed" panel zodat re-analyze veilig voelt.
+Trigger: bestaande `set_updated_at` hergebruiken.
 
-### 7. Approve-flow met output-test gate
-Voor approve: minimum 3 succesvolle test-outputs (meta / h1 / cta) met `verdict == publishable` over de laatste run. Voorkomt dat een zwak profiel zonder check live gaat.
+### 2. Secret
 
----
+`secrets--add_secret` voor `ANALYZER_JOB_SECRET` (HMAC-shared-secret tussen `startAnalyzerJob` en `/api/public/run-analyzer-job`).
 
-## Wat dit oplost in het auditor-rapport
+### 3. `startAnalyzerJob` serverFn (vervangt `analyzeBusinessProfileFromWebsiteFn`)
 
-| Issue rapport | Fix |
-|---|---|
-| "ingewikkeld" fout in Avoid | Conflict-detectie (pass 4) flagt dit; UI biedt 1-klik move |
-| CTA's verzonnen / generiek | CTA's komen uit `<a>`/`<button>` HTML van site zelf |
-| Allowed claims te procesgericht | Claim-extractie pakt alle "we helpen/maken/geven" zinnen; synthese kiest breder |
-| Commercial intensity te laag | Pass 1 telt CTA-dichtheid en sales-werkwoorden → bepaalt intensity deterministisch |
-| Confidence 6.3 onverklaard | Per-sectie confidence + breakdown ("low coverage: missing about/faq") |
-| Geen test of profiel werkt | Approve-gate eist 3 publishable test-outputs |
+In `src/lib/shared/businessProfile/repo.functions.ts`:
+- `requireSupabaseAuth` + `has_tenant_min_role(tenantId, 'operator')` check
+- Look-up: bestaande job met `status in ('queued','running')` voor deze tenant van laatste 10 min → return die `jobId`
+- Insert nieuwe row (`status='queued'`, `stage='queued'`, `created_by=userId`)
+- HMAC-sign body `{ jobId, tenantId }` met `ANALYZER_JOB_SECRET` (`createHmac('sha256', ...).update(body).digest('hex')`)
+- Fire-and-forget: `void fetch(SITE_URL + '/api/public/run-analyzer-job', { method:'POST', headers:{ 'x-analyzer-signature': sig }, body })` zonder `await`; korte AbortController-timeout (1s) op de outbound zodat het serverFn niet wacht
+- `SITE_URL`: bouw uit `getRequestHost()` + scheme; fallback `process.env.SITE_URL`
+- Return `{ jobId }`; totale duur <2s
 
----
+### 4. Public server-route: `src/routes/api/public/run-analyzer-job.ts`
 
-## Technische uitvoering
+- POST handler
+- HMAC-verify met `timingSafeEqual` → 401 bij mismatch
+- Load job by `id` + `tenant_id`. Niet `queued`? → 200 "skipped"
+- `supabaseAdmin` update: `status='running', started_at=now(), stage='crawl'`
+- Roept `analyzeBusinessProfileFromWebsite({ tenantId, jobId, onStageChange })` aan met de bestaande pipeline volledig intact
+- Op succes: `status='succeeded', finished_at=now(), result={suggestionsCreated, observedPages, overallConfidence, durationMs}`
+- Op fout: `status='failed', finished_at=now(), error_message=<normalizeAnalyzerError().message>`; volledige stack `console.error`'d
+- Response body is irrelevant (niemand luistert)
 
-**Nieuwe / aangepaste files:**
-- `src/lib/shared/tone/corpus.server.ts` — sitemap discovery, HTML parsing, CTA/claim regex-extractie
-- `src/lib/shared/tone/passes.server.ts` — pass1 (per-sample), pass2 (aggregatie), pass3 (synthese), pass4 (critique)
-- `src/lib/shared/tone/confidence.server.ts` — multi-factor scoring
-- `src/lib/shared/tone/analyzer.server.ts` — herschreven als orchestrator over passes
-- `src/lib/shared/tone/schemas.ts` — voeg `evidence`, `frequency`, per-sectie `confidence` toe (backwards compatible: optional fields)
-- `src/lib/shared/tone/repo.functions.ts` — `addManualSample`, `listSampleConflicts`, `acceptConflictResolution`
-- `src/routes/_authenticated/settings.tone-profile.tsx` — manual-paste tab, conflict-banner met 1-klik acties, per-sectie confidence chips, "what changed" diff panel
-- Migratie: `tone_profile_versions` tabel, `tone_profile_samples.source_type` enum uitbreiden, `tone_profile_conflicts` tabel
+### 5. Minimale wijziging in `analyzer.server.ts`
 
-**LLM kosten/budget per run** (orde van grootte): pass 1 cheap × ~15 samples + pass 3 pro × 1 + pass 4 cheap × 1. Vergelijkbaar met nu, maar veel meer signal per token.
+- `analyzeBusinessProfileFromWebsite` input uitbreiden: `jobId?: string`, `onStageChange?: (stage: 'crawl'|'stage_a'|'stage_b'|'persist'|'done') => Promise<void>`
+- `onStageChange` gecalled vóór elke stage; default `noop`
+- Alle prompts, defaults, dedup, tone-normalisatie, proof-safety, locks, rejections → **0 wijzigingen**
 
-**Geen breaking change voor `generator.server.ts` / `evaluator.server.ts`**: het V1-schema blijft geldig, V2-velden zijn additief.
+### 6. `getAnalyzerJob` serverFn
 
----
+- Input: `{ jobId }`
+- `requireSupabaseAuth` + verify membership via job's `tenant_id`
+- Return: `id, status, stage, result, error_message, started_at, finished_at, created_at`
+- Cross-tenant gelekt → onmogelijk dankzij membership check + RLS
 
-## Volgorde van uitrol (3 stappen, deploybaar per stap)
+### 7. UI: `settings.business-profile.tsx`
 
-1. **Corpus + CTA/claim-extractie + manual paste** (grootste kwaliteitswinst per regel code, lost meteen het CTA-probleem op).
-2. **Multi-pass + conflict-detectie + per-sectie confidence** (lost "ingewikkeld in avoid" en de 6.3-zonder-uitleg op).
-3. **Versioning, diff-panel, approve-gate** (maakt het écht backbone-grade).
+- "Generate from website" knop → `startAnalyzerJob()` → `setJobId(jobId)` + `sessionStorage.setItem('bp-analyzer-job:'+tenantId, jobId)`
+- `useQuery` op `['analyzer-job', jobId]` met `refetchInterval: (data) => data?.status === 'succeeded' || data?.status === 'failed' ? false : 2000`
+- Stage-copy mapping:
+  - `queued` → "Analyse klaarzetten…"
+  - `crawl` → "Pagina's ophalen…"
+  - `stage_a` → "Feiten extraheren…"
+  - `stage_b` → "Strategie bepalen…"
+  - `persist` → "Suggesties opslaan…"
+  - `done` → "Afronden…"
+- Knop disabled zolang status in `queued|running`
+- `succeeded` → invalidate `['businessProfileV2']` + `['businessProfileSuggestions']`, toast ``${result.suggestionsCreated} suggesties uit ${result.observedPages} pagina's`` , clear sessionStorage
+- `failed` → toon `error_message`, clear sessionStorage
+- Op mount: `sessionStorage` jobId aanwezig → polling hervatten
+- Stuck-detectie: `started_at` >5 min geleden en nog `running` → "Analyse lijkt vastgelopen" + retry-knop die een nieuwe `startAnalyzerJob` doet (bestaande job blijft staan, nieuwe overruled door 10-min look-up alleen als nog binnen window — anders nieuwe job)
 
-Zal ik beginnen met stap 1?
+### 8. Cleanup
+
+- `analyzeBusinessProfileFromWebsiteFn` verwijderen uit `repo.functions.ts` (geen alias — schoon).
+- Alle UI-aanroepen migreren naar `startAnalyzerJob`.
+
+## Wat NIET in deze plan zit
+
+- Geen BP-2.5 Completeness uitbreiding
+- Geen Page Intelligence
+- Geen Proposal V2
+- Geen wijzigingen aan Stage A/B prompts, model-keuze of timeouts
+- Geen wijzigingen aan suggestion-flow (accept/reject/lock blijven 1-op-1)
+
+## Acceptatie
+
+1. Klik "Generate from website" → respons <2s met `jobId`
+2. Geen 504 ook al duurt analyzer 2-3 minuten
+3. UI toont reële stage-copy uit DB-row
+4. Suggesties verschijnen na succes; accepted/rejected/locked-gedrag ongewijzigd
+5. Refresh tijdens running job → polling hervat
+6. Invalid HMAC op `/api/public/run-analyzer-job` → 401
+7. Andere tenant kan job niet lezen via `getAnalyzerJob`
+8. Tweede klik tijdens running job → zelfde `jobId` terug (geen dubbele run)
+
+## Volgorde van uitvoer
+
+1. `secrets--add_secret` voor `ANALYZER_JOB_SECRET`
+2. Migration `business_profile_analyzer_jobs` + RLS + indexen
+3. `src/routes/api/public/run-analyzer-job.ts` (HMAC-verify + analyzer call + status-writes)
+4. `analyzer.server.ts`: `jobId` + `onStageChange` toevoegen (minimaal)
+5. `repo.functions.ts`: `startAnalyzerJob` + `getAnalyzerJob`, oude fn verwijderen
+6. `settings.business-profile.tsx`: start+poll-pattern + stage-copy + sessionStorage-resume
+7. Test op klikklaarseo-tenant: knop → job → 2-3 min draaien → suggestions zichtbaar zonder 504
