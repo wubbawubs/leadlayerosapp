@@ -50,51 +50,66 @@ export type FunnelStage = (typeof FUNNEL_STAGES)[number];
 export type CommercialPriority = (typeof COMMERCIAL_PRIORITIES)[number];
 export type SeoRole = (typeof SEO_ROLES)[number];
 
-/** Lenient string array for LLM output. */
-const StrArr = z.array(z.string().trim().min(1).max(400)).max(20);
+/** Null/undefined-tolerant string: LLMs love to return null where a string was expected. */
+const nstr = (max: number) =>
+  z.preprocess(
+    (v) => (v == null ? "" : typeof v === "string" ? v : String(v)),
+    z.string().trim().max(max),
+  );
+
+/** Null/undefined-tolerant array. */
+const narr = <T extends z.ZodTypeAny>(item: T, max: number) =>
+  z.preprocess((v) => (v == null ? [] : v), z.array(item).max(max));
 
 export const RiskFlagSchema = z.object({
-  flag: z.string().trim().min(1).max(200),
-  level: z.enum(RISK_LEVELS).default("low"),
-  why: z.string().trim().max(400).optional().default(""),
+  flag: nstr(200),
+  level: z.preprocess((v) => (v == null ? "low" : v), z.enum(RISK_LEVELS)).default("low"),
+  why: nstr(400).optional().default(""),
 });
 
 export const MissingPageContextSchema = z.object({
-  missing: z.string().trim().min(1).max(300),
-  impact: z.string().trim().max(300).optional().default(""),
+  missing: nstr(300),
+  impact: nstr(300).optional().default(""),
 });
 
 export const SourceEvidenceSchema = z.object({
-  field: z.string().trim().max(80),
-  quote: z.string().trim().max(400),
+  field: nstr(80),
+  quote: nstr(400),
 });
 
 export const LocalRelevanceSchema = z
   .object({
-    isLocal: z.boolean().optional().default(false),
-    location: z.string().trim().max(200).optional().default(""),
-    reason: z.string().trim().max(400).optional().default(""),
+    isLocal: z.preprocess((v) => (v == null ? false : v), z.boolean()).default(false),
+    location: nstr(200).optional().default(""),
+    reason: nstr(400).optional().default(""),
   })
   .partial();
 
-/** Strict schema for LLM response. */
+/** Strict-but-tolerant schema for LLM response. Optional strings accept null. */
 export const PageIntelligenceLLMSchema = z.object({
-  pageType: z.enum(PAGE_TYPES).default("other"),
-  intent: z.enum(PAGE_INTENTS).default("informational"),
-  funnelStage: z.enum(FUNNEL_STAGES).optional().default("awareness"),
-  commercialPriority: z.enum(COMMERCIAL_PRIORITIES).default("medium"),
-  seoRole: z.enum(SEO_ROLES).optional().nullable().default(null),
-  primaryTopic: z.string().trim().max(200).optional().default(""),
-  contentSummary: z.string().trim().max(800).optional().default(""),
-  targetAudience: z.string().trim().max(300).optional().default(""),
-  desiredAction: z.string().trim().max(200).optional().default(""),
-  recommendedCTA: z.string().trim().max(200).optional().default(""),
-  relevantStrategyAngle: z.string().trim().max(300).optional().default(""),
+  pageType: z.preprocess((v) => (v == null ? "other" : v), z.enum(PAGE_TYPES)).default("other"),
+  intent: z
+    .preprocess((v) => (v == null ? "informational" : v), z.enum(PAGE_INTENTS))
+    .default("informational"),
+  funnelStage: z
+    .preprocess((v) => (v == null ? "awareness" : v), z.enum(FUNNEL_STAGES))
+    .optional()
+    .default("awareness"),
+  commercialPriority: z
+    .preprocess((v) => (v == null ? "medium" : v), z.enum(COMMERCIAL_PRIORITIES))
+    .default("medium"),
+  seoRole: z.enum(SEO_ROLES).nullable().optional().default(null),
+  primaryTopic: nstr(200).optional().default(""),
+  contentSummary: nstr(800).optional().default(""),
+  targetAudience: nstr(300).optional().default(""),
+  desiredAction: nstr(200).optional().default(""),
+  recommendedCTA: nstr(200).optional().default(""),
+  relevantStrategyAngle: nstr(300).optional().default(""),
   localRelevance: LocalRelevanceSchema.optional().default({}),
-  riskFlags: z.array(RiskFlagSchema).max(10).optional().default([]),
-  missingPageContext: z.array(MissingPageContextSchema).max(10).optional().default([]),
-  confidence: z.number().min(0).max(1).default(0.5),
-  sourceEvidence: z.array(SourceEvidenceSchema).max(10).optional().default([]),
+  riskFlags: narr(RiskFlagSchema, 10).optional().default([]),
+  missingPageContext: narr(MissingPageContextSchema, 10).optional().default([]),
+  confidence: z.preprocess((v) => (v == null ? 0.5 : v), z.number().min(0).max(1)).default(0.5),
+  sourceEvidence: narr(SourceEvidenceSchema, 10).optional().default([]),
 });
 
 export type PageIntelligenceLLM = z.infer<typeof PageIntelligenceLLMSchema>;
