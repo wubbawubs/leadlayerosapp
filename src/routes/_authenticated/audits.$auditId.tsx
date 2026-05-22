@@ -9,6 +9,7 @@ import {
   analyzeAuditPageIntelligence,
   listPageIntelligenceForAudit,
 } from "@/lib/shared/pageIntelligence/repo.functions";
+import { previewGrowthContextForProposal } from "@/lib/shared/growthContext/repo.functions";
 
 export const Route = createFileRoute("/_authenticated/audits/$auditId")({
   component: AuditDetailPage,
@@ -396,6 +397,7 @@ function AuditDetailPage() {
                         <SeverityDot severity={i.severity} />
                         <span className="font-mono text-muted-foreground">{i.code}</span>
                         <span className="text-foreground/80">— {i.message}</span>
+                        <GcDebugButton auditId={auditId} pageId={p.id} issueCode={i.code} />
                       </li>
                     ))}
                   </ul>
