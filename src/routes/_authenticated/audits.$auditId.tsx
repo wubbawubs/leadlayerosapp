@@ -529,3 +529,123 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
     </p>
   );
 }
+
+interface GrowthContextPreview {
+  readiness: {
+    score: number;
+    status: string;
+    missing: string[];
+    warnings: string[];
+    breakdown: Record<string, number>;
+  };
+  action: { actionType: string; riskLevel: string; qualityThreshold: number };
+  instructions: {
+    primaryAngle: string;
+    preferredCTA: string;
+    mustAvoid: string[];
+    pagePriority: string;
+  };
+  page: { primaryTopic: string | null; desiredAction: string | null } | null;
+  guardrails: { forbiddenClaims: string[]; forbiddenWords: string[] };
+}
+
+function GcDebugButton({
+  auditId,
+  pageId,
+  issueCode,
+}: {
+  auditId: string;
+  pageId: string;
+  issueCode: string;
+}) {
+  const previewGc = useServerFn(previewGrowthContextForProposal);
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState<GrowthContextPreview | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const onClick = async () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    if (data) return;
+    setLoading(true);
+    try {
+      const res = await previewGc({ data: { auditId, pageId, issueId: issueCode } });
+      setData(JSON.parse(res.contextJson) as GrowthContextPreview);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statusColor: Record<string, string> = {
+    ready: "text-emerald-600",
+    needs_review: "text-amber-600",
+    needs_context: "text-orange-600",
+    blocked: "text-destructive",
+  };
+
+  return (
+    <span className="ml-auto inline-flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={onClick}
+        className="text-[10px] text-primary hover:underline"
+      >
+        {open ? "hide context" : "preview context"}
+      </button>
+      {open && (
+        <div className="mt-1 w-full max-w-md rounded-md border border-border/60 bg-background/60 p-2 text-[11px]">
+          {loading && <p className="text-muted-foreground">Loading…</p>}
+          {err && <p className="text-destructive">{err}</p>}
+          {data && (
+            <div className="space-y-1">
+              <p>
+                <span className="font-semibold">Readiness:</span>{" "}
+                <span className={statusColor[data.readiness.status] ?? ""}>
+                  {data.readiness.status}
+                </span>{" "}
+                · {data.readiness.score}/10
+              </p>
+              {data.readiness.missing.length > 0 && (
+                <p className="text-muted-foreground">
+                  Missing: {data.readiness.missing.join(", ")}
+                </p>
+              )}
+              {data.readiness.warnings.length > 0 && (
+                <p className="text-muted-foreground">
+                  Warnings: {data.readiness.warnings.join("; ")}
+                </p>
+              )}
+              <p>
+                <span className="font-semibold">Action:</span> {data.action.actionType} ·{" "}
+                risk {data.action.riskLevel} · threshold {data.action.qualityThreshold}
+              </p>
+              <p>
+                <span className="font-semibold">Angle:</span>{" "}
+                {data.instructions.primaryAngle || "—"}
+              </p>
+              <p>
+                <span className="font-semibold">CTA:</span>{" "}
+                {data.instructions.preferredCTA || "—"}
+              </p>
+              {data.guardrails.forbiddenClaims.length + data.guardrails.forbiddenWords.length >
+                0 && (
+                <p className="text-muted-foreground">
+                  Forbidden:{" "}
+                  {[...data.guardrails.forbiddenClaims, ...data.guardrails.forbiddenWords]
+                    .slice(0, 8)
+                    .join(", ")}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </span>
+  );
+}
