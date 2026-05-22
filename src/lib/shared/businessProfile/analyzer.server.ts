@@ -725,14 +725,33 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     });
   }
 
+  // Derive section confidence from Stage B's sectionReasons when Stage A
+  // returns an empty/zero map (the LLM often skips it). sectionReasons.score
+  // is on the same 0..1 scale and is operator-visible, so the math stays
+  // consistent with what users see in the per-section "why" panel.
+  const mergedSectionConfidence: Record<string, number> = {
+    ...extraction.sectionConfidence,
+  };
+  for (const [k, r] of Object.entries(strategy.sectionReasons)) {
+    if (!(k in mergedSectionConfidence) || !mergedSectionConfidence[k]) {
+      mergedSectionConfidence[k] = Number(r.score) || 0;
+    }
+  }
+  let mergedOverall = extraction.overallConfidence;
+  if (!mergedOverall) {
+    const vals = Object.values(mergedSectionConfidence).filter((v) => v > 0);
+    mergedOverall = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  }
+
   const parsed: AnalysisResult = {
     fieldSuggestions: [...extraction.fieldSuggestions, ...defaultSuggestions],
-    sectionConfidence: extraction.sectionConfidence,
-    overallConfidence: extraction.overallConfidence,
+    sectionConfidence: mergedSectionConfidence,
+    overallConfidence: mergedOverall,
     strategyAngles: strategy.strategyAngles,
     missingContext: strategy.missingContext,
     sectionReasons: strategy.sectionReasons,
   };
+
 
   await onStage("persist");
   // 5. Ensure profile row exists (so suggestions can reference it)

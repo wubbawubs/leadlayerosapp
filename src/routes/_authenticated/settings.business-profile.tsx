@@ -1053,20 +1053,39 @@ function SuggestionsPanel({
   onEditAccept: (id: string, value: unknown) => void;
   pending: boolean;
 }) {
+  const [showGeneric, setShowGeneric] = useState(false);
   if (suggestions.length === 0) return null;
-  const bySection = suggestions.reduce<Record<string, Suggestion[]>>((acc, s) => {
+  const genericCount = suggestions.filter((s) => s.source_type === "recommended").length;
+  const visible = showGeneric
+    ? suggestions
+    : suggestions.filter((s) => s.source_type !== "recommended");
+  const bySection = visible.reduce<Record<string, Suggestion[]>>((acc, s) => {
     (acc[s.section] ??= []).push(s);
     return acc;
   }, {});
   return (
     <section className="mt-6 rounded-lg border border-primary/30 bg-primary/5 p-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-lg text-foreground">
-          AI suggesties ({suggestions.length})
+          AI suggesties ({visible.length}
+          {genericCount > 0 && !showGeneric ? ` · ${genericCount} generiek verborgen` : ""})
         </h2>
-        <span className="text-xs text-muted-foreground">
-          Niets wordt automatisch overschreven. Accept / edit / reject per veld.
-        </span>
+        <div className="flex items-center gap-3">
+          {genericCount > 0 && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={showGeneric}
+                onChange={(e) => setShowGeneric(e.target.checked)}
+                className="h-3.5 w-3.5"
+              />
+              Toon generieke aanbevelingen ({genericCount})
+            </label>
+          )}
+          <span className="text-xs text-muted-foreground">
+            Niets wordt automatisch overschreven.
+          </span>
+        </div>
       </div>
       <div className="mt-4 space-y-5">
         {Object.entries(bySection).map(([section, items]) => (
@@ -1088,10 +1107,16 @@ function SuggestionsPanel({
             </div>
           </div>
         ))}
+        {visible.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            Alleen generieke aanbevelingen beschikbaar — toggle aanzetten om ze te bekijken.
+          </p>
+        )}
       </div>
     </section>
   );
 }
+
 
 function SuggestionCard({
   s,
