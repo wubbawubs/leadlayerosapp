@@ -884,13 +884,16 @@ export async function analyzeBusinessProfileFromWebsite(input: {
   });
 
 
+  await onStage("done");
   return {
     ok: true,
     suggestionsCreated: rows.length,
     blockedByLock,
     observedPages: observed.length,
     overallConfidence: parsed.overallConfidence,
+    durationMs: Date.now() - startedAt,
   };
+
   } catch (error) {
     console.error("[bp-2] analyze failed", error);
     throw normalizeAnalyzerError(error);
