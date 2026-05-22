@@ -339,7 +339,7 @@ function AuditDetailPage() {
             const pi = piByAuditPage.get(p.id);
             const isOpen = expanded.has(p.id);
             return (
-              <div key={p.id} className="rounded-md border border-border bg-card/70 p-4">
+              <div key={p.id} id={`page-${p.id}`} className="scroll-mt-20 rounded-md border border-border bg-card/70 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <a
