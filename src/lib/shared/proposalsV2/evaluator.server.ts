@@ -198,7 +198,7 @@ export function evaluateProposalV2(
     }
   }
 
-  // ---- Alt grounding ----
+  // ---- Alt grounding + leak/lang/dupe ----
   if (ctx.action.actionType === "write_alt_text") {
     const alts = (output.after.alts as string[] | undefined) ?? [];
     const allText = alts.join(" ").toLowerCase();
@@ -218,7 +218,56 @@ export function evaluateProposalV2(
       riskFlags.push(`image_context:weak (${inventions.join(",")})`);
       if (status === "draft") status = "needs_review";
     }
+    // internal label leak (e.g. "variant 2", "option 3")
+    if (/\b(variant|option)\s*\d+\b/i.test(allText)) {
+      riskFlags.push("alt:internal_label_leak");
+      if (status === "draft") status = "needs_review";
+    }
+    // language mismatch in NL locale (English content in alts)
+    if (ctx.instructions.locale === "nl-NL") {
+      const englishMarkers = /\b(the|and|with|process|methodology|services|image of|featuring)\b/i;
+      if (englishMarkers.test(alts.join(" "))) {
+        riskFlags.push("language:mismatch_alt");
+        if (status === "draft") status = "needs_review";
+      }
+    }
+    // duplicate alts (case-insensitive)
+    const seen = new Set<string>();
+    let dup = false;
+    for (const a of alts) {
+      const k = a.trim().toLowerCase();
+      if (seen.has(k)) { dup = true; break; }
+      seen.add(k);
+    }
+    if (dup) {
+      riskFlags.push("alt:duplicate");
+      if (status === "draft") status = "needs_review";
+    }
   }
+
+  // ---- Meta repetition (V1 learnings) ----
+  const isMetaLike =
+    ctx.action.actionType === "rewrite_meta_description" ||
+    ctx.action.actionType === "write_meta_description";
+  if (isMetaLike && typeof output.after.text === "string") {
+    const t = output.after.text.toLowerCase();
+    const tokens = t.split(/\s+/).filter(Boolean);
+    const phrases = new Map<string, number>();
+    for (let i = 0; i < tokens.length - 1; i++) {
+      for (const n of [2, 3]) {
+        if (i + n > tokens.length) continue;
+        const phrase = tokens.slice(i, i + n).join(" ");
+        if (phrase.length < 8) continue;
+        phrases.set(phrase, (phrases.get(phrase) ?? 0) + 1);
+      }
+    }
+    const repeated = [...phrases.entries()].find(([, c]) => c >= 2);
+    if (repeated) {
+      riskFlags.push(`repetition:meta:${repeated[0]}`);
+      if (status === "draft") status = "needs_review";
+    }
+  }
+
 
   // ---- Schema proof ----
   if (ctx.action.actionType === "propose_schema") {
@@ -255,10 +304,16 @@ export function evaluateProposalV2(
   const angleHit = angle ? text.toLowerCase().includes(angle.toLowerCase().slice(0, 30)) : false;
 
   // V2.3 conceptual cluster scoring (replaces token-only conceptHits).
-  const { count: clusters } = clusterHits(text, ctx.instructions.locale);
+  const { count: clusters, hit: clusterHit } = clusterHits(text, ctx.instructions.locale);
   const ctaHit =
     ctx.instructions.preferredCTA &&
     text.toLowerCase().includes(ctx.instructions.preferredCTA.toLowerCase().slice(0, 20));
+
+  // Treat BP as present when readiness says so, even if strict parse failed.
+  const bpPresent =
+    !!biz ||
+    (ctx.readiness.breakdown?.business_profile ?? 0) > 0 ||
+    !(ctx.readiness.missing ?? []).includes("business_profile");
 
   // Base business/offer fit. Heavy bonus when 3+ clusters land on a
   // commercial page; cap at 6 when content is generic.
@@ -266,7 +321,7 @@ export function evaluateProposalV2(
     page?.pageType === "homepage" || page?.pageType === "service" || page?.commercialPriority === "high" || page?.commercialPriority === "critical";
   let businessFit: number;
   let offerFit: number;
-  if (!biz) {
+  if (!bpPresent) {
     businessFit = 5;
     offerFit = 5;
   } else if (clusters >= 3 && commercialPage) {
@@ -279,9 +334,16 @@ export function evaluateProposalV2(
     businessFit = 5 + (angleHit ? 1 : 0);
     offerFit = 5;
   }
+  // If offer-mechanism + promise clusters both land, lift offerFit floor.
+  if (clusterHit.includes("mechanism") && clusterHit.includes("promise") && offerFit < 7) {
+    offerFit = 7;
+  }
   if (forbiddenClaimHits.length > 0) {
     businessFit -= 4;
     offerFit -= 4;
+  }
+  if (clusterHit.length > 0) {
+    riskFlags.push(`debug:clusters=${clusterHit.join("+")}`);
   }
 
   const scores: ProposalV2Scores = {

@@ -31,6 +31,7 @@ function tryParseTone(profile: unknown): ToneProfile | null {
 
 function tryParseBusiness(row: Record<string, unknown> | null): BusinessProfile | null {
   if (!row) return null;
+  // Strict parse first.
   try {
     return BusinessProfileSchema.parse({
       status: row.status,
@@ -48,7 +49,31 @@ function tryParseBusiness(row: Record<string, unknown> | null): BusinessProfile 
       confidence_reasons: row.confidence_reasons ?? {},
     });
   } catch {
-    return null;
+    // Tolerant fallback: known sections sometimes drift (e.g. confidence_reasons
+    // with score>10, oversized strings). Drop only the offending side-data and
+    // keep core sections so businessProfile context isn't lost wholesale.
+    try {
+      return BusinessProfileSchema.parse({
+        status: row.status,
+        confidence_score:
+          typeof row.confidence_score === "number"
+            ? Math.min(10, Math.max(0, row.confidence_score))
+            : 0,
+        business_identity: row.business_identity ?? {},
+        offer_profile: row.offer_profile ?? {},
+        icp_profile: row.icp_profile ?? {},
+        location_profile: row.location_profile ?? {},
+        conversion_profile: row.conversion_profile ?? {},
+        proof_profile: row.proof_profile ?? {},
+        claim_guardrails: row.claim_guardrails ?? {},
+        strategy_angles: [],
+        missing_context: [],
+        locked_fields: [],
+        confidence_reasons: {},
+      });
+    } catch {
+      return null;
+    }
   }
 }
 
