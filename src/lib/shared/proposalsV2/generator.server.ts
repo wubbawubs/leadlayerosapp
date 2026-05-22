@@ -435,19 +435,21 @@ function cleanupAltText(raw: string, locale: string): string {
 
 function dedupeAlts(alts: string[], fallback: string): string[] {
   const seen = new Set<string>();
+  // Distinct, natural-sounding safe alternatives — no "variant", no internal labels,
+  // no half-English. Keep nl-NL phrasing.
+  const distinctNl = [
+    "Afbeelding bij lokale SEO voor ondernemers",
+    "Afbeelding bij online vindbaarheid voor lokale bedrijven",
+    "Afbeelding bij websiteverbetering en duidelijke verbeterpunten",
+    "Afbeelding bij de werkwijze voor lokale SEO",
+  ];
   return alts.map((a, idx) => {
     const key = a.trim().toLowerCase();
-    if (!seen.has(key) && key.length > 0) {
+    if (key.length > 0 && !seen.has(key)) {
       seen.add(key);
       return a;
     }
-    // Build a distinct safe alternative without leaking "variant N".
-    const candidates = [
-      `${fallback} (${idx + 1})`.replace(/\s+\(\d+\)$/, ""),
-      `${fallback} — extra weergave`,
-      `${fallback} — aanvullende afbeelding`,
-      `${fallback} — tweede afbeelding`,
-    ];
+    const candidates = [fallback, ...distinctNl];
     for (const c of candidates) {
       const ck = c.toLowerCase();
       if (!seen.has(ck)) {
@@ -455,8 +457,18 @@ function dedupeAlts(alts: string[], fallback: string): string[] {
         return c.slice(0, 120);
       }
     }
-    return `${fallback} ${idx + 1}`.slice(0, 120);
+    const fb = `${fallback} ${idx + 1}`.slice(0, 120);
+    seen.add(fb.toLowerCase());
+    return fb;
   });
+}
+
+// Normalize brand casing across user-facing text fields (meta, title, summary,
+// reasoning, alt). Keeps the engine output consistent with brand identity.
+function normalizeBrand(text: string): string {
+  if (!text) return text;
+  // "klikklaar" / "Klikklaar" / "KLIKKLAAR" → "KlikKlaar", word-boundary safe.
+  return text.replace(/\bklikklaar\b/gi, "KlikKlaar");
 }
 
 // ---------- Public API ----------
