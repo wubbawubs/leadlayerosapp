@@ -803,7 +803,7 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
         if (safeAlts.some((a) => /\b(variant|option|versie)\s*\d*\b/i.test(a))) {
           flags.push("alt:internal_label_leak");
         }
-        const pool = safePoolNl(ctx.page?.pageType, ctx.page?.pageUrl);
+        const pool = safePoolNl(ctx.page?.pageType, ctx.page?.pageUrl ?? undefined);
         const replaced = pickFromPool(pool, Math.max(1, safeAlts.length));
         safeAlts = replaced;
         mutated = true;
