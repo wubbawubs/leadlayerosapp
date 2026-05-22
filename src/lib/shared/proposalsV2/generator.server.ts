@@ -413,18 +413,23 @@ function buildDeterministicMeta(ctx: GrowthContext, maxLen: number): string | nu
 
 function cleanupAltText(raw: string, locale: string): string {
   let out = raw;
+  // Strip parenthetical marketing fragments entirely.
   out = out.replace(/\s*\([^)]*\)\s*/g, " ").trim();
-  // Strip internal labels that sometimes leak from earlier fallback logic.
+  // Strip internal labels.
   out = out.replace(/\s*[-–—]?\s*\b(variant|option)\s*\d+\b\s*/gi, " ").trim();
+  out = out.replace(/\bextra\s+weergave\b/gi, " ");
   // Brand + term normalisation
   out = out.replace(/\bklikklaar\b/gi, "KlikKlaar");
-  out = out.replace(/\bseo\s+diensten\b/gi, "SEO-diensten");
+  out = out.replace(/\bseo[-\s]+diensten\b/gi, "SEO-diensten");
   out = out.replace(/\bwebsite\s+scan\b/gi, "websitescan");
   out = out.replace(/\bseo\s+scan\b/gi, "SEO-scan");
   out = out.replace(/\bseo\b/g, "SEO");
   // NL locale: kill obvious English leftovers
   if (locale === "nl-NL") {
     out = out.replace(/\bSEO\s+process\s+and\s+methodology\b/gi, "uitleg over onze werkwijze");
+    out = out.replace(/\bprocess\s+and\s+methodology\b/gi, "werkwijze");
+    out = out.replace(/\bmethodology\b/gi, "werkwijze");
+    out = out.replace(/\bservices\b/gi, "diensten");
     out = out.replace(/\bimage\s+of\b/gi, "afbeelding bij");
     out = out.replace(/\bfeaturing\b/gi, "met");
   }
@@ -433,15 +438,24 @@ function cleanupAltText(raw: string, locale: string): string {
   return out;
 }
 
+// Awkward survivors after cleanup (parens, internal labels, lowercase seo).
+export function detectAltAwkward(text: string): boolean {
+  if (!text || text.length < 5) return true;
+  if (/\b(variant|option)\s*\d+\b/i.test(text)) return true;
+  if (/\bextra\s+weergave\b/i.test(text)) return true;
+  if (/\([^)]*\)/.test(text)) return true;
+  if (/\bseo\s+diensten\b/.test(text)) return true;
+  return false;
+}
+
 function dedupeAlts(alts: string[], fallback: string): string[] {
   const seen = new Set<string>();
-  // Distinct, natural-sounding safe alternatives — no "variant", no internal labels,
-  // no half-English. Keep nl-NL phrasing.
   const distinctNl = [
-    "Afbeelding bij lokale SEO voor ondernemers",
+    "Afbeelding bij SEO-diensten voor lokale ondernemers",
     "Afbeelding bij online vindbaarheid voor lokale bedrijven",
     "Afbeelding bij websiteverbetering en duidelijke verbeterpunten",
-    "Afbeelding bij de werkwijze voor lokale SEO",
+    "Afbeelding bij de werkwijze van KlikKlaar",
+    "Afbeelding bij lokale vindbaarheid in Google",
   ];
   return alts.map((a, idx) => {
     const key = a.trim().toLowerCase();
@@ -471,7 +485,50 @@ function normalizeBrand(text: string): string {
   return text.replace(/\bklikklaar\b/gi, "KlikKlaar");
 }
 
-// ---------- Public API ----------
+// ---------- Weak meta tail polish ----------
+// Strip generic closer phrases ("Begrijp onze aanpak", "Lees meer over onze
+// aanpak", "Ontdek onze aanpak", and "Neem contact op" / "Lees meer" when
+// used as a generic last sentence).
+const WEAK_TAIL_PATTERNS_NL: RegExp[] = [
+  /\s*(?:[.!?]\s*)?\bBegrijp onze aanpak\.?\s*$/i,
+  /\s*(?:[.!?]\s*)?\bLees meer over onze aanpak\.?\s*$/i,
+  /\s*(?:[.!?]\s*)?\bOntdek onze aanpak\.?\s*$/i,
+  /\s*(?:[.!?]\s*)?\bBekijk onze aanpak\.?\s*$/i,
+  /\s*(?:[.!?]\s*)?\bNeem contact op\.?\s*$/i,
+  /\s*(?:[.!?]\s*)?\bLees meer\.?\s*$/i,
+];
+
+function hasWeakTailNl(text: string): boolean {
+  return WEAK_TAIL_PATTERNS_NL.some((r) => r.test(text));
+}
+
+function stripWeakTailNl(text: string): string {
+  let out = text;
+  for (const r of WEAK_TAIL_PATTERNS_NL) out = out.replace(r, "");
+  return out.replace(/[\s,;:]+$/u, "").replace(/\s{2,}/g, " ").trim();
+}
+
+// Append a contextual CTA if there's room, otherwise leave the meta as-is.
+function maybeAppendContextCta(text: string, ctx: GrowthContext, maxLen: number): string {
+  const url = (ctx.page?.pageUrl ?? "").toLowerCase();
+  const pageType = ctx.page?.pageType ?? "";
+  const isProcess = /werkwijze|process|approach|how-we-work/.test(url) || pageType === "trust";
+  const isCommercial = pageType === "homepage" || pageType === "service";
+  let cta: string | null = null;
+  if (ctx.instructions.locale === "nl-NL") {
+    if (isProcess) cta = "Bekijk hoe we werken";
+    else if (isCommercial) cta = "Vraag een gratis scan aan";
+  } else if (ctx.instructions.locale === "en-US") {
+    if (isProcess) cta = "See how we work";
+    else if (isCommercial) cta = "Get a free website scan";
+  }
+  if (!cta) return text;
+  const sep = /[.!?]\s*$/.test(text) ? " " : ". ";
+  const candidate = `${text}${sep}${cta}.`;
+  if (candidate.length <= maxLen) return candidate;
+  return text; // no room — leave stronger ending off
+}
+
 
 export interface GeneratorResult {
   output: GeneratorTextOutput;
@@ -602,6 +659,24 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
     if (maxLen && workingText.length > maxLen) {
       workingText = compactMeta(workingText, maxLen);
     }
+
+    // Weak-tail polish (nl-NL meta): strip generic closers and optionally
+    // append a contextual CTA when there's room.
+    const isMetaDesc =
+      ctx.action.actionType === "rewrite_meta_description" ||
+      ctx.action.actionType === "write_meta_description";
+    if (isMetaDesc && ctx.instructions.locale === "nl-NL" && hasWeakTailNl(workingText)) {
+      const stripped = stripWeakTailNl(workingText);
+      const polished = maxLen ? maybeAppendContextCta(stripped, ctx, maxLen) : stripped;
+      if (polished !== workingText) {
+        workingText = polished;
+        flags.push("weak_tail:rewritten");
+      }
+    }
+    if (isMetaDesc && ctx.instructions.locale === "nl-NL" && hasWeakTailNl(workingText)) {
+      flags.push("weak_tail:meta");
+    }
+
     const finalCheck = rewriteBannedPhrases(workingText, ctx.instructions.locale);
     if (finalCheck.remaining.length > 0) {
       flags.push(`blocked:banned_phrase_remaining:${finalCheck.remaining.join(",")}`);
@@ -632,13 +707,31 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
       }
       return a;
     });
-    // Cleanup: uppercase SEO, strip parens, brand/term normalisation, length cap
+    // Always run cleanup on every alt (not just mutated ones).
     const cleaned = safeAlts.map((a) => cleanupAltText(a, ctx.instructions.locale));
     if (cleaned.some((a, i) => a !== safeAlts[i])) mutated = true;
+    // Dedupe — track whether dedupe had to substitute anything.
+    const preDedupe = cleaned.slice();
     safeAlts = dedupeAlts(cleaned, fallback);
+    const duplicatesReplaced = safeAlts.some((a, i) => a !== preDedupe[i]);
     const flags = [...parsed.riskFlags];
     if (mutated) flags.push("alt:safe_fallback_applied");
-    if (mutated || safeAlts.some((a, i) => a !== alts[i])) {
+    if (duplicatesReplaced) flags.push("alt:duplicate");
+    // Internal label leak (post-cleanup safety net)
+    if (safeAlts.some((a) => /\b(variant|option)\s*\d+\b/i.test(a))) {
+      flags.push("alt:internal_label_leak");
+    }
+    // NL locale: English leftovers
+    if (
+      ctx.instructions.locale === "nl-NL" &&
+      safeAlts.some((a) => /\b(the|and|with|process|methodology|services|image of|featuring)\b/i.test(a))
+    ) {
+      flags.push("language:mismatch_alt");
+    }
+    if (safeAlts.some((a) => detectAltAwkward(a))) {
+      flags.push("alt:awkward_fallback");
+    }
+    if (mutated || safeAlts.some((a, i) => a !== alts[i]) || flags.length !== parsed.riskFlags.length) {
       parsed = {
         ...parsed,
         after: { ...parsed.after, alts: safeAlts },

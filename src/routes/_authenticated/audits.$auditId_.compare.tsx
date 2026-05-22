@@ -168,12 +168,12 @@ function ComparePage() {
               <Stat label="Review later" value={v2Metrics.reviewLater} />
               <Stat label="Needs edit" value={v2Metrics.needsEdit} />
               <Stat label="Rejected" value={v2Metrics.rejected} />
-              <Stat label="Score mismatch" value={summary.scoreMismatches} />
+              <Stat label="Correctly blocked" value={summary.correctlyBlocked ?? 0} />
               <Stat
-                label="Approval rate"
+                label="Copy approval rate"
                 value={
-                  summary.reviewed > 0
-                    ? `${Math.round((v2Metrics.approved / summary.reviewed) * 100)}%`
+                  summary.copyReviewed && summary.copyReviewed > 0
+                    ? `${Math.round((summary.copyApprovalRate ?? 0) * 100)}%`
                     : "—"
                 }
               />
@@ -196,6 +196,14 @@ function ComparePage() {
             </>
           )}
         </div>
+      )}
+
+      {v2OnlyMode && summary && (summary.correctlyBlocked ?? 0) > 0 && (
+        <p className="mb-4 text-[11px] text-muted-foreground">
+          Copy approval rate excludes {summary.correctlyBlocked} correctly blocked schema
+          proposal{summary.correctlyBlocked === 1 ? "" : "s"} (denominator: copy proposals only,
+          {" "}{summary.copyTotal ?? 0} total).
+        </p>
       )}
 
       {summary && summary.v2AverageWeighted !== null && (
@@ -304,12 +312,13 @@ function ComparisonCard({
   // Detect schema proposals correctly blocked due to missing verified proof —
   // surface as "correctly blocked" hint so operators don't mark them as "Needs edit".
   const isSchemaCorrectlyBlocked =
-    !!item.v2 &&
-    item.v2.actionType === "propose_schema" &&
-    (item.v2.status === "rejected" || !!item.v2.blockReason) &&
-    /(verified|proof|business proof|verifiedProofPoints|business identity)/i.test(
-      `${item.v2.blockReason ?? ""} ${item.v2.reasoning ?? ""}`,
-    );
+    (item as Item & { correctlyBlocked?: boolean }).correctlyBlocked === true ||
+    (!!item.v2 &&
+      item.v2.actionType === "propose_schema" &&
+      (item.v2.status === "rejected" || !!item.v2.blockReason) &&
+      /(verified|proof|business proof|verifiedProofPoints|business identity)/i.test(
+        `${item.v2.blockReason ?? ""} ${item.v2.reasoning ?? ""}`,
+      ));
 
   return (
     <div className="rounded-lg border border-border bg-card/70 p-5">
@@ -333,17 +342,25 @@ function ComparisonCard({
             <div className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/5 px-2 py-1 text-[11px] text-emerald-700">
               ✓ Correctly blocked — schema should not be generated without verified business proof.
               Use "Good, review later" or tag <code>correct_safety_block</code> instead of "Needs edit".
+              Excluded from copy approval rate.
             </div>
           )}
         </div>
-        <div
-          className={`rounded-md px-2 py-1 text-xs font-medium ${
-            item.winner === "unreviewed"
-              ? "border border-border text-muted-foreground"
-              : "border border-primary/40 bg-primary/10 text-primary"
-          }`}
-        >
-          {item.winner}
+        <div className="flex flex-col items-end gap-1">
+          {isSchemaCorrectlyBlocked && (
+            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-700">
+              Correctly blocked
+            </div>
+          )}
+          <div
+            className={`rounded-md px-2 py-1 text-xs font-medium ${
+              item.winner === "unreviewed"
+                ? "border border-border text-muted-foreground"
+                : "border border-primary/40 bg-primary/10 text-primary"
+            }`}
+          >
+            {item.winner}
+          </div>
         </div>
       </div>
 
