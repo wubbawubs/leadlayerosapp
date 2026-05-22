@@ -579,11 +579,19 @@ export interface AnalyzerResult {
   overallConfidence: number;
 }
 
+export type AnalyzerStage = "crawl" | "stage_a" | "stage_b" | "persist" | "done";
+
 export async function analyzeBusinessProfileFromWebsite(input: {
   tenantId: string;
+  jobId?: string;
+  onStageChange?: (stage: AnalyzerStage) => Promise<void> | void;
 }): Promise<AnalyzerResult> {
+  const onStage = input.onStageChange ?? (async () => {});
+  const startedAt = Date.now();
   try {
   const { tenantId } = input;
+  await onStage("crawl");
+
 
   // 1. Load current profile + locks
   const { data: currentProfile } = await admin
