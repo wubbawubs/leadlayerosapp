@@ -230,6 +230,20 @@ export function evaluateProposalV2(
     }
   }
 
+  // ---- V2.3: blocked banned-phrase remaining → rejected ----
+  if (riskFlags.some((f) => f.startsWith("blocked:banned_phrase_remaining"))) {
+    status = "rejected";
+  }
+
+  // ---- V2.3: soft NL claim sensitivity ----
+  if (ctx.instructions.locale === "nl-NL") {
+    const softHits = NL_SOFT_CLAIM_PATTERNS.filter((r) => r.test(text));
+    if (softHits.length > 0) {
+      riskFlags.push("soft_claim:nl_outcome_too_strong");
+      if (status === "draft") status = "needs_review";
+    }
+  }
+
   // ---- Soft scores (0..10) ----
   const generic = hasGenericPhrase(text);
   const tone = ctx.tone;
@@ -239,20 +253,43 @@ export function evaluateProposalV2(
   const preferredHits = tone ? includesAny(text, tone.preferredWords).length : 0;
   const angle = ctx.instructions.primaryAngle;
   const angleHit = angle ? text.toLowerCase().includes(angle.toLowerCase().slice(0, 30)) : false;
-  const { conceptCount, offerTokenHits } = conceptHits(text, ctx);
-  // Combine literal token hits + conceptual matches (each capped).
-  const combinedFit = Math.min(3, offerTokenHits) + Math.min(3, conceptCount);
+
+  // V2.3 conceptual cluster scoring (replaces token-only conceptHits).
+  const { count: clusters } = clusterHits(text, ctx.instructions.locale);
+  const ctaHit =
+    ctx.instructions.preferredCTA &&
+    text.toLowerCase().includes(ctx.instructions.preferredCTA.toLowerCase().slice(0, 20));
+
+  // Base business/offer fit. Heavy bonus when 3+ clusters land on a
+  // commercial page; cap at 6 when content is generic.
+  const commercialPage =
+    page?.pageType === "homepage" || page?.pageType === "service" || page?.commercialPriority === "high" || page?.commercialPriority === "critical";
+  let businessFit: number;
+  let offerFit: number;
+  if (!biz) {
+    businessFit = 5;
+    offerFit = 5;
+  } else if (clusters >= 3 && commercialPage) {
+    businessFit = 7 + (angleHit ? 1 : 0) + (clusters >= 4 ? 1 : 0);
+    offerFit = 7 + (ctaHit ? 1 : 0) + (clusters >= 4 ? 1 : 0);
+  } else if (clusters >= 2) {
+    businessFit = 6 + (angleHit ? 1 : 0);
+    offerFit = 6 + (ctaHit ? 1 : 0);
+  } else {
+    businessFit = 5 + (angleHit ? 1 : 0);
+    offerFit = 5;
+  }
+  if (forbiddenClaimHits.length > 0) {
+    businessFit -= 4;
+    offerFit -= 4;
+  }
 
   const scores: ProposalV2Scores = {
     seoFit: clamp(6 + (output.keywordsUsed.length > 0 ? 2 : 0) + (page ? 1 : -1)),
     toneFit: clamp(tone ? 6 + Math.min(2, preferredHits) - (forbiddenWordHits.length || weakHits.length ? 3 : 0) : 5),
-    businessFit: clamp(
-      biz
-        ? 5 + combinedFit + (angleHit ? 1 : 0) - (forbiddenClaimHits.length ? 4 : 0)
-        : 5,
-    ),
+    businessFit: clamp(businessFit),
     pageFit: clamp(page ? 6 + (page.confidence >= 0.7 ? 2 : 0) : 4),
-    offerFit: clamp(biz ? 5 + combinedFit + (angleHit ? 1 : 0) : 5),
+    offerFit: clamp(offerFit),
     icpFit: clamp(page?.targetAudience ? 7 : 5),
     locationFit: clamp(
       ctx.instructions.shouldMentionLocation
