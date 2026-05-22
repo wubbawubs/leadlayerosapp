@@ -659,6 +659,24 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
     if (maxLen && workingText.length > maxLen) {
       workingText = compactMeta(workingText, maxLen);
     }
+
+    // Weak-tail polish (nl-NL meta): strip generic closers and optionally
+    // append a contextual CTA when there's room.
+    const isMetaDesc =
+      ctx.action.actionType === "rewrite_meta_description" ||
+      ctx.action.actionType === "write_meta_description";
+    if (isMetaDesc && ctx.instructions.locale === "nl-NL" && hasWeakTailNl(workingText)) {
+      const stripped = stripWeakTailNl(workingText);
+      const polished = maxLen ? maybeAppendContextCta(stripped, ctx, maxLen) : stripped;
+      if (polished !== workingText) {
+        workingText = polished;
+        flags.push("weak_tail:rewritten");
+      }
+    }
+    if (isMetaDesc && ctx.instructions.locale === "nl-NL" && hasWeakTailNl(workingText)) {
+      flags.push("weak_tail:meta");
+    }
+
     const finalCheck = rewriteBannedPhrases(workingText, ctx.instructions.locale);
     if (finalCheck.remaining.length > 0) {
       flags.push(`blocked:banned_phrase_remaining:${finalCheck.remaining.join(",")}`);
