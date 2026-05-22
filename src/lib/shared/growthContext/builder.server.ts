@@ -147,10 +147,34 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
       .maybeSingle(),
   ]);
 
-  const business = tryParseBusiness(
-    (bpRes.data as Record<string, unknown> | null) ?? null,
-  );
-  const businessStatus = (bpRes.data as { status?: string } | null)?.status ?? "missing";
+  const bpRow = bpRes.data as Record<string, unknown> | null;
+  const bpExists = !!bpRow;
+  const bpParse = tryParseBusiness(bpRow);
+  const bpStrictParseOk = bpParse.kind === "strict";
+  const parsedBusiness = bpParse.kind === "failed" ? null : bpParse.profile;
+
+  // Hydrated view of the business profile — always populated when a row exists,
+  // even when both strict and tolerant schema parses fail. The generator reads
+  // from this shape, not from the schema-validated `parsedBusiness`.
+  const bpFallbackUsed = bpExists && !parsedBusiness;
+  const hydratedBusiness = parsedBusiness
+    ? {
+        status: (bpRow?.status as string) ?? "draft",
+        confidenceScore: parsedBusiness.confidence_score ?? 0,
+        identity: (parsedBusiness.business_identity ?? {}) as Record<string, unknown>,
+        offer: (parsedBusiness.offer_profile ?? {}) as Record<string, unknown>,
+        icp: (parsedBusiness.icp_profile ?? {}) as Record<string, unknown>,
+        location: (parsedBusiness.location_profile ?? {}) as Record<string, unknown>,
+        conversion: (parsedBusiness.conversion_profile ?? {}) as Record<string, unknown>,
+        proof: (parsedBusiness.proof_profile ?? {}) as Record<string, unknown>,
+        claims: (parsedBusiness.claim_guardrails ?? {}) as Record<string, unknown>,
+        primaryStrategyAngle: null as string | null,
+      }
+    : bpExists
+      ? hydrateBusinessFromRaw(bpRow!)
+      : null;
+
+  const businessStatus = (bpRow as { status?: string } | null)?.status ?? "missing";
   const tone = tryParseTone((tpRes.data as { profile?: unknown } | null)?.profile);
   const toneStatus = (tpRes.data as { status?: string } | null)?.status ?? "missing";
   const toneConfidence =
@@ -169,14 +193,12 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
   const pi = piRes.data as Record<string, unknown> | null;
 
   // ----- Resolve issue -----
-  // issueId is either a plain code ("long_meta") or composite "pageId:code".
   const rawCode = issueId.includes(":") ? issueId.split(":")[1]! : issueId;
   const issueFromPage = (page?.issues ?? []).find((i) => i.code === rawCode) ?? null;
   const issueCode = issueFromPage?.code ?? rawCode ?? "unknown";
   const issueSeverity = issueFromPage?.severity ?? "medium";
   const issueMessage = issueFromPage?.message ?? "";
 
-  // Snapshot current value relevant to the action
   let currentValue: unknown = null;
   let targetField: string | null = null;
   switch (issueCode) {
@@ -203,43 +225,45 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
   const action = mapIssueToAction(issueCode);
 
   // ----- Strategy angle -----
-  const angles = (business?.strategy_angles ?? []) as Array<{
-    angle: string;
-    isPrimary?: boolean;
-    score?: number;
-  }>;
+  const rawAngles = (parsedBusiness?.strategy_angles
+    ?? (Array.isArray(bpRow?.strategy_angles) ? (bpRow!.strategy_angles as unknown[]) : [])
+    ?? []) as Array<{ angle: string; isPrimary?: boolean; score?: number }>;
   const primaryStrategyAngle =
-    angles.find((a) => a.isPrimary)?.angle ??
-    [...angles].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0]?.angle ??
+    rawAngles.find((a) => a?.isPrimary)?.angle ??
+    [...rawAngles].sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0))[0]?.angle ??
+    hydratedBusiness?.primaryStrategyAngle ??
     null;
 
   const pageStrategyAngle = (pi?.relevant_strategy_angle as string | null) ?? null;
 
-  // ----- Guardrails merge -----
-  const claims = business?.claim_guardrails ?? {
-    allowedClaims: [],
-    riskyClaims: [],
-    forbiddenClaims: [],
-    safeAlternatives: {},
+  // ----- Guardrails merge (BP claims + tone vocab + tone claimStyle) -----
+  const claimsRaw = (hydratedBusiness?.claims ?? {}) as {
+    allowedClaims?: string[];
+    riskyClaims?: string[];
+    forbiddenClaims?: string[];
+    safeAlternatives?: Record<string, string>;
   };
-  const toneForbidden = tone?.vocabulary.forbidden ?? [];
+  const bpAllowed = claimsRaw.allowedClaims ?? [];
+  const bpRisky = claimsRaw.riskyClaims ?? [];
+  const bpForbiddenClaims = claimsRaw.forbiddenClaims ?? [];
+  const bpSafeAlts = (claimsRaw.safeAlternatives ?? {}) as Record<string, string>;
+
+  const toneForbiddenWords = tone?.vocabulary.forbidden ?? [];
+  const toneAvoidWords = tone?.vocabulary.avoid ?? [];
   const toneClaimForbidden = tone?.claimStyle.forbiddenClaims ?? [];
+  const toneClaimRisky = tone?.claimStyle.riskyClaims ?? [];
+  const toneClaimAllowed = tone?.claimStyle.allowedClaims ?? [];
+
   const guardrails = {
-    allowedClaims: claims.allowedClaims ?? [],
-    riskyClaims: claims.riskyClaims ?? [],
-    forbiddenClaims: Array.from(
-      new Set([...(claims.forbiddenClaims ?? []), ...toneClaimForbidden]),
-    ),
-    safeAlternatives: (claims.safeAlternatives ?? {}) as Record<string, string>,
+    allowedClaims: Array.from(new Set([...bpAllowed, ...toneClaimAllowed])),
+    riskyClaims: Array.from(new Set([...bpRisky, ...toneClaimRisky])),
+    forbiddenClaims: Array.from(new Set([...bpForbiddenClaims, ...toneClaimForbidden])),
+    safeAlternatives: bpSafeAlts,
     unverifiedProofCannotBeUsedAsFact: true,
-    forbiddenWords: toneForbidden,
+    forbiddenWords: Array.from(new Set([...toneForbiddenWords, ...toneAvoidWords])),
   };
 
   // ----- Readiness -----
-  // BP presence is based on raw row, not on strict parse — schema drift must
-  // not block proposals when a profile clearly exists.
-  const bpRow = bpRes.data as Record<string, unknown> | null;
-  const bpExists = !!bpRow;
   const bpFullyTrusted =
     bpExists && (businessStatus === "approved" || businessStatus === "review_ready");
 
@@ -261,8 +285,11 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
   } else {
     missing.push("business_profile");
   }
-  if (bpExists && !business) {
+  if (bpExists && !parsedBusiness) {
     warnings.push("business_profile present but failed strict schema parse");
+  }
+  if (bpFallbackUsed) {
+    warnings.push("business_profile_fallback_used");
   }
 
   if (tone && toneStatus === "approved") {
@@ -281,13 +308,12 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
   }
 
   const hasClaims =
-    (guardrails.allowedClaims.length > 0 || guardrails.forbiddenClaims.length > 0);
+    guardrails.allowedClaims.length > 0 || guardrails.forbiddenClaims.length > 0;
   breakdown.claim_guardrails = hasClaims ? 1.5 : 0;
   if (!hasClaims) warnings.push("no claim guardrails defined");
 
   const preferredCTA =
-    (business?.conversion_profile?.primaryCta as string | undefined) ??
-    ((bpRow?.conversion_profile as { primaryCta?: string } | undefined)?.primaryCta) ??
+    ((hydratedBusiness?.conversion as { primaryCta?: string } | undefined)?.primaryCta) ??
     (pi?.recommended_cta as string | undefined) ??
     "";
   if (preferredCTA) {
@@ -303,17 +329,16 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
     breakdown.claim_guardrails +
     breakdown.conversion_context;
 
-  // Schema/proof sensitivity — schema needs *verified* proof, not just any BP.
-  const verifiedProof =
-    (business?.proof_profile?.verifiedProofPoints as unknown[] | undefined) ??
-    ((bpRow?.proof_profile as { verifiedProofPoints?: unknown[] } | undefined)?.verifiedProofPoints);
-  const hasVerifiedProof = Array.isArray(verifiedProof) && verifiedProof.length > 0;
+  // Schema/proof sensitivity — only verified proof unlocks schema.
+  // Malformed proof (not array) is treated as missing.
+  const proofRaw = (hydratedBusiness?.proof as { verifiedProofPoints?: unknown } | undefined)
+    ?.verifiedProofPoints;
+  const hasVerifiedProof = Array.isArray(proofRaw) && proofRaw.length > 0;
   if (action.actionType === "propose_schema" && !hasVerifiedProof) {
     warnings.push("propose_schema with no verified proof points");
   }
 
   let status: ReadinessStatus;
-  // Schema is the only action we hard-block on proof — not on BP review-ready state.
   if (action.actionType === "propose_schema" && !hasVerifiedProof) {
     status = "blocked";
   } else if (action.riskLevel === "high" && !bpExists) {
@@ -326,6 +351,44 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
     status = "ready";
   }
 
+  // ----- Diagnostics -----
+  const businessFieldsUsed: string[] = [];
+  if (hydratedBusiness) {
+    const sections: Array<[string, Record<string, unknown>]> = [
+      ["identity", hydratedBusiness.identity],
+      ["offer", hydratedBusiness.offer],
+      ["icp", hydratedBusiness.icp],
+      ["location", hydratedBusiness.location],
+      ["conversion", hydratedBusiness.conversion],
+      ["proof", hydratedBusiness.proof],
+      ["claims", hydratedBusiness.claims],
+    ];
+    for (const [name, obj] of sections) {
+      if (obj && Object.keys(obj).length > 0) businessFieldsUsed.push(name);
+    }
+    if (hydratedBusiness.primaryStrategyAngle || primaryStrategyAngle) {
+      businessFieldsUsed.push("primaryStrategyAngle");
+    }
+  }
+  const businessHydrated = !!hydratedBusiness && businessFieldsUsed.length > 0;
+  const guardrailCounts = {
+    allowedClaims: guardrails.allowedClaims.length,
+    riskyClaims: guardrails.riskyClaims.length,
+    forbiddenClaims: guardrails.forbiddenClaims.length,
+    safeAlternatives: Object.keys(guardrails.safeAlternatives).length,
+    forbiddenWords: guardrails.forbiddenWords.length,
+  };
+  const guardrailsHydrated =
+    guardrailCounts.allowedClaims +
+      guardrailCounts.riskyClaims +
+      guardrailCounts.forbiddenClaims +
+      guardrailCounts.safeAlternatives +
+      guardrailCounts.forbiddenWords >
+    0;
+
+  if (!businessHydrated && bpExists) {
+    warnings.push("business_profile row exists but no usable fields could be hydrated");
+  }
 
   // ----- Compose -----
   const ctx: GrowthContext = {
@@ -340,18 +403,18 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
       warnings,
       breakdown,
     },
-    business: business
+    business: hydratedBusiness
       ? {
           status: businessStatus,
-          confidenceScore: business.confidence_score ?? 0,
-          identity: business.business_identity as Record<string, unknown>,
-          offer: business.offer_profile as Record<string, unknown>,
-          icp: business.icp_profile as Record<string, unknown>,
-          location: business.location_profile as Record<string, unknown>,
-          conversion: business.conversion_profile as Record<string, unknown>,
-          proof: business.proof_profile as Record<string, unknown>,
-          claims: business.claim_guardrails as Record<string, unknown>,
-          primaryStrategyAngle,
+          confidenceScore: hydratedBusiness.confidenceScore,
+          identity: hydratedBusiness.identity,
+          offer: hydratedBusiness.offer,
+          icp: hydratedBusiness.icp,
+          location: hydratedBusiness.location,
+          conversion: hydratedBusiness.conversion,
+          proof: hydratedBusiness.proof,
+          claims: hydratedBusiness.claims,
+          primaryStrategyAngle: primaryStrategyAngle ?? hydratedBusiness.primaryStrategyAngle ?? null,
         }
       : null,
     tone: tone
@@ -409,19 +472,18 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
     },
     guardrails,
     instructions: (() => {
-      const identity = (business?.business_identity ?? bpRow?.business_identity ?? {}) as {
+      const identity = (hydratedBusiness?.identity ?? {}) as {
         language?: string;
         country?: string;
       };
       const country = (identity.country || "NL").toUpperCase();
-      const language =
-        identity.language ||
-        (country === "US" ? "en" : "nl");
+      const language = identity.language || (country === "US" ? "en" : "nl");
       const locale =
-        tone?.localeTone.locale ||
-        (country === "US" ? "en-US" : "nl-NL");
+        tone?.localeTone.locale || (country === "US" ? "en-US" : "nl-NL");
       const salesIntensity: "low" | "medium" | "high" =
         country === "US" ? "medium" : "low";
+      const mainPromise = (hydratedBusiness?.offer as { mainPromise?: string } | undefined)
+        ?.mainPromise;
       return {
         language,
         locale,
@@ -429,20 +491,28 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
         salesIntensity,
         preferredCTA,
         primaryAngle: pageStrategyAngle ?? primaryStrategyAngle ?? "",
-        mustUse: (business?.offer_profile?.mainPromise
-          ? [business.offer_profile.mainPromise as string]
-          : []) as string[],
+        mustUse: mainPromise ? [mainPromise] : [],
         mustAvoid: Array.from(
           new Set([...(guardrails.forbiddenClaims ?? []), ...(guardrails.forbiddenWords ?? [])]),
         ),
-        shouldMentionLocation: !!(pi?.local_relevance as { isLocal?: boolean } | undefined)?.isLocal,
+        shouldMentionLocation: !!(pi?.local_relevance as { isLocal?: boolean } | undefined)
+          ?.isLocal,
         shouldUseProof:
           action.actionType === "propose_schema" ||
           action.actionType === "propose_intro_or_content_expansion",
         pagePriority: (pi?.commercial_priority as string) ?? "medium",
       };
     })(),
-
+    diagnostics: {
+      bpRowExists: bpExists,
+      bpStrictParseOk,
+      bpFallbackUsed,
+      businessHydrated,
+      guardrailsHydrated,
+      toneHydrated: !!tone,
+      businessFieldsUsed,
+      guardrailCounts,
+    },
   };
 
   return GrowthContextSchema.parse(ctx);
