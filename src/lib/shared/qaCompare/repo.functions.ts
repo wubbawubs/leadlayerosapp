@@ -378,6 +378,16 @@ export const listProposalComparisons = createServerFn({ method: "POST" })
       };
     });
 
+    // Helper: schema rejected because verified business proof is missing.
+    const isCorrectlyBlocked = (it: (typeof items)[number]) => {
+      const v2 = it.v2;
+      if (!v2) return false;
+      if (v2.actionType !== "propose_schema") return false;
+      if (v2.status !== "rejected" && !v2.blockReason) return false;
+      const blob = `${v2.blockReason ?? ""} ${v2.reasoning ?? ""}`;
+      return /(verified|proof|business proof|verifiedProofPoints|business identity)/i.test(blob);
+    };
+
     // Summary metrics.
     const total = items.length;
     const reviewed = items.filter((i) => i.winner !== "unreviewed").length;
@@ -387,6 +397,14 @@ export const listProposalComparisons = createServerFn({ method: "POST" })
     const bothGood = items.filter((i) => i.winner === "both_good").length;
     const needsEdit = items.filter((i) => i.winner === "needs_edit").length;
     const scoreMismatches = items.filter((i) => i.scoreMismatch).length;
+
+    // Correctly blocked (schema safety) — excluded from copy-quality math.
+    const correctlyBlockedItems = items.filter((i) => isCorrectlyBlocked(i));
+    const correctlyBlocked = correctlyBlockedItems.length;
+    const copyItems = items.filter((i) => !isCorrectlyBlocked(i));
+    const copyReviewed = copyItems.filter((i) => i.winner !== "unreviewed").length;
+    const copyV2Wins = copyItems.filter((i) => i.winner === "v2").length;
+    const copyTotal = copyItems.length;
 
     // V2 average weighted score (parses scoresJson, falls back to NaN-safe avg).
     let weightedSum = 0;
@@ -415,7 +433,7 @@ export const listProposalComparisons = createServerFn({ method: "POST" })
     const v2AverageWeighted = weightedCount > 0 ? weightedSum / weightedCount : null;
 
     return {
-      items,
+      items: items.map((i) => ({ ...i, correctlyBlocked: isCorrectlyBlocked(i) })),
       runs: {
         latestRunId,
         selectedRunId,
@@ -435,6 +453,11 @@ export const listProposalComparisons = createServerFn({ method: "POST" })
         v1WinRate: reviewed > 0 ? v1Wins / reviewed : 0,
         v2AverageWeighted,
         winRateByAction,
+        correctlyBlocked,
+        copyTotal,
+        copyReviewed,
+        copyV2Wins,
+        copyApprovalRate: copyReviewed > 0 ? copyV2Wins / copyReviewed : 0,
       },
     };
   });
