@@ -839,6 +839,11 @@ function ProposalV2Card({ p }: { p: V2Proposal }) {
           </span>
         )}
       </div>
+      {p.blockReason && (
+        <div className="mt-2 rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[11px] text-amber-700">
+          {p.blockReason}
+        </div>
+      )}
       {p.riskFlags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {p.riskFlags.map((f) => (
