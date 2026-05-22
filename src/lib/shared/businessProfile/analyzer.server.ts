@@ -732,8 +732,9 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     sectionReasons: strategy.sectionReasons,
   };
 
-
+  await onStage("persist");
   // 5. Ensure profile row exists (so suggestions can reference it)
+
   if (!currentProfile) {
     await admin.from("business_profiles_v2").upsert(
       { tenant_id: tenantId, status: "draft" },
