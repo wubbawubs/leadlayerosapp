@@ -26,9 +26,15 @@ export interface PersistedProposalV2 {
 }
 
 function contextUsed(ctx: GrowthContext) {
+  // businessProfile=true when the row exists (readiness already accounts for it).
+  // Strict parse failures shouldn't make us claim the profile is missing.
+  const bpPresent =
+    !!ctx.business ||
+    (ctx.readiness.breakdown?.business_profile ?? 0) > 0 ||
+    !(ctx.readiness.missing ?? []).includes("business_profile");
   return {
     toneProfile: !!ctx.tone,
-    businessProfile: !!ctx.business,
+    businessProfile: bpPresent && !(ctx.readiness.missing ?? []).includes("business_profile"),
     pageIntelligence: !!ctx.page,
     primaryAngle: ctx.instructions.primaryAngle || undefined,
     claimGuardrails:
