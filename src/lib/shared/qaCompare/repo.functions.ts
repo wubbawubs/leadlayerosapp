@@ -201,8 +201,14 @@ export const buildComparisonSetForAudit = createServerFn({ method: "POST" })
 
 export const listProposalComparisons = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { auditId: string }) =>
-    z.object({ auditId: z.string().uuid() }).parse(input),
+  .inputValidator((input: { auditId: string; v2RunId?: string | null; allRuns?: boolean }) =>
+    z
+      .object({
+        auditId: z.string().uuid(),
+        v2RunId: z.string().uuid().nullable().optional(),
+        allRuns: z.boolean().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -215,16 +221,60 @@ export const listProposalComparisons = createServerFn({ method: "POST" })
     if (!audit) throw new Error("Audit not found");
     await assertMember(supabase, userId, audit.tenant_id);
 
-    const { data: comps, error: cErr } = await supabaseAdmin
+    // Resolve latest v2 run for the audit.
+    const { data: latestV2 } = await supabaseAdmin
+      .from("proposal_v2")
+      .select("proposal_run_id, created_at")
+      .eq("audit_id", data.auditId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    let latestRunId: string | null = null;
+    for (const r of latestV2 ?? []) {
+      if (r.proposal_run_id) {
+        latestRunId = r.proposal_run_id as string;
+        break;
+      }
+    }
+    const selectedRunId = data.allRuns
+      ? null
+      : data.v2RunId !== undefined
+        ? data.v2RunId
+        : latestRunId;
+
+    // Collect distinct run ids for the UI selector.
+    const runSet = new Set<string>();
+    for (const r of latestV2 ?? []) {
+      if (r.proposal_run_id) runSet.add(r.proposal_run_id as string);
+    }
+    const availableRuns = Array.from(runSet);
+
+    const { data: allComps, error: cErr } = await supabaseAdmin
       .from("proposal_comparisons")
       .select(
-        "id, page_id, issue_id, action_type, proposal_v1_id, proposal_v2_id, winner, reason, reason_tags, score_mismatch, notes, reviewed_at, created_at, updated_at",
+        "id, page_id, issue_id, action_type, proposal_v1_id, proposal_v2_id, v2_run_id, winner, reason, reason_tags, score_mismatch, notes, reviewed_at, created_at, updated_at",
       )
       .eq("audit_id", data.auditId)
       .eq("tenant_id", audit.tenant_id)
       .order("created_at", { ascending: true });
     if (cErr) throw cErr;
-    const rows = comps ?? [];
+    const allRows = allComps ?? [];
+
+    // Build prior-review index: page_id+issue_id → has any reviewed row
+    // belonging to a DIFFERENT v2_run_id than the selected run.
+    const priorReviewIndex = new Map<string, boolean>();
+    for (const r of allRows) {
+      const reviewed = (r.winner as string) !== "unreviewed";
+      if (!reviewed) continue;
+      const sameRun =
+        selectedRunId !== null && (r.v2_run_id as string | null) === selectedRunId;
+      if (sameRun) continue;
+      priorReviewIndex.set(`${r.page_id}::${r.issue_id}`, true);
+    }
+
+    // Apply run filter.
+    const rows = selectedRunId
+      ? allRows.filter((r) => (r.v2_run_id as string | null) === selectedRunId)
+      : allRows;
 
     const v1Ids = rows.map((r) => r.proposal_v1_id).filter(Boolean) as string[];
     const v2Ids = rows.map((r) => r.proposal_v2_id).filter(Boolean) as string[];
