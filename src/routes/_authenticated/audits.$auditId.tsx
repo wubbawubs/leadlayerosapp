@@ -248,7 +248,9 @@ function AuditDetailPage() {
                   <th className="px-3 py-2 font-semibold">CTA</th>
                   <th className="px-3 py-2 font-semibold text-right">Risks</th>
                   <th className="px-3 py-2 font-semibold text-right">Conf</th>
+                  <th className="px-3 py-2 font-semibold text-right"></th>
                 </tr>
+
               </thead>
               <tbody>
                 {pages.map((p) => {
@@ -297,7 +299,24 @@ function AuditDetailPage() {
                       <td className="px-3 py-2 text-right text-muted-foreground">
                         {Math.round((pi.confidence ?? 0) * 100)}%
                       </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!expanded.has(p.id)) toggleExpand(p.id);
+                            requestAnimationFrame(() => {
+                              document
+                                .getElementById(`page-${p.id}`)
+                                ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                            });
+                          }}
+                          className="text-[11px] text-primary hover:underline"
+                        >
+                          Details
+                        </button>
+                      </td>
                     </tr>
+
                   );
                 })}
               </tbody>
@@ -320,7 +339,7 @@ function AuditDetailPage() {
             const pi = piByAuditPage.get(p.id);
             const isOpen = expanded.has(p.id);
             return (
-              <div key={p.id} className="rounded-md border border-border bg-card/70 p-4">
+              <div key={p.id} id={`page-${p.id}`} className="scroll-mt-20 rounded-md border border-border bg-card/70 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <a
