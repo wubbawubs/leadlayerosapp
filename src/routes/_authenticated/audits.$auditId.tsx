@@ -102,9 +102,10 @@ function AuditDetailPage() {
 
   const fetchV2List = useServerFn(listProposalV2ForAudit);
   const generateV2 = useServerFn(generateProposalV2ForAudit);
+  const [v2LatestOnly, setV2LatestOnly] = useState(true);
   const v2Query = useQuery({
-    queryKey: ["proposal-v2", auditId],
-    queryFn: () => fetchV2List({ data: { auditId } }),
+    queryKey: ["proposal-v2", auditId, v2LatestOnly],
+    queryFn: () => fetchV2List({ data: { auditId, latestRunOnly: v2LatestOnly } }),
     enabled: q.data?.audit?.status === "succeeded",
   });
   const v2Mutation = useMutation({
@@ -445,14 +446,37 @@ function AuditDetailPage() {
       {/* Proposal V2 */}
       {audit.status === "succeeded" && (
         <section className="mt-10">
-          <div className="mb-3 flex items-baseline justify-between">
+          <div className="mb-3 flex items-baseline justify-between gap-3">
             <h2 className="font-display text-2xl text-foreground">
               Proposals <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-600">V2</span>
             </h2>
-            <span className="text-xs text-muted-foreground">
-              {v2Query.data?.proposals.length ?? 0} generated
-            </span>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span>
+                {v2Query.data?.proposals.length ?? 0} shown
+                {v2Query.data?.runs?.length
+                  ? ` · ${v2Query.data.runs.length} run${v2Query.data.runs.length > 1 ? "s" : ""}`
+                  : ""}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setV2LatestOnly((v) => !v);
+                  qc.invalidateQueries({ queryKey: ["proposal-v2", auditId] });
+                }}
+                className="rounded border border-border bg-card px-2 py-1 text-[11px] hover:bg-muted"
+              >
+                {v2LatestOnly ? "Show all runs" : "Show latest run only"}
+              </button>
+            </div>
           </div>
+          {v2LatestOnly && v2Query.data?.latestRunId && (
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              Latest run: <span className="font-mono">{v2Query.data.latestRunId.slice(0, 8)}</span>
+              {v2Query.data.runs?.[0]?.createdAt
+                ? ` · ${new Date(v2Query.data.runs[0].createdAt).toLocaleString()}`
+                : ""}
+            </p>
+          )}
           {(!v2Query.data || v2Query.data.proposals.length === 0) && (
             <p className="text-sm text-muted-foreground">
               No V2 proposals yet. Click "Generate V2 proposals" above.
@@ -722,6 +746,8 @@ interface V2Proposal {
   publishable: boolean;
   modelUsed: string;
   createdAt: string;
+  proposalRunId: string | null;
+  blockReason: string | null;
 }
 
 function ProposalV2Card({ p }: { p: V2Proposal }) {
@@ -813,6 +839,11 @@ function ProposalV2Card({ p }: { p: V2Proposal }) {
           </span>
         )}
       </div>
+      {p.blockReason && (
+        <div className="mt-2 rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[11px] text-amber-700">
+          {p.blockReason}
+        </div>
+      )}
       {p.riskFlags.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {p.riskFlags.map((f) => (
@@ -868,6 +899,7 @@ function ProposalV2Card({ p }: { p: V2Proposal }) {
           )}
           <p className="text-[10px] text-muted-foreground">
             model: {p.modelUsed} · {new Date(p.createdAt).toLocaleString()}
+            {p.proposalRunId ? ` · run ${p.proposalRunId.slice(0, 8)}` : ""}
           </p>
         </div>
       )}
