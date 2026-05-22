@@ -283,50 +283,95 @@ export async function analyzePageIntelligenceForAudit({
     let row: Record<string, unknown>;
     if (result.ok) {
       const d = result.data;
+
+      // --- Post-LLM normalization ---
+      let pageType = d.pageType;
+      let intent = d.intent;
+      let funnelStage = d.funnelStage;
+      let commercialPriority = d.commercialPriority;
+      let seoRole = d.seoRole;
+      let recommendedCTA = d.recommendedCTA;
+      const missingCtx = [...(d.missingPageContext ?? [])];
+
+      // Content beats URL: title/H1 strongly says service → override "about".
+      if (pageType === "about" && looksLikeServiceContent(page)) {
+        pageType = "service";
+        if (intent === "informational") intent = "trust";
+        if (commercialPriority === "low" || commercialPriority === "medium") {
+          commercialPriority = "high";
+        }
+        if (!seoRole) seoRole = "trust_page";
+        missingCtx.push({
+          missing: "content_beats_url_override",
+          impact: "URL hinted 'about' but title/H1 indicate a service/offer page.",
+        });
+      }
+
+      // Process / werkwijze pages must land as service / trust / high.
+      if (isProcessPage(page.url)) {
+        if (pageType !== "service") pageType = "service";
+        if (intent !== "trust" && intent !== "commercial") intent = "trust";
+        if (!funnelStage) funnelStage = "consideration";
+        if (commercialPriority === "low") commercialPriority = "high";
+        if (!seoRole) seoRole = "trust_page";
+      }
+
+      // Hype-CTA cleanup for blog/low pages: drop ungrounded marketing fluff.
+      if (
+        pageType === "blog" &&
+        (commercialPriority === "low" || commercialPriority === "medium") &&
+        recommendedCTA &&
+        HYPE_CTA_RE.test(recommendedCTA)
+      ) {
+        missingCtx.push({
+          missing: "cta_stripped_hype",
+          impact: `Removed ungrounded hype CTA: "${recommendedCTA}"`,
+        });
+        recommendedCTA = "";
+      }
+
       analyzedCount++;
-      if (d.commercialPriority === "critical") criticalCount++;
-      if (d.commercialPriority === "high") highCount++;
+      if (commercialPriority === "critical") criticalCount++;
+      if (commercialPriority === "high") highCount++;
       row = {
         tenant_id: tenantId,
         audit_id: auditId,
         audit_page_id: page.id,
         page_id: page.page_id,
         page_url: page.url,
-        page_type: d.pageType,
-        intent: d.intent,
-        funnel_stage: d.funnelStage ?? null,
-        commercial_priority: d.commercialPriority,
-        seo_role: d.seoRole ?? null,
+        page_type: pageType,
+        intent,
+        funnel_stage: funnelStage ?? null,
+        commercial_priority: commercialPriority,
+        seo_role: seoRole ?? null,
         primary_topic: d.primaryTopic || null,
         content_summary: d.contentSummary || null,
         target_audience: d.targetAudience || null,
         desired_action: d.desiredAction || null,
-        recommended_cta: d.recommendedCTA || null,
+        recommended_cta: recommendedCTA || null,
         relevant_strategy_angle: d.relevantStrategyAngle || null,
         local_relevance: d.localRelevance ?? {},
         risk_flags: d.riskFlags ?? [],
-        missing_page_context: d.missingPageContext ?? [],
+        missing_page_context: missingCtx,
         confidence: d.confidence,
         source_evidence: d.sourceEvidence ?? [],
         model_used: MODEL,
         analyzed_at: new Date().toISOString(),
       };
     } else {
+      // --- Deterministic rule-based fallback (no generic other/low when we can do better) ---
       failedCount++;
+      const fb = ruleBasedFallback(page, hint, result.error);
+      if (fb.commercial_priority === "critical") criticalCount++;
+      if (fb.commercial_priority === "high") highCount++;
       row = {
         tenant_id: tenantId,
         audit_id: auditId,
         audit_page_id: page.id,
         page_id: page.page_id,
         page_url: page.url,
-        page_type: hint ?? "other",
-        intent: "informational",
-        commercial_priority: "low",
-        confidence: 0,
-        missing_page_context: [
-          { missing: "LLM classification failed", impact: result.error },
-        ],
-        model_used: MODEL,
+        ...fb,
+        model_used: `${MODEL} (fallback)`,
         analyzed_at: new Date().toISOString(),
       };
     }
