@@ -318,7 +318,7 @@ export async function analyzePageIntelligenceForAudit({
       if (uErr) {
         failedCount++;
         analyzedCount = Math.max(0, analyzedCount - 1);
-        console.error("page_intelligence upsert failed", uErr);
+        console.error("page_intelligence upsert failed", JSON.stringify(uErr), "row keys:", Object.keys(row));
       }
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
