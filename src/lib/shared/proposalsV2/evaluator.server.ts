@@ -255,10 +255,16 @@ export function evaluateProposalV2(
   const angleHit = angle ? text.toLowerCase().includes(angle.toLowerCase().slice(0, 30)) : false;
 
   // V2.3 conceptual cluster scoring (replaces token-only conceptHits).
-  const { count: clusters } = clusterHits(text, ctx.instructions.locale);
+  const { count: clusters, hit: clusterHit } = clusterHits(text, ctx.instructions.locale);
   const ctaHit =
     ctx.instructions.preferredCTA &&
     text.toLowerCase().includes(ctx.instructions.preferredCTA.toLowerCase().slice(0, 20));
+
+  // Treat BP as present when readiness says so, even if strict parse failed.
+  const bpPresent =
+    !!biz ||
+    (ctx.readiness.breakdown?.business_profile ?? 0) > 0 ||
+    !(ctx.readiness.missing ?? []).includes("business_profile");
 
   // Base business/offer fit. Heavy bonus when 3+ clusters land on a
   // commercial page; cap at 6 when content is generic.
@@ -266,7 +272,7 @@ export function evaluateProposalV2(
     page?.pageType === "homepage" || page?.pageType === "service" || page?.commercialPriority === "high" || page?.commercialPriority === "critical";
   let businessFit: number;
   let offerFit: number;
-  if (!biz) {
+  if (!bpPresent) {
     businessFit = 5;
     offerFit = 5;
   } else if (clusters >= 3 && commercialPage) {
@@ -279,9 +285,16 @@ export function evaluateProposalV2(
     businessFit = 5 + (angleHit ? 1 : 0);
     offerFit = 5;
   }
+  // If offer-mechanism + promise clusters both land, lift offerFit floor.
+  if (clusterHit.includes("mechanism") && clusterHit.includes("promise") && offerFit < 7) {
+    offerFit = 7;
+  }
   if (forbiddenClaimHits.length > 0) {
     businessFit -= 4;
     offerFit -= 4;
+  }
+  if (clusterHit.length > 0) {
+    riskFlags.push(`debug:clusters=${clusterHit.join("+")}`);
   }
 
   const scores: ProposalV2Scores = {
