@@ -27,6 +27,11 @@ import {
   SECTION_KEYS,
   type SectionKey,
 } from "./schemas";
+import {
+  filterCtaCandidates,
+  getBusinessProfileDefaults,
+  type SourceType,
+} from "./defaults.server";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const admin = supabaseAdmin as any;
@@ -41,10 +46,15 @@ const EvidenceSchema = z.object({
   reason: z.string().max(500).default(""),
 });
 
+const SourceTypeSchema = z
+  .enum(["evidence_based", "inferred", "recommended", "missing"])
+  .default("evidence_based");
+
 const FieldSuggestionSchema = z.object({
-  fieldPath: z.string().min(1).max(160), // e.g. "offer_profile.primaryOffer"
+  fieldPath: z.string().min(1).max(160),
   suggestedValue: z.any(),
   confidence: z.number().min(0).max(1),
+  sourceType: SourceTypeSchema,
   rationale: z.string().max(800).default(""),
   sourceEvidence: z.array(EvidenceSchema).max(8).default([]),
 });
@@ -57,7 +67,7 @@ const SectionReasonSchema = z.object({
 });
 
 const ExtractionResultSchema = z.object({
-  fieldSuggestions: z.array(FieldSuggestionSchema).max(80).default([]),
+  fieldSuggestions: z.array(FieldSuggestionSchema).max(120).default([]),
   sectionConfidence: z.record(z.string(), z.number().min(0).max(1)).default({}),
   overallConfidence: z.number().min(0).max(1).default(0),
 });
@@ -69,7 +79,7 @@ const StrategyResultSchema = z.object({
 });
 
 const AnalysisResultSchema = z.object({
-  fieldSuggestions: z.array(FieldSuggestionSchema).max(80).default([]),
+  fieldSuggestions: z.array(FieldSuggestionSchema).max(120).default([]),
   strategyAngles: z.array(StrategyAngleSchema).max(12).default([]),
   missingContext: z.array(MissingContextItemSchema).max(20).default([]),
   sectionConfidence: z.record(z.string(), z.number().min(0).max(1)).default({}),
@@ -78,6 +88,25 @@ const AnalysisResultSchema = z.object({
 });
 
 type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
+type FieldSuggestion = z.infer<typeof FieldSuggestionSchema>;
+
+function classifySuggestion(s: { sourceType: SourceType; confidence: number }): {
+  requiresReview: boolean;
+  canUseInProposals: boolean;
+} {
+  const c = s.confidence;
+  switch (s.sourceType) {
+    case "evidence_based":
+      return { requiresReview: c < 0.75, canUseInProposals: c >= 0.75 };
+    case "inferred":
+      return { requiresReview: true, canUseInProposals: c >= 0.65 };
+    case "recommended":
+      return { requiresReview: true, canUseInProposals: false };
+    case "missing":
+    default:
+      return { requiresReview: true, canUseInProposals: false };
+  }
+}
 
 
 // ----------------------------------------------------------------------------
