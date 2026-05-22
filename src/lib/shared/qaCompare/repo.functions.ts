@@ -122,18 +122,22 @@ export const buildComparisonSetForAudit = createServerFn({ method: "POST" })
       if (!v1Index.has(key)) v1Index.set(key, r.id);
     }
 
-    // Existing comparisons to avoid duplicate unreviewed rows / preserve reviewed ones.
+    // Existing comparisons — key on proposal_v2_id so each V2 run gets its own row.
+    // forceRefresh has no effect on already-reviewed historical rows; old rows
+    // for previous proposal_v2_ids are preserved as historical feedback.
     const { data: existing } = await supabaseAdmin
       .from("proposal_comparisons")
-      .select("id, page_id, issue_id, winner")
+      .select("id, proposal_v2_id, winner")
       .eq("audit_id", data.auditId)
       .eq("tenant_id", audit.tenant_id);
-    const existingMap = new Map<string, { id: string; winner: string }>();
+    const existingByV2 = new Map<string, { id: string; winner: string }>();
     for (const e of existing ?? []) {
-      existingMap.set(`${e.page_id}::${e.issue_id}`, {
-        id: e.id as string,
-        winner: e.winner as string,
-      });
+      if (e.proposal_v2_id) {
+        existingByV2.set(e.proposal_v2_id as string, {
+          id: e.id as string,
+          winner: e.winner as string,
+        });
+      }
     }
 
     let created = 0;
@@ -144,6 +148,8 @@ export const buildComparisonSetForAudit = createServerFn({ method: "POST" })
       const actionType = r.action_type as string;
       const pageId = r.page_id as string;
       const issueId = r.issue_id as string;
+      const v2Id = r.id as string;
+      const v2RunId = (r.proposal_run_id as string | null) ?? null;
       const v1Aliases = V2_TO_V1[actionType] ?? [];
       let v1Id: string | null = null;
       for (const alias of v1Aliases) {
@@ -155,24 +161,22 @@ export const buildComparisonSetForAudit = createServerFn({ method: "POST" })
         }
       }
 
-      const key = `${pageId}::${issueId}`;
-      const ex = existingMap.get(key);
+      const ex = existingByV2.get(v2Id);
       if (ex) {
-        if (ex.winner !== "unreviewed" && !data.forceRefresh) {
-          skipped++;
-          continue;
-        }
+        // Same V2 proposal as before — keep review state, just refresh metadata.
         const { error: uErr } = await supabaseAdmin
           .from("proposal_comparisons")
           .update({
             proposal_v1_id: v1Id,
-            proposal_v2_id: r.id as string,
             action_type: actionType,
+            v2_run_id: v2RunId,
           })
           .eq("id", ex.id);
         if (uErr) throw uErr;
-        updated++;
+        if (ex.winner === "unreviewed") updated++;
+        else skipped++;
       } else {
+        // New V2 proposal (different ID after regeneration) — fresh unreviewed row.
         const { error: iErr } = await supabaseAdmin.from("proposal_comparisons").insert({
           tenant_id: audit.tenant_id,
           audit_id: data.auditId,
@@ -180,7 +184,12 @@ export const buildComparisonSetForAudit = createServerFn({ method: "POST" })
           issue_id: issueId,
           action_type: actionType,
           proposal_v1_id: v1Id,
-          proposal_v2_id: r.id as string,
+          proposal_v2_id: v2Id,
+          v2_run_id: v2RunId,
+          winner: "unreviewed",
+          reason_tags: [],
+          notes: null,
+          score_mismatch: false,
         });
         if (iErr) throw iErr;
         created++;
