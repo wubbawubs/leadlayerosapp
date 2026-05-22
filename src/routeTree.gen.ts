@@ -17,6 +17,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedSitesIndexRouteImport } from './routes/_authenticated/sites.index'
+import { Route as ApiPublicRunAnalyzerJobRouteImport } from './routes/api/public/run-analyzer-job'
 import { Route as AuthenticatedSitesNewRouteImport } from './routes/_authenticated/sites.new'
 import { Route as AuthenticatedSettingsToneProfileRouteImport } from './routes/_authenticated/settings.tone-profile'
 import { Route as AuthenticatedSettingsBusinessProfileRouteImport } from './routes/_authenticated/settings.business-profile'
@@ -67,6 +68,11 @@ const AuthenticatedSitesIndexRoute = AuthenticatedSitesIndexRouteImport.update({
   id: '/sites/',
   path: '/sites/',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const ApiPublicRunAnalyzerJobRoute = ApiPublicRunAnalyzerJobRouteImport.update({
+  id: '/api/public/run-analyzer-job',
+  path: '/api/public/run-analyzer-job',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedSitesNewRoute = AuthenticatedSitesNewRouteImport.update({
   id: '/sites/new',
@@ -148,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
   '/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
+  '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
   '/sites/': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
@@ -168,6 +175,7 @@ export interface FileRoutesByTo {
   '/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
   '/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
+  '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
   '/sites': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
@@ -190,6 +198,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
   '/_authenticated/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
+  '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
   '/_authenticated/sites/': typeof AuthenticatedSitesIndexRoute
   '/_authenticated/audits/$auditId_/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/_authenticated/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
@@ -212,6 +221,7 @@ export interface FileRouteTypes {
     | '/settings/business-profile'
     | '/settings/tone-profile'
     | '/sites/new'
+    | '/api/public/run-analyzer-job'
     | '/sites/'
     | '/audits/$auditId/proposals'
     | '/sites/$siteId/audits'
@@ -232,6 +242,7 @@ export interface FileRouteTypes {
     | '/settings/business-profile'
     | '/settings/tone-profile'
     | '/sites/new'
+    | '/api/public/run-analyzer-job'
     | '/sites'
     | '/audits/$auditId/proposals'
     | '/sites/$siteId/audits'
@@ -253,6 +264,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/business-profile'
     | '/_authenticated/settings/tone-profile'
     | '/_authenticated/sites/new'
+    | '/api/public/run-analyzer-job'
     | '/_authenticated/sites/'
     | '/_authenticated/audits/$auditId_/proposals'
     | '/_authenticated/sites/$siteId/audits'
@@ -265,6 +277,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  ApiPublicRunAnalyzerJobRoute: typeof ApiPublicRunAnalyzerJobRoute
   ApiPublicWpcomCallbackRoute: typeof ApiPublicWpcomCallbackRoute
 }
 
@@ -325,6 +338,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/sites/'
       preLoaderRoute: typeof AuthenticatedSitesIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/public/run-analyzer-job': {
+      id: '/api/public/run-analyzer-job'
+      path: '/api/public/run-analyzer-job'
+      fullPath: '/api/public/run-analyzer-job'
+      preLoaderRoute: typeof ApiPublicRunAnalyzerJobRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/sites/new': {
       id: '/_authenticated/sites/new'
@@ -462,6 +482,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  ApiPublicRunAnalyzerJobRoute: ApiPublicRunAnalyzerJobRoute,
   ApiPublicWpcomCallbackRoute: ApiPublicWpcomCallbackRoute,
 }
 export const routeTree = rootRouteImport

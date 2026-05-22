@@ -201,6 +201,56 @@ export type Database = {
         }
         Relationships: []
       }
+      business_profile_analyzer_jobs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          result: Json
+          stage: string
+          started_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          result?: Json
+          stage?: string
+          started_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          result?: Json
+          stage?: string
+          started_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_profile_analyzer_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_profile_feedback: {
         Row: {
           after_value: Json | null

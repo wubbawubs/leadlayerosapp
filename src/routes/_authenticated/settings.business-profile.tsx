@@ -15,7 +15,9 @@ import {
   acceptBusinessProfileSuggestion,
   rejectBusinessProfileSuggestion,
   editAndAcceptBusinessProfileSuggestion,
-  analyzeBusinessProfileFromWebsiteFn,
+  startAnalyzerJob,
+  getAnalyzerJob,
+
 } from "@/lib/shared/businessProfile/repo.functions";
 import {
   BusinessProfileSchema,
@@ -67,7 +69,9 @@ function BusinessProfilePage() {
   const acceptSuggestion = useServerFn(acceptBusinessProfileSuggestion);
   const rejectSuggestion = useServerFn(rejectBusinessProfileSuggestion);
   const editAcceptSuggestion = useServerFn(editAndAcceptBusinessProfileSuggestion);
-  const analyzeFromWebsite = useServerFn(analyzeBusinessProfileFromWebsiteFn);
+  const startJob = useServerFn(startAnalyzerJob);
+  const fetchJob = useServerFn(getAnalyzerJob);
+
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
@@ -156,20 +160,74 @@ function BusinessProfilePage() {
   });
   const suggestions = (suggestionsQuery.data?.suggestions ?? []) as Suggestion[];
 
-  const analyzeMutation = useMutation({
-    mutationFn: async () => {
-      if (!tenantId) throw new Error("Geen tenant");
-      return analyzeFromWebsite({ data: { tenantId } });
+  // Async analyzer job: start -> poll -> invalidate. Persists jobId in
+  // sessionStorage so a refresh during a 2-3 min run resumes polling.
+  const jobStorageKey = tenantId ? `bp-analyzer-job:${tenantId}` : null;
+  const [jobId, setJobId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!jobStorageKey) return;
+    const stored = sessionStorage.getItem(jobStorageKey);
+    if (stored) setJobId(stored);
+    else setJobId(null);
+  }, [jobStorageKey]);
+
+  const jobQuery = useQuery({
+    queryKey: ["bp-analyzer-job", jobId],
+    queryFn: () => fetchJob({ data: { jobId: jobId! } }),
+    enabled: !!jobId,
+    refetchInterval: (q) => {
+      const s = q.state.data?.status;
+      return s === "succeeded" || s === "failed" ? false : 2000;
     },
-    onSuccess: (r) => {
+  });
+  const job = jobQuery.data;
+  const jobActive = job?.status === "queued" || job?.status === "running";
+
+  useEffect(() => {
+    if (!job || !jobStorageKey) return;
+    if (job.status === "succeeded") {
       setMsg(
-        `Analyzer klaar: ${r.suggestionsCreated} suggesties (${r.observedPages} pagina's geanalyseerd, ${r.blockedByLock} geblokkeerd door lock).`,
+        `Analyzer klaar: ${job.result.suggestionsCreated} suggesties uit ${job.result.observedPages} pagina's.`,
       );
       qc.invalidateQueries({ queryKey: ["bp-suggestions", tenantId] });
       qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] });
+      sessionStorage.removeItem(jobStorageKey);
+    } else if (job.status === "failed") {
+      setMsg(`Analyzer fout: ${job.errorMessage ?? "onbekende fout"}`);
+      sessionStorage.removeItem(jobStorageKey);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.status]);
+
+  const stageCopy: Record<string, string> = {
+    queued: "Analyse klaarzetten…",
+    crawl: "Pagina's ophalen…",
+    stage_a: "Feiten extraheren…",
+    stage_b: "Strategie bepalen…",
+    persist: "Suggesties opslaan…",
+    done: "Afronden…",
+  };
+
+  const stuck =
+    job?.status === "running" &&
+    !!job.startedAt &&
+    Date.now() - new Date(job.startedAt).getTime() > 5 * 60 * 1000;
+
+  const analyzeMutation = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error("Geen tenant");
+      return startJob({ data: { tenantId } });
+    },
+    onSuccess: (r) => {
+      if (!jobStorageKey) return;
+      sessionStorage.setItem(jobStorageKey, r.jobId);
+      setJobId(r.jobId);
+      setMsg(r.reused ? "Bestaande analyse hervat…" : "Analyse gestart…");
     },
     onError: (e) => setMsg(`Analyzer fout: ${(e as Error).message}`),
   });
+
+
 
   const acceptMutation = useMutation({
     mutationFn: async (input: { suggestionId: string; lockAfter?: boolean }) => {
@@ -322,12 +380,22 @@ function BusinessProfilePage() {
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => analyzeMutation.mutate()}
-                disabled={analyzeMutation.isPending || !tenantId}
+                disabled={analyzeMutation.isPending || jobActive || !tenantId}
                 className="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
                 title="AI analyseert geauditeerde pagina's en stelt invullingen voor"
               >
-                {analyzeMutation.isPending ? "Analyseren…" : "Generate from website"}
+                {jobActive
+                  ? (stageCopy[job!.stage] ?? "Analyseren…")
+                  : analyzeMutation.isPending
+                    ? "Analyse starten…"
+                    : "Generate from website"}
               </button>
+              {stuck && (
+                <span className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+                  Analyse lijkt vast te lopen — probeer opnieuw
+                </span>
+              )}
+
               <button
                 onClick={() => saveMutation.mutate(undefined)}
                 disabled={saveMutation.isPending || !tenantId}

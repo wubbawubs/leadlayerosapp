@@ -577,13 +577,23 @@ export interface AnalyzerResult {
   blockedByLock: number;
   observedPages: number;
   overallConfidence: number;
+  durationMs: number;
 }
+
+
+export type AnalyzerStage = "crawl" | "stage_a" | "stage_b" | "persist" | "done";
 
 export async function analyzeBusinessProfileFromWebsite(input: {
   tenantId: string;
+  jobId?: string;
+  onStageChange?: (stage: AnalyzerStage) => Promise<void> | void;
 }): Promise<AnalyzerResult> {
+  const onStage = input.onStageChange ?? (async () => {});
+  const startedAt = Date.now();
   try {
   const { tenantId } = input;
+  await onStage("crawl");
+
 
   // 1. Load current profile + locks
   const { data: currentProfile } = await admin
@@ -646,11 +656,13 @@ export async function analyzeBusinessProfileFromWebsite(input: {
   const systemMsg =
     "Je bent een growth-strateeg die websitecontent vertaalt naar een gestructureerd business profile. Je verzint NOOIT bewijs. Je respecteert het Tone Profile letterlijk. Output uitsluitend valide JSON.";
 
+  await onStage("stage_a");
   // Stage A — feiten-extractie (grootste payload, krijgt ruim budget)
   const llmA = await llmComplete({
     task: "cheap",
     system: systemMsg,
     prompt: buildExtractionPrompt(promptInput),
+
     temperature: 0.2,
     maxTokens: 6000,
     jsonMode: true,
@@ -665,11 +677,13 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     throw new Error(`Analyzer Stage A JSON ongeldig: ${(e as Error).message}`);
   }
 
+  await onStage("stage_b");
   // Stage B — strategie + missing context + sectionReasons (kleinere payload, sneller)
   const llmB = await llmComplete({
     task: "cheap",
     system: systemMsg,
     prompt: buildStrategyPrompt(promptInput, extraction),
+
     temperature: 0.3,
     maxTokens: 3500,
     jsonMode: true,
@@ -720,8 +734,9 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     sectionReasons: strategy.sectionReasons,
   };
 
-
+  await onStage("persist");
   // 5. Ensure profile row exists (so suggestions can reference it)
+
   if (!currentProfile) {
     await admin.from("business_profiles_v2").upsert(
       { tenant_id: tenantId, status: "draft" },
@@ -869,13 +884,16 @@ export async function analyzeBusinessProfileFromWebsite(input: {
   });
 
 
+  await onStage("done");
   return {
     ok: true,
     suggestionsCreated: rows.length,
     blockedByLock,
     observedPages: observed.length,
     overallConfidence: parsed.overallConfidence,
+    durationMs: Date.now() - startedAt,
   };
+
   } catch (error) {
     console.error("[bp-2] analyze failed", error);
     throw normalizeAnalyzerError(error);
