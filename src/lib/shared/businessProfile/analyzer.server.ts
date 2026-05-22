@@ -675,11 +675,13 @@ export async function analyzeBusinessProfileFromWebsite(input: {
     throw new Error(`Analyzer Stage A JSON ongeldig: ${(e as Error).message}`);
   }
 
+  await onStage("stage_b");
   // Stage B — strategie + missing context + sectionReasons (kleinere payload, sneller)
   const llmB = await llmComplete({
     task: "cheap",
     system: systemMsg,
     prompt: buildStrategyPrompt(promptInput, extraction),
+
     temperature: 0.3,
     maxTokens: 3500,
     jsonMode: true,
