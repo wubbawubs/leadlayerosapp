@@ -346,6 +346,11 @@ export function evaluateProposalV2(
   if (clusterHit.length > 0) {
     riskFlags.push(`debug:clusters=${clusterHit.join("+")}`);
   }
+  // Soft debug signal: BP hydrated + plenty of clusters but fit still low →
+  // likely evaluator/score mismatch worth a human look. Does not change verdict.
+  if (bpPresent && clusterHit.length >= 3 && (businessFit < 7 || offerFit < 7)) {
+    riskFlags.push("possible_score_mismatch:business_offer_fit");
+  }
 
   const scores: ProposalV2Scores = {
     seoFit: clamp(6 + (output.keywordsUsed.length > 0 ? 2 : 0) + (page ? 1 : -1)),
