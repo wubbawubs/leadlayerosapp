@@ -227,6 +227,90 @@ function AuditDetailPage() {
         </section>
       )}
 
+      {/* Page intelligence overview */}
+      {piByAuditPage.size > 0 && (
+        <section className="mb-10">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="font-display text-2xl text-foreground">Page intelligence</h2>
+            <span className="text-xs text-muted-foreground">
+              {piByAuditPage.size} of {pages.length} pages classified
+            </span>
+          </div>
+          <div className="overflow-x-auto rounded-md border border-border bg-card/70">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/40 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-semibold">URL</th>
+                  <th className="px-3 py-2 font-semibold">Type</th>
+                  <th className="px-3 py-2 font-semibold">Intent</th>
+                  <th className="px-3 py-2 font-semibold">Priority</th>
+                  <th className="px-3 py-2 font-semibold">Topic</th>
+                  <th className="px-3 py-2 font-semibold">CTA</th>
+                  <th className="px-3 py-2 font-semibold text-right">Risks</th>
+                  <th className="px-3 py-2 font-semibold text-right">Conf</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pages.map((p) => {
+                  const pi = piByAuditPage.get(p.id);
+                  if (!pi) return null;
+                  const path = (() => {
+                    try {
+                      return new URL(p.url).pathname || "/";
+                    } catch {
+                      return p.url;
+                    }
+                  })();
+                  return (
+                    <tr key={p.id} className="border-t border-border/60 align-top">
+                      <td className="px-3 py-2">
+                        <a
+                          href={p.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-mono text-foreground hover:underline"
+                          title={p.url}
+                        >
+                          {path}
+                        </a>
+                      </td>
+                      <td className="px-3 py-2">
+                        <PiBadge variant="type">{pi.page_type}</PiBadge>
+                      </td>
+                      <td className="px-3 py-2">
+                        <PiBadge variant="intent">{pi.intent}</PiBadge>
+                      </td>
+                      <td className="px-3 py-2">
+                        <PiBadge variant={priorityVariant(pi.commercial_priority)}>
+                          {pi.commercial_priority}
+                        </PiBadge>
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground max-w-[200px]">
+                        <span className="line-clamp-2">{pi.primary_topic || "—"}</span>
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground max-w-[200px]">
+                        <span className="line-clamp-2">{pi.recommended_cta || "—"}</span>
+                      </td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">
+                        {pi.risk_flags?.length ?? 0}
+                      </td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">
+                        {Math.round((pi.confidence ?? 0) * 100)}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Klik per pagina hieronder op "Details" voor volledige analyse (audience, strategie, risks, evidence).
+          </p>
+        </section>
+      )}
+
+
+
       {/* Pages */}
       <section>
         <h2 className="mb-3 font-display text-2xl text-foreground">Pages</h2>
