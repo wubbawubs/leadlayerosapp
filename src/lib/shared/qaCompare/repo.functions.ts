@@ -415,6 +415,12 @@ export const listProposalComparisons = createServerFn({ method: "POST" })
 
     return {
       items,
+      runs: {
+        latestRunId,
+        selectedRunId,
+        availableRuns,
+        showingAllRuns: !!data.allRuns,
+      },
       summary: {
         total,
         reviewed,
