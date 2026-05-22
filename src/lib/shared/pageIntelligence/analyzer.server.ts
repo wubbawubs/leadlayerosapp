@@ -41,6 +41,40 @@ interface AnalyzeSummary {
   highCount: number;
 }
 
+async function clearExistingPageIntelligence(
+  tenantId: string,
+  auditId: string,
+  pages: AuditPageRow[],
+) {
+  const auditPageIds = pages.map((p) => p.id).filter(Boolean);
+  const pageIds = pages.map((p) => p.page_id).filter((id): id is string => !!id);
+
+  const { error: auditErr } = await supabaseAdmin
+    .from("page_intelligence")
+    .delete()
+    .eq("tenant_id", tenantId)
+    .eq("audit_id", auditId);
+  if (auditErr) throw auditErr;
+
+  if (auditPageIds.length > 0) {
+    const { error } = await supabaseAdmin
+      .from("page_intelligence")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .in("audit_page_id", auditPageIds);
+    if (error) throw error;
+  }
+
+  if (pageIds.length > 0) {
+    const { error } = await supabaseAdmin
+      .from("page_intelligence")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .in("page_id", pageIds);
+    if (error) throw error;
+  }
+}
+
 /* ---------------- deterministic hints ---------------- */
 
 const PROCESS_URL_RE = /\/(werkwijze|hoe-het-werkt|how-it-works|method|process|aanpak)(?:\/|$)/;
@@ -313,6 +347,10 @@ export async function analyzePageIntelligenceForAudit({
   if (pErr) throw pErr;
   const allPages = (rawPages ?? []) as AuditPageRow[];
 
+  if (forceRefresh) {
+    await clearExistingPageIntelligence(tenantId, auditId, allPages);
+  }
+
   // Filter low-value, dedupe by URL
   const seen = new Set<string>();
   const candidates: Array<{ page: AuditPageRow; hint: PageType | null }> = [];
@@ -332,14 +370,27 @@ export async function analyzePageIntelligenceForAudit({
   let toAnalyze = selected;
   if (!forceRefresh) {
     const pageIds = selected.map((c) => c.page.page_id).filter((id): id is string => !!id);
-    if (pageIds.length > 0) {
+    const auditPageIds = selected.map((c) => c.page.id);
+    if (pageIds.length > 0 || auditPageIds.length > 0) {
       const { data: existing } = await supabaseAdmin
         .from("page_intelligence")
-        .select("page_id")
+        .select("page_id, audit_page_id")
         .eq("tenant_id", tenantId)
-        .in("page_id", pageIds);
+        .or(
+          [
+            pageIds.length > 0 ? `page_id.in.(${pageIds.join(",")})` : null,
+            auditPageIds.length > 0 ? `audit_page_id.in.(${auditPageIds.join(",")})` : null,
+          ]
+            .filter(Boolean)
+            .join(","),
+        );
       const existingSet = new Set((existing ?? []).map((r) => r.page_id));
-      toAnalyze = selected.filter((c) => !c.page.page_id || !existingSet.has(c.page.page_id));
+      const existingAuditPageSet = new Set((existing ?? []).map((r) => r.audit_page_id));
+      toAnalyze = selected.filter(
+        (c) =>
+          !existingAuditPageSet.has(c.page.id) &&
+          (!c.page.page_id || !existingSet.has(c.page.page_id)),
+      );
     }
   }
 
