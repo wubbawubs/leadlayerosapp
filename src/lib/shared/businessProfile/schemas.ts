@@ -6,21 +6,52 @@ import { z } from "zod";
 
 const StrArr = z.array(z.string().trim().min(1).max(400)).max(60);
 
+function looseEnum<T extends [string, ...string[]]>(
+  values: T,
+  fallback: T[number],
+  aliases: Record<string, T[number]> = {},
+) {
+  return z.preprocess((value) => {
+    if (value == null || value === "") return fallback;
+    if (typeof value !== "string") return value;
+    const key = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (aliases[key]) return aliases[key];
+    return (values as readonly string[]).includes(key) ? key : fallback;
+  }, z.enum(values)).default(fallback);
+}
+
 export const BusinessIdentitySchema = z
   .object({
     businessName: z.string().trim().max(200).optional().default(""),
     brandName: z.string().trim().max(200).optional().default(""),
     industry: z.string().trim().max(200).optional().default(""),
     vertical: z.string().trim().max(120).optional().default(""),
-    businessType: z
-      .enum(["local_service", "ecommerce", "b2b_service", "professional_service", "other"])
-      .optional()
-      .default("other"),
-    language: z.string().trim().max(32).optional().default("nl"),
-    country: z.string().trim().max(8).optional().default("NL"),
+    businessType: looseEnum(
+      ["local_service", "ecommerce", "b2b_service", "professional_service", "other"],
+      "other",
+      {
+        dienstverlener: "professional_service",
+        service: "professional_service",
+        services: "professional_service",
+        service_provider: "professional_service",
+        zakelijke_dienstverlening: "b2b_service",
+        b2b: "b2b_service",
+        lokaal: "local_service",
+        lokale_dienst: "local_service",
+        webshop: "ecommerce",
+      },
+    ),
+    language: z.string().trim().max(80).optional().default("nl"),
+    country: z.string().trim().max(80).optional().default("NL"),
     websiteUrl: z.string().trim().max(500).optional().default(""),
     shortDescription: z.string().trim().max(800).optional().default(""),
-    maturity: z.enum(["new", "growing", "established", "unknown"]).optional().default("unknown"),
+    maturity: looseEnum(["new", "growing", "established", "unknown"], "unknown", {
+      nieuw: "new",
+      groeiend: "growing",
+      volwassen: "established",
+      gevestigd: "established",
+      onbekend: "unknown",
+    }),
   })
   .partial()
   .default({});
@@ -37,7 +68,11 @@ export const OfferProfileSchema = z
     uniqueValueProposition: z.string().trim().max(500).optional().default(""),
     pricingContext: z.string().trim().max(500).optional().default(""),
     capacityConstraints: z.string().trim().max(500).optional().default(""),
-    offerMaturity: z.enum(["unclear", "basic", "strong"]).optional().default("unclear"),
+    offerMaturity: looseEnum(["unclear", "basic", "strong"], "unclear", {
+      onduidelijk: "unclear",
+      basis: "basic",
+      sterk: "strong",
+    }),
   })
   .partial()
   .default({});
@@ -62,10 +97,19 @@ export const LocationProfileSchema = z
     primaryLocation: z.string().trim().max(200).optional().default(""),
     serviceAreas: StrArr.optional().default([]),
     excludedAreas: StrArr.optional().default([]),
-    regionType: z
-      .enum(["city", "region", "province", "national", "multi_location", "unknown"])
-      .optional()
-      .default("unknown"),
+    regionType: looseEnum(
+      ["city", "region", "province", "national", "multi_location", "unknown"],
+      "unknown",
+      {
+        stad: "city",
+        regio: "region",
+        provincie: "province",
+        landelijk: "national",
+        nationaal: "national",
+        meerdere_locaties: "multi_location",
+        onbekend: "unknown",
+      },
+    ),
     localSearchPatterns: StrArr.optional().default([]),
     locationPageOpportunities: StrArr.optional().default([]),
     localeNotes: StrArr.optional().default([]),
@@ -121,7 +165,13 @@ export const StrategyAngleSchema = z.object({
   score: z.number().min(0).max(10).optional().default(5),
   why: z.string().trim().max(800).optional().default(""),
   bestFor: StrArr.optional().default([]),
-  riskLevel: z.enum(["low", "medium", "high"]).optional().default("low"),
+  riskLevel: looseEnum(["low", "medium", "high"], "low", {
+    laag: "low",
+    gemiddeld: "medium",
+    middel: "medium",
+    medium_risk: "medium",
+    hoog: "high",
+  }),
   isPrimary: z.boolean().optional().default(false),
 });
 
@@ -129,7 +179,12 @@ export const MissingContextItemSchema = z.object({
   missing: z.string().trim().min(1).max(400),
   impact: z.string().trim().max(600).optional().default(""),
   recommendedQuestion: z.string().trim().max(400).optional().default(""),
-  priority: z.enum(["low", "medium", "high"]).optional().default("medium"),
+  priority: looseEnum(["low", "medium", "high"], "medium", {
+    laag: "low",
+    gemiddeld: "medium",
+    middel: "medium",
+    hoog: "high",
+  }),
   answer: z.string().trim().max(2000).optional().default(""),
   mapToField: z.string().trim().max(160).optional().default(""),
   resolvedAt: z.string().optional().default(""),
