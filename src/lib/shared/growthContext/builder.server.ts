@@ -169,6 +169,13 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
   };
 
   // ----- Readiness -----
+  // BP presence is based on raw row, not on strict parse — schema drift must
+  // not block proposals when a profile clearly exists.
+  const bpRow = bpRes.data as Record<string, unknown> | null;
+  const bpExists = !!bpRow;
+  const bpFullyTrusted =
+    bpExists && (businessStatus === "approved" || businessStatus === "review_ready");
+
   const breakdown: Record<string, number> = {
     business_profile: 0,
     tone_profile: 0,
@@ -179,13 +186,16 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
   const missing: string[] = [];
   const warnings: string[] = [];
 
-  if (business && (businessStatus === "approved" || businessStatus === "review_ready")) {
+  if (bpFullyTrusted) {
     breakdown.business_profile = 2.5;
-  } else if (business) {
-    breakdown.business_profile = 1.2;
+  } else if (bpExists) {
+    breakdown.business_profile = 1.8;
     warnings.push(`business_profile is '${businessStatus}', not approved`);
   } else {
     missing.push("business_profile");
+  }
+  if (bpExists && !business) {
+    warnings.push("business_profile present but failed strict schema parse");
   }
 
   if (tone && toneStatus === "approved") {
@@ -210,6 +220,7 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
 
   const preferredCTA =
     (business?.conversion_profile?.primaryCta as string | undefined) ??
+    ((bpRow?.conversion_profile as { primaryCta?: string } | undefined)?.primaryCta) ??
     (pi?.recommended_cta as string | undefined) ??
     "";
   if (preferredCTA) {
@@ -225,16 +236,20 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
     breakdown.claim_guardrails +
     breakdown.conversion_context;
 
-  // Schema/proof sensitivity
-  if (
-    action.actionType === "propose_schema" &&
-    !(business?.proof_profile?.verifiedProofPoints as string[] | undefined)?.length
-  ) {
+  // Schema/proof sensitivity — schema needs *verified* proof, not just any BP.
+  const verifiedProof =
+    (business?.proof_profile?.verifiedProofPoints as unknown[] | undefined) ??
+    ((bpRow?.proof_profile as { verifiedProofPoints?: unknown[] } | undefined)?.verifiedProofPoints);
+  const hasVerifiedProof = Array.isArray(verifiedProof) && verifiedProof.length > 0;
+  if (action.actionType === "propose_schema" && !hasVerifiedProof) {
     warnings.push("propose_schema with no verified proof points");
   }
 
   let status: ReadinessStatus;
-  if (action.riskLevel === "high" && (missing.includes("business_profile") || !hasClaims)) {
+  // Schema is the only action we hard-block on proof — not on BP review-ready state.
+  if (action.actionType === "propose_schema" && !hasVerifiedProof) {
+    status = "blocked";
+  } else if (action.riskLevel === "high" && !bpExists) {
     status = "blocked";
   } else if (score < 5.5) {
     status = "needs_context";
@@ -243,6 +258,7 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
   } else {
     status = "ready";
   }
+
 
   // ----- Compose -----
   const ctx: GrowthContext = {
@@ -325,23 +341,41 @@ export async function buildGrowthContext(input: BuildInput): Promise<GrowthConte
       generationRules: action.generationRules,
     },
     guardrails,
-    instructions: {
-      language: (business?.business_identity?.language as string) ?? "nl",
-      locale: tone?.localeTone.locale ?? "nl-NL",
-      preferredCTA,
-      primaryAngle: pageStrategyAngle ?? primaryStrategyAngle ?? "",
-      mustUse: (business?.offer_profile?.mainPromise
-        ? [business.offer_profile.mainPromise as string]
-        : []),
-      mustAvoid: Array.from(
-        new Set([...(guardrails.forbiddenClaims ?? []), ...(guardrails.forbiddenWords ?? [])]),
-      ),
-      shouldMentionLocation: !!(pi?.local_relevance as { isLocal?: boolean } | undefined)?.isLocal,
-      shouldUseProof:
-        action.actionType === "propose_schema" ||
-        action.actionType === "propose_intro_or_content_expansion",
-      pagePriority: (pi?.commercial_priority as string) ?? "medium",
-    },
+    instructions: (() => {
+      const identity = (business?.business_identity ?? bpRow?.business_identity ?? {}) as {
+        language?: string;
+        country?: string;
+      };
+      const country = (identity.country || "NL").toUpperCase();
+      const language =
+        identity.language ||
+        (country === "US" ? "en" : "nl");
+      const locale =
+        tone?.localeTone.locale ||
+        (country === "US" ? "en-US" : "nl-NL");
+      const salesIntensity: "low" | "medium" | "high" =
+        country === "US" ? "medium" : "low";
+      return {
+        language,
+        locale,
+        country,
+        salesIntensity,
+        preferredCTA,
+        primaryAngle: pageStrategyAngle ?? primaryStrategyAngle ?? "",
+        mustUse: (business?.offer_profile?.mainPromise
+          ? [business.offer_profile.mainPromise as string]
+          : []) as string[],
+        mustAvoid: Array.from(
+          new Set([...(guardrails.forbiddenClaims ?? []), ...(guardrails.forbiddenWords ?? [])]),
+        ),
+        shouldMentionLocation: !!(pi?.local_relevance as { isLocal?: boolean } | undefined)?.isLocal,
+        shouldUseProof:
+          action.actionType === "propose_schema" ||
+          action.actionType === "propose_intro_or_content_expansion",
+        pagePriority: (pi?.commercial_priority as string) ?? "medium",
+      };
+    })(),
+
   };
 
   return GrowthContextSchema.parse(ctx);
