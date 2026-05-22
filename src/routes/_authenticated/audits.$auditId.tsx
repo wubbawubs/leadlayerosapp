@@ -899,8 +899,6 @@ function ProposalV2Card({ p }: { p: V2Proposal }) {
           )}
           <p className="text-[10px] text-muted-foreground">
             model: {p.modelUsed} · {new Date(p.createdAt).toLocaleString()}
-          <p className="text-[10px] text-muted-foreground">
-            model: {p.modelUsed} · {new Date(p.createdAt).toLocaleString()}
             {p.proposalRunId ? ` · run ${p.proposalRunId.slice(0, 8)}` : ""}
           </p>
         </div>
