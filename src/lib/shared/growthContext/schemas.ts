@@ -130,6 +130,33 @@ export const GrowthContextSchema = z.object({
     shouldUseProof: z.boolean(),
     pagePriority: z.string(),
   }),
+
+  diagnostics: z
+    .object({
+      bpRowExists: z.boolean(),
+      bpStrictParseOk: z.boolean(),
+      bpFallbackUsed: z.boolean(),
+      businessHydrated: z.boolean(),
+      guardrailsHydrated: z.boolean(),
+      toneHydrated: z.boolean(),
+      businessFieldsUsed: z.array(z.string()).default([]),
+      guardrailCounts: z
+        .object({
+          allowedClaims: z.number().default(0),
+          riskyClaims: z.number().default(0),
+          forbiddenClaims: z.number().default(0),
+          safeAlternatives: z.number().default(0),
+          forbiddenWords: z.number().default(0),
+        })
+        .default({
+          allowedClaims: 0,
+          riskyClaims: 0,
+          forbiddenClaims: 0,
+          safeAlternatives: 0,
+          forbiddenWords: 0,
+        }),
+    })
+    .optional(),
 });
 
 
