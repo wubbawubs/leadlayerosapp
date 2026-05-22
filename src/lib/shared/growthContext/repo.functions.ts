@@ -47,5 +47,7 @@ export const previewGrowthContextForProposal = createServerFn({ method: "POST" }
       pageId: data.pageId,
       issueId: data.issueId,
     });
-    return { context: ctx };
+    // Serialize as JSON string to keep TanStack serializable-typing happy
+    // (Record<string, unknown> isn't structurally serializable in their checker).
+    return { contextJson: JSON.stringify(ctx) };
   });
