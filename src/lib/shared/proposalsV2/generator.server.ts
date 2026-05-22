@@ -647,5 +647,24 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
     }
   }
 
+  // Brand casing normalization across user-facing fields.
+  {
+    const after = parsed.after as Record<string, unknown>;
+    const nextAfter: Record<string, unknown> = { ...after };
+    if (typeof after.text === "string") nextAfter.text = normalizeBrand(after.text);
+    if (Array.isArray(after.alts)) {
+      nextAfter.alts = (after.alts as unknown[]).map((a) =>
+        typeof a === "string" ? normalizeBrand(a) : a,
+      );
+    }
+    parsed = {
+      ...parsed,
+      title: normalizeBrand(parsed.title ?? ""),
+      summary: normalizeBrand(parsed.summary ?? ""),
+      reasoning: normalizeBrand(parsed.reasoning ?? ""),
+      after: nextAfter,
+    };
+  }
+
   return { output: parsed, modelUsed, retried, compactedDeterministically, bannedPhraseRetry };
 }
