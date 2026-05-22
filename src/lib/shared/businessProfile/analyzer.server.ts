@@ -654,11 +654,13 @@ export async function analyzeBusinessProfileFromWebsite(input: {
   const systemMsg =
     "Je bent een growth-strateeg die websitecontent vertaalt naar een gestructureerd business profile. Je verzint NOOIT bewijs. Je respecteert het Tone Profile letterlijk. Output uitsluitend valide JSON.";
 
+  await onStage("stage_a");
   // Stage A — feiten-extractie (grootste payload, krijgt ruim budget)
   const llmA = await llmComplete({
     task: "cheap",
     system: systemMsg,
     prompt: buildExtractionPrompt(promptInput),
+
     temperature: 0.2,
     maxTokens: 6000,
     jsonMode: true,
