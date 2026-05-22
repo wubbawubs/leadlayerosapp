@@ -529,20 +529,80 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
     compactedDeterministically = true;
   }
 
-  // Alt unknown-image safe fallback: we have no image data, so override
-  // any concrete object/people mentions with topic-bound generic alts.
+  // ----- HARD banned-phrase enforcement (V2.3) -----
+  // After all LLM retries, if banned phrases are still in user-facing text,
+  // try a deterministic rewrite. If still bad and the action is meta-like,
+  // fall back to a deterministic context-built meta. If still bad, mark
+  // blocked:banned_phrase_remaining so the evaluator rejects the proposal.
+  const isMetaLike =
+    ctx.action.actionType === "rewrite_meta_description" ||
+    ctx.action.actionType === "write_meta_description" ||
+    ctx.action.actionType === "write_cta" ||
+    ctx.action.actionType === "write_h1" ||
+    ctx.action.actionType === "rewrite_h1";
+
+  if (typeof parsed.after.text === "string" && isMetaLike) {
+    const original = parsed.after.text;
+    const rewrite = rewriteBannedPhrases(original, ctx.instructions.locale);
+    let workingText = rewrite.text;
+    let flags = [...parsed.riskFlags];
+    if (rewrite.changed) flags.push("banned_phrase:deterministic_rewrite");
+
+    if (rewrite.remaining.length > 0 || (maxLen && workingText.length > maxLen)) {
+      // Try deterministic context builder
+      const built = maxLen ? buildDeterministicMeta(ctx, maxLen) : null;
+      if (built) {
+        const builtCheck = rewriteBannedPhrases(built, ctx.instructions.locale);
+        if (builtCheck.remaining.length === 0) {
+          workingText = builtCheck.text;
+          flags.push("banned_phrase:deterministic_fallback");
+        }
+      }
+    }
+    if (maxLen && workingText.length > maxLen) {
+      workingText = compactMeta(workingText, maxLen);
+    }
+    const finalCheck = rewriteBannedPhrases(workingText, ctx.instructions.locale);
+    if (finalCheck.remaining.length > 0) {
+      flags.push(`blocked:banned_phrase_remaining:${finalCheck.remaining.join(",")}`);
+    }
+    if (workingText !== original) {
+      parsed = {
+        ...parsed,
+        after: { ...parsed.after, text: workingText },
+        riskFlags: Array.from(new Set(flags)),
+      };
+    } else if (flags.length !== parsed.riskFlags.length) {
+      parsed = { ...parsed, riskFlags: Array.from(new Set(flags)) };
+    }
+  }
+
+  // Alt unknown-image safe fallback + V2.3 cleanup
   if (ctx.action.actionType === "write_alt_text") {
     const alts = (parsed.after.alts as string[] | undefined) ?? [];
     const topic = ctx.page?.primaryTopic ?? ctx.page?.contentSummary?.slice(0, 60);
     const fallback = locale.altFallback(topic);
     const concreteRe =
       /(tablet|laptop|computer|telefoon|phone|monitor|scherm|toetsenbord|keyboard|vergrootglas|magnifying|grafiek|chart|google|zoekresultaten|search results|hand|handen|persoon|ondernemer|man|vrouw|smiling|glimlach|tevreden|blij|kantoor|office)/i;
-    const safeAlts = alts.map((a) => (concreteRe.test(a) ? fallback : a));
-    if (safeAlts.some((a, i) => a !== alts[i])) {
+    let mutated = false;
+    let safeAlts = alts.map((a) => {
+      if (concreteRe.test(a)) {
+        mutated = true;
+        return fallback;
+      }
+      return a;
+    });
+    // Cleanup: uppercase SEO, strip parens, length cap
+    const cleaned = safeAlts.map((a) => cleanupAltText(a));
+    if (cleaned.some((a, i) => a !== safeAlts[i])) mutated = true;
+    safeAlts = dedupeAlts(cleaned);
+    const flags = [...parsed.riskFlags];
+    if (mutated) flags.push("alt:safe_fallback_applied");
+    if (mutated || safeAlts.some((a, i) => a !== alts[i])) {
       parsed = {
         ...parsed,
         after: { ...parsed.after, alts: safeAlts },
-        riskFlags: Array.from(new Set([...parsed.riskFlags, "alt:safe_fallback_applied"])),
+        riskFlags: Array.from(new Set(flags)),
       };
     }
   }
