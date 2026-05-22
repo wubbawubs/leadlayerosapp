@@ -1341,6 +1341,66 @@ export type Database = {
         }
         Relationships: []
       }
+      proposal_comparisons: {
+        Row: {
+          action_type: string | null
+          audit_id: string
+          created_at: string
+          id: string
+          issue_id: string
+          notes: string | null
+          page_id: string
+          proposal_v1_id: string | null
+          proposal_v2_id: string | null
+          reason: string | null
+          reason_tags: Json
+          reviewed_at: string | null
+          reviewed_by: string | null
+          score_mismatch: boolean
+          tenant_id: string
+          updated_at: string
+          winner: string
+        }
+        Insert: {
+          action_type?: string | null
+          audit_id: string
+          created_at?: string
+          id?: string
+          issue_id: string
+          notes?: string | null
+          page_id: string
+          proposal_v1_id?: string | null
+          proposal_v2_id?: string | null
+          reason?: string | null
+          reason_tags?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          score_mismatch?: boolean
+          tenant_id: string
+          updated_at?: string
+          winner?: string
+        }
+        Update: {
+          action_type?: string | null
+          audit_id?: string
+          created_at?: string
+          id?: string
+          issue_id?: string
+          notes?: string | null
+          page_id?: string
+          proposal_v1_id?: string | null
+          proposal_v2_id?: string | null
+          reason?: string | null
+          reason_tags?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          score_mismatch?: boolean
+          tenant_id?: string
+          updated_at?: string
+          winner?: string
+        }
+        Relationships: []
+      }
       proposal_quality_checks: {
         Row: {
           brand_fit_score: number | null
