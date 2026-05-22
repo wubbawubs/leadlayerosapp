@@ -77,7 +77,7 @@ function AuditDetailPage() {
 
   const piByAuditPage = useMemo(() => {
     const map = new Map<string, PiRow>();
-    for (const row of (piQuery.data?.items ?? []) as PiRow[]) {
+    for (const row of (piQuery.data?.items ?? []) as unknown as PiRow[]) {
       if (row.audit_page_id) map.set(row.audit_page_id, row);
     }
     return map;
