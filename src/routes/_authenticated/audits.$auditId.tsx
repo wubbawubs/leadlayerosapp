@@ -84,7 +84,7 @@ function AuditDetailPage() {
   }, [piQuery.data]);
 
   const analyzeMutation = useMutation({
-    mutationFn: () => analyzePi({ data: { auditId } }),
+    mutationFn: () => analyzePi({ data: { auditId, forceRefresh: true } }),
     onSuccess: (res) => {
       const s = res.summary;
       toast.success(
