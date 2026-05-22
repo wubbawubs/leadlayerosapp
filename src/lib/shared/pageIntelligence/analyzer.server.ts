@@ -4,11 +4,7 @@
  */
 import { llmComplete } from "@/lib/shared/llm/router.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import {
-  PageIntelligenceLLMSchema,
-  type PageIntelligenceLLM,
-  type PageType,
-} from "./schemas";
+import { PageIntelligenceLLMSchema, type PageIntelligenceLLM, type PageType } from "./schemas";
 
 const MAX_PAGES = 25;
 const MODEL = "google/gemini-2.5-flash";
@@ -97,7 +93,8 @@ function urlHintType(url: string): PageType | null {
   if (/\/faq(?:\/|$)|\/veelgestelde/.test(path)) return "faq";
   if (/\/pricing(?:\/|$)|\/tarieven(?:\/|$)|\/prijzen(?:\/|$)/.test(path)) return "pricing";
   if (/\/(case-?study|cases|case|portfolio|projecten)(?:\/|$)/.test(path)) return "case_study";
-  if (/\/(privacy|terms|disclaimer|cookies|algemene-voorwaarden)(?:\/|$)/.test(path)) return "legal";
+  if (/\/(privacy|terms|disclaimer|cookies|algemene-voorwaarden)(?:\/|$)/.test(path))
+    return "legal";
   if (/\/blog\//.test(path) || /\/\d{4}\/\d{2}\//.test(path)) return "blog";
   return null;
 }
@@ -316,12 +313,18 @@ async function classifyOne(
     });
     const text = res.text.trim();
     const jsonText = text.startsWith("```")
-      ? text.replace(/^```(?:json)?/, "").replace(/```$/, "").trim()
+      ? text
+          .replace(/^```(?:json)?/, "")
+          .replace(/```$/, "")
+          .trim()
       : text;
     const raw = JSON.parse(jsonText);
     const parsed = PageIntelligenceLLMSchema.safeParse(raw);
     if (!parsed.success) {
-      return { ok: false, error: `Schema invalid: ${parsed.error.issues[0]?.message ?? "unknown"}` };
+      return {
+        ok: false,
+        error: `Schema invalid: ${parsed.error.issues[0]?.message ?? "unknown"}`,
+      };
     }
     return { ok: true, data: parsed.data };
   } catch (e) {
@@ -407,8 +410,7 @@ export async function analyzePageIntelligenceForAudit({
     .eq("tenant_id", tenantId)
     .maybeSingle();
   const angles = (bpv2?.strategy_angles ?? []) as Array<{ angle?: string; isPrimary?: boolean }>;
-  const primaryAngle =
-    angles.find((a) => a.isPrimary)?.angle ?? angles[0]?.angle ?? "";
+  const primaryAngle = angles.find((a) => a.isPrimary)?.angle ?? angles[0]?.angle ?? "";
 
   let analyzedCount = 0;
   let failedCount = 0;
@@ -524,7 +526,12 @@ export async function analyzePageIntelligenceForAudit({
       if (uErr) {
         failedCount++;
         analyzedCount = Math.max(0, analyzedCount - 1);
-        console.error("page_intelligence upsert failed", JSON.stringify(uErr), "row keys:", Object.keys(row));
+        console.error(
+          "page_intelligence upsert failed",
+          JSON.stringify(uErr),
+          "row keys:",
+          Object.keys(row),
+        );
       }
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
