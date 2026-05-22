@@ -1071,15 +1071,29 @@ export type Database = {
       }
       page_intelligence: {
         Row: {
+          analyzed_at: string
+          audit_id: string | null
           audit_page_id: string | null
-          commercial_priority: Database["public"]["Enums"]["commercial_priority"]
+          commercial_priority: string
+          confidence: number
+          content_summary: string | null
           created_at: string
           desired_action: string | null
           funnel_stage: string | null
           id: string
-          intent: Database["public"]["Enums"]["page_intent"]
+          intent: string
+          local_relevance: Json
+          missing_page_context: Json
+          model_used: string | null
           page_id: string | null
-          page_type: Database["public"]["Enums"]["page_type"]
+          page_type: string
+          page_url: string | null
+          primary_topic: string | null
+          recommended_cta: string | null
+          relevant_strategy_angle: string | null
+          risk_flags: Json
+          seo_role: string | null
+          source_evidence: Json
           summary: string | null
           target_audience: string | null
           target_keyword: string | null
@@ -1087,15 +1101,29 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          analyzed_at?: string
+          audit_id?: string | null
           audit_page_id?: string | null
-          commercial_priority?: Database["public"]["Enums"]["commercial_priority"]
+          commercial_priority?: string
+          confidence?: number
+          content_summary?: string | null
           created_at?: string
           desired_action?: string | null
           funnel_stage?: string | null
           id?: string
-          intent?: Database["public"]["Enums"]["page_intent"]
+          intent?: string
+          local_relevance?: Json
+          missing_page_context?: Json
+          model_used?: string | null
           page_id?: string | null
-          page_type?: Database["public"]["Enums"]["page_type"]
+          page_type?: string
+          page_url?: string | null
+          primary_topic?: string | null
+          recommended_cta?: string | null
+          relevant_strategy_angle?: string | null
+          risk_flags?: Json
+          seo_role?: string | null
+          source_evidence?: Json
           summary?: string | null
           target_audience?: string | null
           target_keyword?: string | null
@@ -1103,22 +1131,44 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          analyzed_at?: string
+          audit_id?: string | null
           audit_page_id?: string | null
-          commercial_priority?: Database["public"]["Enums"]["commercial_priority"]
+          commercial_priority?: string
+          confidence?: number
+          content_summary?: string | null
           created_at?: string
           desired_action?: string | null
           funnel_stage?: string | null
           id?: string
-          intent?: Database["public"]["Enums"]["page_intent"]
+          intent?: string
+          local_relevance?: Json
+          missing_page_context?: Json
+          model_used?: string | null
           page_id?: string | null
-          page_type?: Database["public"]["Enums"]["page_type"]
+          page_type?: string
+          page_url?: string | null
+          primary_topic?: string | null
+          recommended_cta?: string | null
+          relevant_strategy_angle?: string | null
+          risk_flags?: Json
+          seo_role?: string | null
+          source_evidence?: Json
           summary?: string | null
           target_audience?: string | null
           target_keyword?: string | null
           tenant_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "page_intelligence_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "audits"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       page_snapshots: {
         Row: {
