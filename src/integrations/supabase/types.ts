@@ -1392,6 +1392,7 @@ export type Database = {
           after: Json
           audit_id: string
           before: Json
+          block_reason: string | null
           context_snapshot: Json
           context_used: Json
           created_at: string
@@ -1400,6 +1401,7 @@ export type Database = {
           keywords_used: Json
           model_used: string | null
           page_id: string
+          proposal_run_id: string | null
           publishable: boolean
           reasoning: string
           risk_flags: Json
@@ -1415,6 +1417,7 @@ export type Database = {
           after?: Json
           audit_id: string
           before?: Json
+          block_reason?: string | null
           context_snapshot?: Json
           context_used?: Json
           created_at?: string
@@ -1423,6 +1426,7 @@ export type Database = {
           keywords_used?: Json
           model_used?: string | null
           page_id: string
+          proposal_run_id?: string | null
           publishable?: boolean
           reasoning?: string
           risk_flags?: Json
@@ -1438,6 +1442,7 @@ export type Database = {
           after?: Json
           audit_id?: string
           before?: Json
+          block_reason?: string | null
           context_snapshot?: Json
           context_used?: Json
           created_at?: string
@@ -1446,6 +1451,7 @@ export type Database = {
           keywords_used?: Json
           model_used?: string | null
           page_id?: string
+          proposal_run_id?: string | null
           publishable?: boolean
           reasoning?: string
           risk_flags?: Json
