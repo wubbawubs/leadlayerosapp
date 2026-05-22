@@ -297,8 +297,12 @@ function buildSharedContext(input: PromptInput, sampleChars: number, sampleCount
     )
     .join("\n\n");
 
+  const filteredCtas = filterCtaCandidates(aggregated.ctas);
   const ctaList =
-    aggregated.ctas.slice(0, 25).map((c) => `- "${c.text}" (×${c.count})`).join("\n") || "(geen)";
+    filteredCtas
+      .slice(0, 25)
+      .map((c) => `- "${c.text}" (×${c.count}, type=${c.ctaClass})`)
+      .join("\n") || "(geen product/lead-CTA's gevonden — stel zelf een passende CTA voor)";
   const claimList =
     aggregated.claimSentences.slice(0, 20).map((c) => `- "${c.text}"`).join("\n") || "(geen)";
 
@@ -317,6 +321,7 @@ function buildSharedContext(input: PromptInput, sampleChars: number, sampleCount
         2,
       ).slice(0, 4000)
     : "(leeg)";
+
 
   const toneBlock = toneContext
     ? [
