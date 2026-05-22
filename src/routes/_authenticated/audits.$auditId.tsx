@@ -441,6 +441,30 @@ function AuditDetailPage() {
           )}
         </div>
       </section>
+
+      {/* Proposal V2 */}
+      {audit.status === "succeeded" && (
+        <section className="mt-10">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="font-display text-2xl text-foreground">
+              Proposals <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-600">V2</span>
+            </h2>
+            <span className="text-xs text-muted-foreground">
+              {v2Query.data?.proposals.length ?? 0} generated
+            </span>
+          </div>
+          {(!v2Query.data || v2Query.data.proposals.length === 0) && (
+            <p className="text-sm text-muted-foreground">
+              No V2 proposals yet. Click "Generate V2 proposals" above.
+            </p>
+          )}
+          <div className="space-y-3">
+            {(v2Query.data?.proposals ?? []).map((p) => (
+              <ProposalV2Card key={p.id} p={p} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
