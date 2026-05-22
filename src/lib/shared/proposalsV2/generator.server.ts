@@ -1,6 +1,9 @@
 /**
- * Proposal V2 — action-specific generator (V2.1 locale-aware).
- * Single source of context: GrowthContext (no extra DB reads).
+ * Proposal V2 — action-specific generator (V2.2).
+ * Adds:
+ *  - Hard banned-phrase retry (once).
+ *  - Deterministic meta compaction fallback (trim to maxLength on sentence boundary).
+ *  - Alt-text "unknown image" safe mode (no fake visual details).
  */
 import type { GrowthContext } from "@/lib/shared/growthContext/schemas";
 import { llmComplete } from "@/lib/shared/llm/router.server";
@@ -38,6 +41,7 @@ interface LocaleRules {
   ctaExamples: string[];
   bannedPhrases: string[]; // case-insensitive, weak/AI-cliché
   preferredPhrases: string[];
+  altFallback: (topic: string | undefined) => string;
 }
 
 const LOCALE_RULES: Record<string, LocaleRules> = {
@@ -72,6 +76,8 @@ const LOCALE_RULES: Record<string, LocaleRules> = {
       "stap voor stap verbeteren",
       "gericht op lokale vindbaarheid",
     ],
+    altFallback: (topic) =>
+      topic ? `Afbeelding bij ${topic.toLowerCase().slice(0, 80)}` : "Afbeelding bij dit onderwerp",
   },
   "en-US": {
     languageName: "US English",
@@ -103,6 +109,8 @@ const LOCALE_RULES: Record<string, LocaleRules> = {
       "step by step",
       "built for local visibility",
     ],
+    altFallback: (topic) =>
+      topic ? `Image related to ${topic.toLowerCase().slice(0, 80)}` : "Image related to this topic",
   },
 };
 
@@ -112,7 +120,13 @@ function getLocaleRules(ctx: GrowthContext): LocaleRules {
 
 // ---------- Prompt building ----------
 
-function buildPrompt(ctx: GrowthContext, compactRetry = false, overLength?: number): string {
+interface PromptOpts {
+  compactRetry?: boolean;
+  overLength?: number;
+  bannedPhraseRetry?: string[];
+}
+
+function buildPrompt(ctx: GrowthContext, opts: PromptOpts = {}): string {
   const page = ctx.page;
   const tone = ctx.tone;
   const biz = ctx.business;
@@ -125,12 +139,12 @@ function buildPrompt(ctx: GrowthContext, compactRetry = false, overLength?: numb
   sections.push(`ACTION: ${action.actionType}`);
   sections.push(`LANGUAGE: ${ins.language}  LOCALE: ${ins.locale}  COUNTRY: ${ins.country}`);
   sections.push(`SALES INTENSITY: ${ins.salesIntensity}`);
-  if (action.maxLength) sections.push(`MAX LENGTH: ${action.maxLength} chars (HARD LIMIT)`);
+  if (action.maxLength) sections.push(`MAX LENGTH: ${action.maxLength} chars (HARD LIMIT — count before returning)`);
   sections.push("");
 
   sections.push(`LOCALE RULES:\n- ${locale.promptHeader}\n- ${locale.toneGuidance}`);
   sections.push(`Locale-preferred phrases: ${locale.preferredPhrases.join(", ")}`);
-  sections.push(`Locale-banned phrases (DO NOT USE): ${locale.bannedPhrases.join(", ")}`);
+  sections.push(`Locale-banned phrases (DO NOT USE, not even capitalized): ${locale.bannedPhrases.join(", ")}`);
   sections.push("");
 
   sections.push("ACTION RULES:");
@@ -140,7 +154,7 @@ function buildPrompt(ctx: GrowthContext, compactRetry = false, overLength?: numb
   sections.push("- Match tone formality and CTA style.");
   if (action.actionType === "write_alt_text") {
     sections.push(
-      "- ALT TEXT RULE: only describe what is verifiable from filename/topic/surrounding text. If unsure, write a generic-but-relevant description tied to the page topic. NEVER invent people, emotions, charts, or success imagery.",
+      "- ALT TEXT RULE: you have NO image data. Do NOT name objects (tablet, laptop, magnifying glass, charts, hands, people, Google). Write a short generic description tied to the page topic only.",
     );
   }
   sections.push("");
@@ -216,9 +230,15 @@ function buildPrompt(ctx: GrowthContext, compactRetry = false, overLength?: numb
   }
   sections.push("");
 
-  if (compactRetry && action.maxLength) {
+  if (opts.compactRetry && action.maxLength) {
     sections.push(
-      `RETRY INSTRUCTION: previous output was ${overLength ?? "?"} chars, over the ${action.maxLength}-char limit. Rewrite STRICTLY ≤ ${action.maxLength} characters. Count characters before returning.`,
+      `RETRY: previous output was ${opts.overLength ?? "?"} chars, over the ${action.maxLength}-char limit. Rewrite STRICTLY ≤ ${action.maxLength} characters. Count characters before returning.`,
+    );
+    sections.push("");
+  }
+  if (opts.bannedPhraseRetry && opts.bannedPhraseRetry.length > 0) {
+    sections.push(
+      `RETRY: previous output used BANNED phrase(s): ${opts.bannedPhraseRetry.join(", ")}. Rewrite WITHOUT any of these words or close variants.`,
     );
     sections.push("");
   }
@@ -259,7 +279,7 @@ function afterShapeFor(actionType: string): string {
   }
 }
 
-// ---------- Length helpers ----------
+// ---------- Length & banned phrase helpers ----------
 
 function measureOverLength(output: GeneratorTextOutput, maxLength: number | null, actionType: string): number | null {
   if (!maxLength) return null;
@@ -275,12 +295,40 @@ function measureOverLength(output: GeneratorTextOutput, maxLength: number | null
   return null;
 }
 
+function findBannedInOutput(output: GeneratorTextOutput, banned: string[]): string[] {
+  const blob = [
+    output.title,
+    output.summary,
+    typeof output.after.text === "string" ? output.after.text : "",
+    typeof output.after.html === "string" ? output.after.html : "",
+    Array.isArray(output.after.alts) ? (output.after.alts as string[]).join(" ") : "",
+  ]
+    .join(" \n ")
+    .toLowerCase();
+  return banned.filter((p) => blob.includes(p.toLowerCase()));
+}
+
+/** Deterministic compaction for meta-like text. Trims at sentence/word boundary. */
+function compactMeta(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  // Try to cut at last sentence within budget
+  const slice = text.slice(0, maxLen);
+  const punct = Math.max(slice.lastIndexOf(". "), slice.lastIndexOf("? "), slice.lastIndexOf("! "));
+  if (punct > maxLen * 0.6) return slice.slice(0, punct + 1).trim();
+  // Otherwise cut at last word boundary
+  const space = slice.lastIndexOf(" ");
+  const cut = space > maxLen * 0.6 ? slice.slice(0, space) : slice;
+  return cut.replace(/[\s,;:.\-]+$/u, "").trim();
+}
+
 // ---------- Public API ----------
 
 export interface GeneratorResult {
   output: GeneratorTextOutput;
   modelUsed: string;
   retried: boolean;
+  compactedDeterministically: boolean;
+  bannedPhraseRetry: boolean;
 }
 
 const SYSTEM = (locale: string) =>
@@ -289,6 +337,7 @@ const SYSTEM = (locale: string) =>
 export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorResult> {
   const task = pickTask(ctx.action.actionType);
   const system = SYSTEM(ctx.instructions.locale);
+  const locale = getLocaleRules(ctx);
 
   // First attempt
   const r1 = await llmComplete({
@@ -302,24 +351,25 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
   let parsed = GeneratorTextOutputSchema.parse(extractJson(r1.text));
   let modelUsed = r1.model;
   let retried = false;
+  let bannedPhraseRetry = false;
 
-  // Retry once if over length (meta + alt)
-  const over = measureOverLength(parsed, ctx.action.maxLength, ctx.action.actionType);
-  if (over !== null) {
-    retried = true;
+  // ----- Hard banned-phrase retry (once) -----
+  const banned1 = findBannedInOutput(parsed, locale.bannedPhrases);
+  if (banned1.length > 0) {
+    bannedPhraseRetry = true;
     try {
       const r2 = await llmComplete({
         task,
         system,
-        prompt: buildPrompt(ctx, true, over),
+        prompt: buildPrompt(ctx, { bannedPhraseRetry: banned1 }),
         temperature: 0.3,
         maxTokens: 1400,
         jsonMode: true,
       });
       const parsed2 = GeneratorTextOutputSchema.parse(extractJson(r2.text));
-      const over2 = measureOverLength(parsed2, ctx.action.maxLength, ctx.action.actionType);
-      // Keep retry only if it actually fits or is shorter
-      if (over2 === null || (over2 < over)) {
+      const banned2 = findBannedInOutput(parsed2, locale.bannedPhrases);
+      // Keep retry only if it removed banned phrases (or at least reduced)
+      if (banned2.length < banned1.length) {
         parsed = parsed2;
         modelUsed = r2.model;
       }
@@ -328,5 +378,64 @@ export async function runActionGenerator(ctx: GrowthContext): Promise<GeneratorR
     }
   }
 
-  return { output: parsed, modelUsed, retried };
+  // ----- Length retry + deterministic compaction -----
+  const over = measureOverLength(parsed, ctx.action.maxLength, ctx.action.actionType);
+  if (over !== null) {
+    retried = true;
+    try {
+      const r3 = await llmComplete({
+        task,
+        system,
+        prompt: buildPrompt(ctx, { compactRetry: true, overLength: over }),
+        temperature: 0.3,
+        maxTokens: 1400,
+        jsonMode: true,
+      });
+      const parsed3 = GeneratorTextOutputSchema.parse(extractJson(r3.text));
+      const over2 = measureOverLength(parsed3, ctx.action.maxLength, ctx.action.actionType);
+      if (over2 === null || (over2 < over)) {
+        parsed = parsed3;
+        modelUsed = r3.model;
+      }
+    } catch {
+      // keep previous
+    }
+  }
+
+  // Deterministic fallback compaction (meta-like text only).
+  let compactedDeterministically = false;
+  const maxLen = ctx.action.maxLength;
+  if (
+    maxLen &&
+    typeof parsed.after.text === "string" &&
+    parsed.after.text.length > maxLen
+  ) {
+    const trimmed = compactMeta(parsed.after.text, maxLen);
+    parsed = {
+      ...parsed,
+      after: { ...parsed.after, text: trimmed },
+      riskFlags: Array.from(new Set([...parsed.riskFlags, "compacted:deterministic"])),
+    };
+    compactedDeterministically = true;
+  }
+
+  // Alt unknown-image safe fallback: we have no image data, so override
+  // any concrete object/people mentions with topic-bound generic alts.
+  if (ctx.action.actionType === "write_alt_text") {
+    const alts = (parsed.after.alts as string[] | undefined) ?? [];
+    const topic = ctx.page?.primaryTopic ?? ctx.page?.contentSummary?.slice(0, 60);
+    const fallback = locale.altFallback(topic);
+    const concreteRe =
+      /(tablet|laptop|computer|telefoon|phone|monitor|scherm|toetsenbord|keyboard|vergrootglas|magnifying|grafiek|chart|google|zoekresultaten|search results|hand|handen|persoon|ondernemer|man|vrouw|smiling|glimlach|tevreden|blij|kantoor|office)/i;
+    const safeAlts = alts.map((a) => (concreteRe.test(a) ? fallback : a));
+    if (safeAlts.some((a, i) => a !== alts[i])) {
+      parsed = {
+        ...parsed,
+        after: { ...parsed.after, alts: safeAlts },
+        riskFlags: Array.from(new Set([...parsed.riskFlags, "alt:safe_fallback_applied"])),
+      };
+    }
+  }
+
+  return { output: parsed, modelUsed, retried, compactedDeterministically, bannedPhraseRetry };
 }
