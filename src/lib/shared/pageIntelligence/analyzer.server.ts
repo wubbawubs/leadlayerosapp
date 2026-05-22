@@ -313,14 +313,16 @@ export async function analyzePageIntelligenceForAudit({
     if (page.page_id) {
       const { error: uErr } = await supabaseAdmin
         .from("page_intelligence")
-        .upsert(row, { onConflict: "tenant_id,page_id" });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .upsert(row as any, { onConflict: "tenant_id,page_id" });
       if (uErr) {
         failedCount++;
         analyzedCount = Math.max(0, analyzedCount - 1);
         console.error("page_intelligence upsert failed", uErr);
       }
     } else {
-      const { error: iErr } = await supabaseAdmin.from("page_intelligence").insert(row);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: iErr } = await supabaseAdmin.from("page_intelligence").insert(row as any);
       if (iErr) {
         failedCount++;
         analyzedCount = Math.max(0, analyzedCount - 1);
