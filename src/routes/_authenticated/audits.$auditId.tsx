@@ -299,7 +299,24 @@ function AuditDetailPage() {
                       <td className="px-3 py-2 text-right text-muted-foreground">
                         {Math.round((pi.confidence ?? 0) * 100)}%
                       </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!expanded.has(p.id)) toggleExpand(p.id);
+                            requestAnimationFrame(() => {
+                              document
+                                .getElementById(`page-${p.id}`)
+                                ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                            });
+                          }}
+                          className="text-[11px] text-primary hover:underline"
+                        >
+                          Details
+                        </button>
+                      </td>
                     </tr>
+
                   );
                 })}
               </tbody>
