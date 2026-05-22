@@ -485,7 +485,50 @@ function normalizeBrand(text: string): string {
   return text.replace(/\bklikklaar\b/gi, "KlikKlaar");
 }
 
-// ---------- Public API ----------
+// ---------- Weak meta tail polish ----------
+// Strip generic closer phrases ("Begrijp onze aanpak", "Lees meer over onze
+// aanpak", "Ontdek onze aanpak", and "Neem contact op" / "Lees meer" when
+// used as a generic last sentence).
+const WEAK_TAIL_PATTERNS_NL: RegExp[] = [
+  /\s*(?:[.!?]\s*)?\bBegrijp onze aanpak\.?\s*$/i,
+  /\s*(?:[.!?]\s*)?\bLees meer over onze aanpak\.?\s*$/i,
+  /\s*(?:[.!?]\s*)?\bOntdek onze aanpak\.?\s*$/i,
+  /\s*(?:[.!?]\s*)?\bBekijk onze aanpak\.?\s*$/i,
+  /\s*(?:[.!?]\s*)?\bNeem contact op\.?\s*$/i,
+  /\s*(?:[.!?]\s*)?\bLees meer\.?\s*$/i,
+];
+
+function hasWeakTailNl(text: string): boolean {
+  return WEAK_TAIL_PATTERNS_NL.some((r) => r.test(text));
+}
+
+function stripWeakTailNl(text: string): string {
+  let out = text;
+  for (const r of WEAK_TAIL_PATTERNS_NL) out = out.replace(r, "");
+  return out.replace(/[\s,;:]+$/u, "").replace(/\s{2,}/g, " ").trim();
+}
+
+// Append a contextual CTA if there's room, otherwise leave the meta as-is.
+function maybeAppendContextCta(text: string, ctx: GrowthContext, maxLen: number): string {
+  const url = (ctx.page?.pageUrl ?? "").toLowerCase();
+  const pageType = ctx.page?.pageType ?? "";
+  const isProcess = /werkwijze|process|approach|how-we-work/.test(url) || pageType === "trust";
+  const isCommercial = pageType === "homepage" || pageType === "service";
+  let cta: string | null = null;
+  if (ctx.instructions.locale === "nl-NL") {
+    if (isProcess) cta = "Bekijk hoe we werken";
+    else if (isCommercial) cta = "Vraag een gratis scan aan";
+  } else if (ctx.instructions.locale === "en-US") {
+    if (isProcess) cta = "See how we work";
+    else if (isCommercial) cta = "Get a free website scan";
+  }
+  if (!cta) return text;
+  const sep = /[.!?]\s*$/.test(text) ? " " : ". ";
+  const candidate = `${text}${sep}${cta}.`;
+  if (candidate.length <= maxLen) return candidate;
+  return text; // no room — leave stronger ending off
+}
+
 
 export interface GeneratorResult {
   output: GeneratorTextOutput;
