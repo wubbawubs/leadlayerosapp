@@ -4,6 +4,8 @@
  * BP-2: analyze-from-website + apply-on-accept.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
+import { createHmac } from "crypto";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -346,16 +348,11 @@ export const rejectBusinessProfileSuggestion = createServerFn({ method: "POST" }
 // ----------------------------------------------------------------------------
 
 function getPublicOrigin(): string {
-  // Read request via TanStack runtime, fall back to env.
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getRequest } = require("@tanstack/react-start/server") as {
-      getRequest: () => Request;
-    };
     const req = getRequest();
     const h = req.headers;
     const host = h.get("x-forwarded-host") ?? h.get("host");
-    const proto = h.get("x-forwarded-proto") ?? "https";
+    const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
     if (host) return `${proto}://${host}`;
     return new URL(req.url).origin;
   } catch {
@@ -431,8 +428,6 @@ export const startAnalyzerJob = createServerFn({ method: "POST" })
     }
 
     const body = JSON.stringify({ jobId, tenantId: data.tenantId });
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createHmac } = require("crypto") as typeof import("crypto");
     const signature = createHmac("sha256", secret).update(body).digest("hex");
 
     // Fire-and-forget — do NOT await. Drop network errors silently; the job
