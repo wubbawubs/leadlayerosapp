@@ -81,6 +81,94 @@ function looksLikeServiceContent(page: AuditPageRow): boolean {
   return SERVICE_TITLE_RE.test(blob);
 }
 
+/**
+ * Deterministic classification when the LLM fails. Better than generic other/low
+ * because we already know a lot from URL + title.
+ */
+function ruleBasedFallback(
+  page: AuditPageRow,
+  hint: PageType | null,
+  error: string,
+): Record<string, unknown> {
+  const note = (extra: string) => [
+    { missing: "rule_based_fallback", impact: extra },
+    { missing: "llm_classification_failed", impact: error.slice(0, 200) },
+  ];
+
+  if (isProcessPage(page.url)) {
+    return {
+      page_type: "service",
+      intent: "trust",
+      funnel_stage: "consideration",
+      commercial_priority: "high",
+      seo_role: "trust_page",
+      confidence: 0.55,
+      missing_page_context: note("Process/werkwijze page classified by URL rule."),
+      risk_flags: [],
+      source_evidence: [],
+      local_relevance: {},
+    };
+  }
+
+  if (hint === "homepage") {
+    return {
+      page_type: "homepage",
+      intent: "commercial",
+      funnel_stage: "awareness",
+      commercial_priority: "critical",
+      seo_role: "conversion_page",
+      confidence: 0.55,
+      missing_page_context: note("Homepage classified by URL rule."),
+      risk_flags: [],
+      source_evidence: [],
+      local_relevance: {},
+    };
+  }
+
+  if (hint === "contact" || hint === "pricing") {
+    return {
+      page_type: hint,
+      intent: hint === "pricing" ? "commercial" : "conversion",
+      funnel_stage: "decision",
+      commercial_priority: "high",
+      seo_role: "conversion_page",
+      confidence: 0.55,
+      missing_page_context: note(`${hint} page classified by URL rule.`),
+      risk_flags: [],
+      source_evidence: [],
+      local_relevance: {},
+    };
+  }
+
+  if (looksLikeServiceContent(page)) {
+    return {
+      page_type: "service",
+      intent: "commercial",
+      funnel_stage: "consideration",
+      commercial_priority: "high",
+      seo_role: "conversion_page",
+      confidence: 0.5,
+      missing_page_context: note("Title/H1 indicate a service page."),
+      risk_flags: [],
+      source_evidence: [],
+      local_relevance: {},
+    };
+  }
+
+  return {
+    page_type: hint ?? "other",
+    intent: "informational",
+    funnel_stage: "awareness",
+    commercial_priority: hint === "about" || hint === "faq" ? "medium" : "low",
+    seo_role: hint === "blog" ? "supporting_content" : null,
+    confidence: 0.3,
+    missing_page_context: note("Generic fallback — LLM failed and no specific rule matched."),
+    risk_flags: [],
+    source_evidence: [],
+    local_relevance: {},
+  };
+}
+
 function isObviouslyLowValue(url: string): boolean {
   try {
     const path = new URL(url).pathname.toLowerCase();
