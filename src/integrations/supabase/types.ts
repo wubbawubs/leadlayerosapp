@@ -722,6 +722,86 @@ export type Database = {
           },
         ]
       }
+      growth_goals: {
+        Row: {
+          bad_fit_leads: Json
+          capacity_notes: string | null
+          close_rate: number | null
+          confidence: number | null
+          created_at: string
+          current_count: number | null
+          good_fit_leads: Json
+          id: string
+          lead_value: number | null
+          locations: Json
+          required_leads: number | null
+          service_focus: Json
+          source: string
+          status: string
+          target_count: number | null
+          target_type: string
+          tenant_id: string
+          timeframe_months: number | null
+          title: string | null
+          tracking_notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          bad_fit_leads?: Json
+          capacity_notes?: string | null
+          close_rate?: number | null
+          confidence?: number | null
+          created_at?: string
+          current_count?: number | null
+          good_fit_leads?: Json
+          id?: string
+          lead_value?: number | null
+          locations?: Json
+          required_leads?: number | null
+          service_focus?: Json
+          source?: string
+          status?: string
+          target_count?: number | null
+          target_type?: string
+          tenant_id: string
+          timeframe_months?: number | null
+          title?: string | null
+          tracking_notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bad_fit_leads?: Json
+          capacity_notes?: string | null
+          close_rate?: number | null
+          confidence?: number | null
+          created_at?: string
+          current_count?: number | null
+          good_fit_leads?: Json
+          id?: string
+          lead_value?: number | null
+          locations?: Json
+          required_leads?: number | null
+          service_focus?: Json
+          source?: string
+          status?: string
+          target_count?: number | null
+          target_type?: string
+          tenant_id?: string
+          timeframe_months?: number | null
+          title?: string | null
+          tracking_notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "growth_goals_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       health_scores: {
         Row: {
           category: string

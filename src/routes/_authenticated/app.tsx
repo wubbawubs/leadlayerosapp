@@ -45,6 +45,9 @@ function AppHome() {
             <Link to="/sites" className="text-muted-foreground hover:text-foreground">
               Sites
             </Link>
+            <Link to="/settings/growth-goal" className="text-muted-foreground hover:text-foreground">
+              Growth goal
+            </Link>
             <Link to="/settings/business-profile" className="text-muted-foreground hover:text-foreground">
               Business profile
             </Link>
@@ -52,6 +55,7 @@ function AppHome() {
               Tone profile
             </Link>
           </nav>
+
 
         </div>
         <div className="flex items-center gap-2">
