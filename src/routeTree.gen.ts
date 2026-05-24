@@ -20,6 +20,7 @@ import { Route as AuthenticatedSitesIndexRouteImport } from './routes/_authentic
 import { Route as ApiPublicRunAnalyzerJobRouteImport } from './routes/api/public/run-analyzer-job'
 import { Route as AuthenticatedSitesNewRouteImport } from './routes/_authenticated/sites.new'
 import { Route as AuthenticatedSettingsToneProfileRouteImport } from './routes/_authenticated/settings.tone-profile'
+import { Route as AuthenticatedSettingsGrowthGoalRouteImport } from './routes/_authenticated/settings.growth-goal'
 import { Route as AuthenticatedSettingsBusinessProfileRouteImport } from './routes/_authenticated/settings.business-profile'
 import { Route as AuthenticatedOnboardingWelcomeRouteImport } from './routes/_authenticated/onboarding.welcome'
 import { Route as AuthenticatedOnboardingSiteRouteImport } from './routes/_authenticated/onboarding.site'
@@ -84,6 +85,12 @@ const AuthenticatedSettingsToneProfileRoute =
   AuthenticatedSettingsToneProfileRouteImport.update({
     id: '/settings/tone-profile',
     path: '/settings/tone-profile',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSettingsGrowthGoalRoute =
+  AuthenticatedSettingsGrowthGoalRouteImport.update({
+    id: '/settings/growth-goal',
+    path: '/settings/growth-goal',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedSettingsBusinessProfileRoute =
@@ -159,6 +166,7 @@ export interface FileRoutesByFullPath {
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
+  '/settings/growth-goal': typeof AuthenticatedSettingsGrowthGoalRoute
   '/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
@@ -181,6 +189,7 @@ export interface FileRoutesByTo {
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
+  '/settings/growth-goal': typeof AuthenticatedSettingsGrowthGoalRoute
   '/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
@@ -205,6 +214,7 @@ export interface FileRoutesById {
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/_authenticated/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
   '/_authenticated/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
+  '/_authenticated/settings/growth-goal': typeof AuthenticatedSettingsGrowthGoalRoute
   '/_authenticated/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/onboarding/site'
     | '/onboarding/welcome'
     | '/settings/business-profile'
+    | '/settings/growth-goal'
     | '/settings/tone-profile'
     | '/sites/new'
     | '/api/public/run-analyzer-job'
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | '/onboarding/site'
     | '/onboarding/welcome'
     | '/settings/business-profile'
+    | '/settings/growth-goal'
     | '/settings/tone-profile'
     | '/sites/new'
     | '/api/public/run-analyzer-job'
@@ -274,6 +286,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding/site'
     | '/_authenticated/onboarding/welcome'
     | '/_authenticated/settings/business-profile'
+    | '/_authenticated/settings/growth-goal'
     | '/_authenticated/settings/tone-profile'
     | '/_authenticated/sites/new'
     | '/api/public/run-analyzer-job'
@@ -371,6 +384,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/tone-profile'
       fullPath: '/settings/tone-profile'
       preLoaderRoute: typeof AuthenticatedSettingsToneProfileRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings/growth-goal': {
+      id: '/_authenticated/settings/growth-goal'
+      path: '/settings/growth-goal'
+      fullPath: '/settings/growth-goal'
+      preLoaderRoute: typeof AuthenticatedSettingsGrowthGoalRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/settings/business-profile': {
@@ -471,6 +491,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRouteWithChildren
   AuthenticatedAuditsAuditIdRoute: typeof AuthenticatedAuditsAuditIdRoute
   AuthenticatedSettingsBusinessProfileRoute: typeof AuthenticatedSettingsBusinessProfileRoute
+  AuthenticatedSettingsGrowthGoalRoute: typeof AuthenticatedSettingsGrowthGoalRoute
   AuthenticatedSettingsToneProfileRoute: typeof AuthenticatedSettingsToneProfileRoute
   AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
   AuthenticatedSitesIndexRoute: typeof AuthenticatedSitesIndexRoute
@@ -485,6 +506,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditsAuditIdRoute: AuthenticatedAuditsAuditIdRoute,
   AuthenticatedSettingsBusinessProfileRoute:
     AuthenticatedSettingsBusinessProfileRoute,
+  AuthenticatedSettingsGrowthGoalRoute: AuthenticatedSettingsGrowthGoalRoute,
   AuthenticatedSettingsToneProfileRoute: AuthenticatedSettingsToneProfileRoute,
   AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
   AuthenticatedSitesIndexRoute: AuthenticatedSitesIndexRoute,
@@ -511,3 +533,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
