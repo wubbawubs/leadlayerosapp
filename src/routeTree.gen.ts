@@ -26,6 +26,7 @@ import { Route as AuthenticatedOnboardingWelcomeRouteImport } from './routes/_au
 import { Route as AuthenticatedOnboardingSiteRouteImport } from './routes/_authenticated/onboarding.site'
 import { Route as AuthenticatedOnboardingDoneRouteImport } from './routes/_authenticated/onboarding.done'
 import { Route as AuthenticatedOnboardingBusinessRouteImport } from './routes/_authenticated/onboarding.business'
+import { Route as AuthenticatedGrowthMasterplanRouteImport } from './routes/_authenticated/growth.masterplan'
 import { Route as AuthenticatedAuditsAuditIdRouteImport } from './routes/_authenticated/audits.$auditId'
 import { Route as ApiPublicWpcomCallbackRouteImport } from './routes/api/public/wpcom/callback'
 import { Route as AuthenticatedSitesSiteIdAuditsRouteImport } from './routes/_authenticated/sites.$siteId.audits'
@@ -123,6 +124,12 @@ const AuthenticatedOnboardingBusinessRoute =
     path: '/business',
     getParentRoute: () => AuthenticatedOnboardingRoute,
   } as any)
+const AuthenticatedGrowthMasterplanRoute =
+  AuthenticatedGrowthMasterplanRouteImport.update({
+    id: '/growth/masterplan',
+    path: '/growth/masterplan',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAuditsAuditIdRoute =
   AuthenticatedAuditsAuditIdRouteImport.update({
     id: '/audits/$auditId',
@@ -161,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
+  '/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
@@ -184,6 +192,7 @@ export interface FileRoutesByTo {
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
+  '/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
@@ -209,6 +218,7 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
   '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
+  '/_authenticated/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
   '/_authenticated/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/_authenticated/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
@@ -234,6 +244,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/onboarding'
     | '/audits/$auditId'
+    | '/growth/masterplan'
     | '/onboarding/business'
     | '/onboarding/done'
     | '/onboarding/site'
@@ -257,6 +268,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/onboarding'
     | '/audits/$auditId'
+    | '/growth/masterplan'
     | '/onboarding/business'
     | '/onboarding/done'
     | '/onboarding/site'
@@ -281,6 +293,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/_authenticated/onboarding'
     | '/_authenticated/audits/$auditId'
+    | '/_authenticated/growth/masterplan'
     | '/_authenticated/onboarding/business'
     | '/_authenticated/onboarding/done'
     | '/_authenticated/onboarding/site'
@@ -428,6 +441,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingBusinessRouteImport
       parentRoute: typeof AuthenticatedOnboardingRoute
     }
+    '/_authenticated/growth/masterplan': {
+      id: '/_authenticated/growth/masterplan'
+      path: '/growth/masterplan'
+      fullPath: '/growth/masterplan'
+      preLoaderRoute: typeof AuthenticatedGrowthMasterplanRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/audits/$auditId': {
       id: '/_authenticated/audits/$auditId'
       path: '/audits/$auditId'
@@ -490,6 +510,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRouteWithChildren
   AuthenticatedAuditsAuditIdRoute: typeof AuthenticatedAuditsAuditIdRoute
+  AuthenticatedGrowthMasterplanRoute: typeof AuthenticatedGrowthMasterplanRoute
   AuthenticatedSettingsBusinessProfileRoute: typeof AuthenticatedSettingsBusinessProfileRoute
   AuthenticatedSettingsGrowthGoalRoute: typeof AuthenticatedSettingsGrowthGoalRoute
   AuthenticatedSettingsToneProfileRoute: typeof AuthenticatedSettingsToneProfileRoute
@@ -504,6 +525,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRouteWithChildren,
   AuthenticatedAuditsAuditIdRoute: AuthenticatedAuditsAuditIdRoute,
+  AuthenticatedGrowthMasterplanRoute: AuthenticatedGrowthMasterplanRoute,
   AuthenticatedSettingsBusinessProfileRoute:
     AuthenticatedSettingsBusinessProfileRoute,
   AuthenticatedSettingsGrowthGoalRoute: AuthenticatedSettingsGrowthGoalRoute,
@@ -533,3 +555,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
