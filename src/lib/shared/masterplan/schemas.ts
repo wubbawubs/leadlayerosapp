@@ -92,7 +92,8 @@ export const MasterplanItemSchema = z.object({
   linkedPageId: z.string().uuid().nullable(),
   linkedAuditId: z.string().uuid().nullable(),
   linkedIssueId: z.string().nullable(),
-  metadata: z.record(z.string(), z.unknown()),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata: z.record(z.string(), z.any()) as z.ZodType<Record<string, any>>,
   createdAt: z.string(),
   updatedAt: z.string(),
 });
