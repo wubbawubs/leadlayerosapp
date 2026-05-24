@@ -48,6 +48,9 @@ function AppHome() {
             <Link to="/settings/growth-goal" className="text-muted-foreground hover:text-foreground">
               Growth goal
             </Link>
+            <Link to="/growth/masterplan" className="text-muted-foreground hover:text-foreground">
+              Masterplan
+            </Link>
             <Link to="/settings/business-profile" className="text-muted-foreground hover:text-foreground">
               Business profile
             </Link>

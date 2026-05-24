@@ -996,44 +996,122 @@ export type Database = {
       }
       master_plans: {
         Row: {
-          ai_credits_per_month: number | null
-          capacity_hours_per_month: number | null
-          content_pillars: Json
-          icp: Json
+          confidence: number | null
+          created_at: string
+          generated_from: Json
+          growth_goal_id: string | null
           id: string
-          services: Json
-          target_keywords: Json
+          lead_math: Json
+          main_constraints: Json
+          missing_context: Json
+          status: string
+          strategy_summary: string | null
+          summary: string | null
           tenant_id: string
           updated_at: string
         }
         Insert: {
-          ai_credits_per_month?: number | null
-          capacity_hours_per_month?: number | null
-          content_pillars?: Json
-          icp?: Json
+          confidence?: number | null
+          created_at?: string
+          generated_from?: Json
+          growth_goal_id?: string | null
           id?: string
-          services?: Json
-          target_keywords?: Json
+          lead_math?: Json
+          main_constraints?: Json
+          missing_context?: Json
+          status?: string
+          strategy_summary?: string | null
+          summary?: string | null
           tenant_id: string
           updated_at?: string
         }
         Update: {
-          ai_credits_per_month?: number | null
-          capacity_hours_per_month?: number | null
-          content_pillars?: Json
-          icp?: Json
+          confidence?: number | null
+          created_at?: string
+          generated_from?: Json
+          growth_goal_id?: string | null
           id?: string
-          services?: Json
-          target_keywords?: Json
+          lead_math?: Json
+          main_constraints?: Json
+          missing_context?: Json
+          status?: string
+          strategy_summary?: string | null
+          summary?: string | null
           tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      masterplan_items: {
+        Row: {
+          created_at: string
+          description: string | null
+          effort: string | null
+          expected_impact: string | null
+          id: string
+          linked_audit_id: string | null
+          linked_goal_id: string | null
+          linked_issue_id: string | null
+          linked_page_id: string | null
+          master_plan_id: string
+          metadata: Json
+          priority: string
+          reason: string | null
+          source: string | null
+          status: string
+          tenant_id: string
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          effort?: string | null
+          expected_impact?: string | null
+          id?: string
+          linked_audit_id?: string | null
+          linked_goal_id?: string | null
+          linked_issue_id?: string | null
+          linked_page_id?: string | null
+          master_plan_id: string
+          metadata?: Json
+          priority?: string
+          reason?: string | null
+          source?: string | null
+          status?: string
+          tenant_id: string
+          title: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          effort?: string | null
+          expected_impact?: string | null
+          id?: string
+          linked_audit_id?: string | null
+          linked_goal_id?: string | null
+          linked_issue_id?: string | null
+          linked_page_id?: string | null
+          master_plan_id?: string
+          metadata?: Json
+          priority?: string
+          reason?: string | null
+          source?: string | null
+          status?: string
+          tenant_id?: string
+          title?: string
+          type?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "master_plans_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "tenants"
+            foreignKeyName: "masterplan_items_master_plan_id_fkey"
+            columns: ["master_plan_id"]
+            isOneToOne: false
+            referencedRelation: "master_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -1060,41 +1138,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "memberships_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      monthly_plans: {
-        Row: {
-          generated_at: string
-          id: string
-          period_month: string
-          priorities: Json
-          status: string
-          tenant_id: string
-        }
-        Insert: {
-          generated_at?: string
-          id?: string
-          period_month: string
-          priorities?: Json
-          status?: string
-          tenant_id: string
-        }
-        Update: {
-          generated_at?: string
-          id?: string
-          period_month?: string
-          priorities?: Json
-          status?: string
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monthly_plans_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
