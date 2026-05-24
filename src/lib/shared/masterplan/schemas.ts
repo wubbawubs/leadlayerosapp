@@ -66,7 +66,8 @@ export const MasterPlanSchema = z.object({
   strategySummary: z.string().nullable(),
   leadMath: LeadMathSchema.partial().nullable(),
   mainConstraints: z.array(z.string()),
-  generatedFrom: z.record(z.string(), z.unknown()),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  generatedFrom: z.record(z.string(), z.any()) as z.ZodType<Record<string, any>>,
   missingContext: z.array(z.string()),
   confidence: z.number().nullable(),
   createdAt: z.string(),
