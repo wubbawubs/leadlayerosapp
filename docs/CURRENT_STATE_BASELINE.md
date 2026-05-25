@@ -193,3 +193,12 @@ Do **not** start Safe Publishing (S5) before Masterplan exists. Publishing witho
 ---
 
 _End of baseline. Use this as the source of truth for Tech Roadmap v4._
+
+
+---
+
+## Update — 2026-05-25
+
+Goal Intake V1 and Masterplan V1 have shipped. The next-steps list in the
+executive summary above is superseded by `docs/ROADMAP_V4.md`, which is now
+the canonical roadmap and also defines the Modular Architecture Contract.
