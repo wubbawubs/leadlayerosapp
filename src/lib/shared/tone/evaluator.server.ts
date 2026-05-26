@@ -93,9 +93,54 @@ const TRUST_PHRASES = [
   "same-day service",
   "same day service",
   "local experts",
+  "local expert",
+  "hvac experts",
+  "hvac expert",
   "industry leader",
   "market leader",
+  "licensed and insured",
+  "number 1",
+  "#1",
+  "best in",
+  "lowest prices",
+  "guaranteed",
 ];
+
+// Generic local-service phrases that should bump genericnessRisk.
+const GENERIC_PHRASES: { phrase: RegExp; weight: number }[] = [
+  { phrase: /\byour local [a-z]+ experts?\b/i, weight: 5 },
+  { phrase: /\b(hvac|plumbing|roofing) help\b/i, weight: 4 },
+  { phrase: /\bhome comfort\b/i, weight: 3 },
+  { phrase: /\bquality service\b/i, weight: 4 },
+  { phrase: /\breliable service\b/i, weight: 4 },
+  { phrase: /\blocal partner\b/i, weight: 4 },
+  { phrase: /\bget(s)? the job done( right)?\b/i, weight: 5 },
+  { phrase: /\bhome service\b/i, weight: 3 },
+];
+
+// Fallback risky/forbidden claims for local-service businesses when the
+// profile hasn't populated claim guardrails. Used as evaluation overlay only
+// — does not mutate the stored profile.
+const DEFAULT_RISKY_CLAIMS = [
+  "trusted local partner",
+  "local experts",
+  "reliable service",
+  "fast service",
+  "gets the job done right",
+  "affordable repair",
+  "top-rated",
+  "highly rated",
+  "licensed and insured",
+];
+const DEFAULT_FORBIDDEN_CLAIMS = [
+  "guaranteed same-day repair",
+  "best hvac company",
+  "number 1 hvac",
+  "#1 hvac",
+  "lowest prices",
+  "guaranteed lower energy bills",
+];
+
 
 export async function evaluateText(
   text: string,
