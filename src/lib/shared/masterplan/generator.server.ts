@@ -584,8 +584,3 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
     inputQuality,
   };
 }
-
-      hasBusinessProfile: !!ctx.businessProfile,
-    },
-  };
-}
