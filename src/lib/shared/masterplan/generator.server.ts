@@ -419,6 +419,19 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
     for (const loc of inputQuality.specificLocations.slice(0, 6)) {
       const exists = hasLocationPageForArea(loc, ctx.pageIntel);
       if (!exists) {
+        // Primary-city redundancy: if homepage or service pages already mention
+        // this city, a dedicated location page may be duplicative.
+        const isPrimaryCity = locIndex === 0;
+        const locNorm = loc.toLowerCase().split(",")[0]?.trim() ?? loc.toLowerCase();
+        const cityAlreadyCovered =
+          isPrimaryCity &&
+          ctx.pageIntel.some((p) => {
+            const hay = `${p.primaryTopic ?? ""} ${p.targetKeyword ?? ""} ${p.pageUrl ?? ""}`.toLowerCase();
+            return (
+              (p.pageType === "homepage" || p.pageType === "service") &&
+              hay.includes(locNorm)
+            );
+          });
         items.push({
           type: "location_page",
           title: `Build location page: ${loc}`,
@@ -439,6 +452,13 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
             locationIndex: locIndex,
             goalContribution: `Local visibility in ${loc} for service search and Maps.`,
             successMetric: `Page live + GBP link + at least 1 local lead per month from ${loc}.`,
+            ...(cityAlreadyCovered
+              ? {
+                  possibleRedundancy: true,
+                  priorityGuardReason:
+                    "Primary city may already be covered by homepage or service pages. Confirm whether a separate city page is needed.",
+                }
+              : {}),
             evidence: [{ source: "Growth Goal", reason: `locations contains "${loc}"` }],
           },
         });
