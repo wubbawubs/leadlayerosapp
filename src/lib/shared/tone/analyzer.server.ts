@@ -208,8 +208,9 @@ function buildSynthesisPrompt(
   scored: ScoredObservation[],
   manualSamples: ManualSample[],
   aggregated: ReturnType<typeof aggregateLists>,
-  locale: string,
+  bizLocale: BusinessLocale,
 ): string {
+  const locale = bizLocale.locale;
   const samplesBlock = scored
     .map(
       (s, i) =>
