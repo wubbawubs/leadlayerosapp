@@ -255,6 +255,12 @@ export const generateMasterplan = createServerFn({ method: "POST" })
         locations: Array.isArray(goalRow.locations) ? (goalRow.locations as string[]) : [],
         trackingNotes: goalRow.tracking_notes ?? null,
         capacityNotes: goalRow.capacity_notes ?? null,
+        goodFitLeads: Array.isArray(goalRow.good_fit_leads)
+          ? (goalRow.good_fit_leads as string[])
+          : [],
+        badFitLeads: Array.isArray(goalRow.bad_fit_leads)
+          ? (goalRow.bad_fit_leads as string[])
+          : [],
       },
       businessProfile: bpRow
         ? {
@@ -262,6 +268,7 @@ export const generateMasterplan = createServerFn({ method: "POST" })
             locationProfile: bpRow.location_profile ?? {},
             conversionProfile: bpRow.conversion_profile ?? {},
             proofProfile: bpRow.proof_profile ?? {},
+            businessIdentity: bpRow.business_identity ?? {},
           }
         : null,
       pageIntel: (piRows ?? []).map(
