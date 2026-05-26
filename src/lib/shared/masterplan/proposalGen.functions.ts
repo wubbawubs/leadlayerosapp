@@ -315,7 +315,7 @@ export const listProposalsForMasterplanItem = createServerFn({ method: "POST" })
     const { data: rows, error } = await admin
       .from("proposal_v2")
       .select(
-        "id, status, action_type, title, summary, origin, created_at, model_used, risk_flags",
+        "id, status, action_type, title, summary, reasoning, before, after, origin, created_at, model_used, risk_flags",
       )
       .eq("tenant_id", data.tenantId)
       .eq("masterplan_item_id", data.masterplanItemId)
@@ -328,6 +328,9 @@ export const listProposalsForMasterplanItem = createServerFn({ method: "POST" })
         actionType: r.action_type as string,
         title: r.title as string,
         summary: r.summary as string,
+        reasoning: (r.reasoning as string) ?? "",
+        before: (r.before as Record<string, unknown>) ?? {},
+        after: (r.after as Record<string, unknown>) ?? {},
         origin: r.origin as string,
         createdAt: r.created_at as string,
         modelUsed: (r.model_used as string) ?? "",
