@@ -14,6 +14,8 @@ import {
   getActiveMasterplan,
   listMasterplanItems,
 } from "@/lib/shared/masterplan/repo.functions";
+import { getExecutionBoard } from "@/lib/shared/execution/board.functions";
+
 
 export const Route = createFileRoute("/_authenticated/app")({
   component: AppHome,
@@ -30,7 +32,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Goal", to: "/settings/growth-goal" },
       { label: "Masterplan", to: "/growth/masterplan" },
-      { label: "Execution", to: "/growth/masterplan", soon: true },
+      { label: "Execution", to: "/growth/execution" },
     ],
   },
   {
@@ -54,6 +56,8 @@ function AppHome() {
   const fetchGoal = useServerFn(getActiveGrowthGoal);
   const fetchPlan = useServerFn(getActiveMasterplan);
   const fetchItems = useServerFn(listMasterplanItems);
+  const fetchBoard = useServerFn(getExecutionBoard);
+
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
@@ -85,6 +89,13 @@ function AppHome() {
     enabled: !!tenantId && !!planId,
   });
 
+  const boardQuery = useQuery({
+    queryKey: ["execution-board", tenantId],
+    queryFn: () => fetchBoard({ data: { tenantId: tenantId! } }),
+    enabled: !!tenantId && !!planId,
+  });
+
+
   async function signOut() {
     await supabase.auth.signOut();
     navigate({ to: "/" });
@@ -97,6 +108,9 @@ function AppHome() {
     acc[it.status] = (acc[it.status] ?? 0) + 1;
     return acc;
   }, {});
+  const execSummary = boardQuery.data?.summary;
+  const execNext = boardQuery.data?.nextAction;
+
 
   const nextSteps: { title: string; to: string; reason: string }[] = [];
   if (!goal) {
@@ -274,6 +288,50 @@ function AppHome() {
           </Card>
         </section>
 
+        <section className="mt-6">
+          <Card
+            title="Execution board"
+            subtitle="Sprint C · Masterplan → Proposal → QA"
+            cta={{ label: "Open execution board", to: "/growth/execution" }}
+          >
+            {!execSummary ? (
+              <p className="text-sm text-muted-foreground">
+                Generate a masterplan to populate the execution board.
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-4 gap-2 text-xs sm:grid-cols-8">
+                  {(
+                    [
+                      ["Planned", execSummary.planned],
+                      ["In QA", execSummary.in_qa],
+                      ["Needs edit", execSummary.needs_edit],
+                      ["Approved", execSummary.approved],
+                      ["Manual", execSummary.manual_task],
+                      ["Blocked", execSummary.blocked],
+                      ["Done", execSummary.done],
+                      ["Total", execSummary.total],
+                    ] as const
+                  ).map(([label, value]) => (
+                    <div key={label} className="rounded border border-border bg-background/40 p-2">
+                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {label}
+                      </div>
+                      <div className="font-mono text-foreground">{value}</div>
+                    </div>
+                  ))}
+                </div>
+                {execNext && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Next: <span className="text-foreground">{execNext}</span>
+                  </p>
+                )}
+              </>
+            )}
+          </Card>
+        </section>
+
+
         <section className="mt-10 grid gap-5 lg:grid-cols-2">
           <Card title="Next steps" subtitle="What to do now">
             <ul className="space-y-3 text-sm">
@@ -296,9 +354,8 @@ function AppHome() {
               <li>✅ Goal Intake V1</li>
               <li>✅ Masterplan V1</li>
               <li>✅ Audit + Proposal V2 + QA core</li>
-              <li className="text-foreground">→ Roadmap + Dashboard Alignment V1</li>
-              <li>⬜ Masterplan → Proposal V2 link</li>
-              <li>⬜ Execution Board</li>
+              <li>✅ Masterplan → Proposal V2 link</li>
+              <li className="text-foreground">→ Execution Board V1</li>
               <li>⬜ Safe Publishing</li>
               <li>⬜ Tracking / Lead Inbox</li>
               <li>⬜ Reporting / Monthly Growth Loop</li>
@@ -308,6 +365,8 @@ function AppHome() {
               full Modular Architecture Contract.
             </p>
           </Card>
+
+
         </section>
       </main>
     </div>
