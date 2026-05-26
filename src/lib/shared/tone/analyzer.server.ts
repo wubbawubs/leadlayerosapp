@@ -28,6 +28,7 @@ import {
   type SampleSource,
   type UrlPick,
 } from "./corpus.server";
+import { loadBusinessLocale, type BusinessLocale } from "./businessContext.server";
 
 
 interface ScoredObservation extends PageObservation {
@@ -207,8 +208,9 @@ function buildSynthesisPrompt(
   scored: ScoredObservation[],
   manualSamples: ManualSample[],
   aggregated: ReturnType<typeof aggregateLists>,
-  locale: string,
+  bizLocale: BusinessLocale,
 ): string {
+  const locale = bizLocale.locale;
   const samplesBlock = scored
     .map(
       (s, i) =>
@@ -234,10 +236,10 @@ function buildSynthesisPrompt(
     : "(geen headlines gevonden)";
 
   return [
-    "Bouw een gedetailleerd LINGUISTISCH MERKMODEL uit onderstaande website-samples.",
+    `Bouw een gedetailleerd LINGUISTISCH MERKMODEL uit onderstaande website-samples voor merk: ${bizLocale.businessName ?? "(onbekend)"}.`,
     "Niet generiek. Concreet. Beschrijf hoe DIT merk schrijft, niet hoe een 'professioneel merk' schrijft.",
     "",
-    `Locale: ${locale}`,
+    `Doeltaal: ${bizLocale.languageName} (locale: ${locale}). ALLE tekstuele velden in het profiel (summary, persona, examples, ctaPatterns, claims, vocabulary, replacements, rewritePatterns, etc.) MOETEN in ${bizLocale.languageName} geschreven worden. Beschrijvende veldnamen blijven Engels (schema-keys), waarden zijn in ${bizLocale.languageName}.`,
     "",
     "STRIKTE REGELS:",
     "- CTA-velden (primaryCtaPatterns, secondaryCtaPatterns) MOETEN letterlijk komen uit de 'WAARGENOMEN CTA's' lijst hieronder. Verzin geen CTA's. Kies de 3-6 sterkste primary en 2-4 secondary.",
@@ -334,6 +336,14 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
     );
 
   try {
+    // 0. Source of truth: business profile must exist (provides language/locale).
+    const bizLocale = await loadBusinessLocale(tenantId);
+    if (!bizLocale) {
+      throw new Error(
+        "Geen business profile gevonden. Maak eerst het Business Profile aan — dat bepaalt taal & locale voor de tone analyse.",
+      );
+    }
+
     const picks = await pickFromAuditAndSitemap(tenantId);
     const manualSamples = await loadManualSamples(tenantId);
 
@@ -381,13 +391,12 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
 
     const aggregated = aggregateLists([...observed]);
 
-    // 4. Synthesis
-    const locale = "nl-NL";
+    // 4. Synthesis (locale derived from business profile)
+    const locale = bizLocale.locale;
     const extractResult = await llmComplete({
       task: "default",
-      system:
-        "Je bent een merkstrateeg én linguïst. Je bouwt een diep, bruikbaar taalprofiel. Output uitsluitend valide JSON volgens het gevraagde schema.",
-      prompt: buildSynthesisPrompt(scored, manualSamples, aggregated, locale),
+      system: `Je bent een merkstrateeg én linguïst. Je bouwt een diep, bruikbaar taalprofiel. Tekstuele waarden in het profiel schrijf je in ${bizLocale.languageName}. Output uitsluitend valide JSON volgens het gevraagde schema.`,
+      prompt: buildSynthesisPrompt(scored, manualSamples, aggregated, bizLocale),
       temperature: 0.2,
       maxTokens: 4000,
       jsonMode: true,
@@ -493,7 +502,7 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
         job_status: "done",
         job_error: null,
         analyzed_at: new Date().toISOString(),
-        language: "nl",
+        language: bizLocale.language,
         locale,
       })
       .eq("id", toneProfileId);
