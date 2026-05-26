@@ -105,6 +105,34 @@ function MasterplanPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  const proposalCountsQuery = useQuery({
+    queryKey: ["masterplan-proposal-counts", tenantId, planId],
+    queryFn: () =>
+      tenantId && planId
+        ? fetchProposalCounts({ data: { tenantId, masterPlanId: planId } })
+        : Promise.resolve({ counts: {} }),
+    enabled: !!tenantId && !!planId,
+  });
+  const proposalCounts = proposalCountsQuery.data?.counts ?? {};
+
+  const generateProposalMut = useMutation({
+    mutationFn: async (vars: { itemId: string }) => {
+      if (!tenantId) throw new Error("Geen tenant");
+      return generateProposalFn({
+        data: { tenantId, masterplanItemId: vars.itemId },
+      });
+    },
+    onSuccess: (res) => {
+      if ("ok" in res && res.ok) {
+        toast.success("Proposal gegenereerd — open Proposals voor review.");
+        qc.invalidateQueries({ queryKey: ["masterplan-proposal-counts", tenantId, planId] });
+      } else if ("reason" in res) {
+        toast.message("Niet ondersteund in V1", { description: res.message });
+      }
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
   const goal = goalQuery.data?.goal ?? null;
   const plan = planQuery.data?.plan ?? null;
   const items = itemsQuery.data?.items ?? [];
