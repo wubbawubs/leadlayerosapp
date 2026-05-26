@@ -64,11 +64,19 @@ export const getToneProfile = createServerFn({ method: "POST" })
 
     if (!row) return { profile: null as null };
 
+    const parsedProfile = ToneProfileSchema.safeParse(row.profile);
+    const profileForClient = parsedProfile.success && row.locale
+      ? ToneProfileSchema.parse({
+          ...parsedProfile.data,
+          localeTone: { ...parsedProfile.data.localeTone, locale: row.locale },
+        })
+      : row.profile ?? {};
+
     // Serialize JSON columns so they survive the RPC boundary cleanly
     return {
       profile: {
         ...row,
-        profile: JSON.stringify(row.profile ?? {}),
+        profile: JSON.stringify(profileForClient),
         locked_fields: JSON.stringify(row.locked_fields ?? []),
         source_summary: JSON.stringify(row.source_summary ?? {}),
       },
@@ -106,7 +114,19 @@ export const saveToneProfile = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     await assertOperator(supabase, userId, data.tenantId);
     const parsed: ToneProfile = ToneProfileSchema.parse(data.profile);
-    const patch: Record<string, unknown> = { profile: parsed };
+    const bizLocale = await loadBusinessLocale(data.tenantId);
+    const savedProfile = ToneProfileSchema.parse({
+      ...parsed,
+      localeTone: {
+        ...parsed.localeTone,
+        locale: bizLocale?.locale ?? parsed.localeTone.locale,
+      },
+    });
+    const patch: Record<string, unknown> = { profile: savedProfile };
+    if (bizLocale) {
+      patch.language = bizLocale.language;
+      patch.locale = bizLocale.locale;
+    }
     if (data.status) patch.status = data.status;
     await supabaseAdmin
       .from("tone_profiles")
