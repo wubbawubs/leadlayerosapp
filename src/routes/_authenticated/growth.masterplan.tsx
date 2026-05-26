@@ -335,8 +335,13 @@ function MasterplanPage() {
                           <div className="flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="rounded bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground">
-                                {it.type}
+                                {itemTypeLabel(it.type)}
                               </span>
+                              {isManualType(it.type) && (
+                                <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                  Manual task for now
+                                </span>
+                              )}
                               <PriorityBadge priority={it.priority} />
                               <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
                                 effort {it.effort} · impact {it.expectedImpact} · {it.source}
@@ -344,7 +349,7 @@ function MasterplanPage() {
                               {counts.total > 0 && (
                                 <span className="rounded bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                                   {counts.total} proposal{counts.total === 1 ? "" : "s"}
-                                  {counts.latestStatus ? ` · ${counts.latestStatus}` : ""}
+                                  {counts.latestStatus ? ` · ${proposalStatusLabel(counts.latestStatus)}` : ""}
                                 </span>
                               )}
                             </div>
