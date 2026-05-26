@@ -14,6 +14,12 @@ import {
   updateMasterplanItem,
 } from "@/lib/shared/masterplan/repo.functions";
 import {
+  generateProposalV2ForMasterplanItem,
+  listProposalCountsForMasterplan,
+  listProposalsForMasterplanItem,
+} from "@/lib/shared/masterplan/proposalGen.functions";
+import { mapMasterplanItemToAction } from "@/lib/shared/masterplan/proposalMapping";
+import {
   type MasterplanItem,
   type MasterplanItemStatus,
   roadmapBucket,
