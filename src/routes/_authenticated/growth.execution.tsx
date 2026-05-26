@@ -13,6 +13,13 @@ import {
 } from "@/lib/shared/execution/board.functions";
 import { generateProposalV2ForMasterplanItem } from "@/lib/shared/masterplan/proposalGen.functions";
 import { updateMasterplanItem } from "@/lib/shared/masterplan/repo.functions";
+import {
+  itemTypeLabel,
+  qaWinnerLabel,
+  proposalStatusLabel,
+  isManualType,
+  EXECUTION_STATUS_HINT,
+} from "@/lib/shared/masterplan/labels";
 
 export const Route = createFileRoute("/_authenticated/growth/execution")({
   component: ExecutionBoardPage,
