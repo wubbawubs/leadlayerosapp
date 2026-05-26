@@ -290,20 +290,36 @@ function MasterplanPage() {
                     ? (gf.confidenceReasons as Array<{ signal: string; delta: number; detail: string }>)
                     : [];
                   if (reasons.length === 0) return null;
+                  const positives = reasons.filter((r) => r.delta >= 0);
+                  const negatives = reasons.filter((r) => r.delta < 0);
                   return (
-                    <details className="mt-3 text-xs">
-                      <summary className="cursor-pointer font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground">
+                    <div className="mt-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         Confidence reasons ({reasons.length})
-                      </summary>
-                      <ul className="mt-1 space-y-1 pl-4 text-muted-foreground">
-                        {reasons.map((r, i) => (
-                          <li key={i}>
-                            <span className="text-destructive">{(r.delta * 100).toFixed(0)}%</span>{" "}
-                            · {r.detail}
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
+                      </p>
+                      {positives.length > 0 && (
+                        <ul className="mt-1 space-y-1 pl-4 text-xs text-muted-foreground">
+                          {positives.map((r, i) => (
+                            <li key={`p-${i}`}>
+                              <span className="text-emerald-600 dark:text-emerald-400">+</span>{" "}
+                              {r.detail}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {negatives.length > 0 && (
+                        <ul className="mt-1 space-y-1 pl-4 text-xs text-muted-foreground">
+                          {negatives.map((r, i) => (
+                            <li key={`n-${i}`}>
+                              <span className="text-destructive">
+                                {(r.delta * 100).toFixed(0)}%
+                              </span>{" "}
+                              · {r.detail}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   );
                 })()}
               </section>
