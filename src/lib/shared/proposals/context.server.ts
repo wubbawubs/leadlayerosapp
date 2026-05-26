@@ -26,7 +26,7 @@ export async function getProposalContext(
       .maybeSingle(),
     supabaseAdmin
       .from("tone_profiles")
-      .select("profile, status")
+      .select("profile, status, locale")
       .eq("tenant_id", tenantId)
       .maybeSingle(),
     auditPageId
@@ -39,10 +39,17 @@ export async function getProposalContext(
   ]);
 
   let toneProfile: ToneProfile | null = null;
-  const tpRow = (tp as { data: { profile: unknown; status: string } | null }).data;
+  const tpRow = (tp as { data: { profile: unknown; status: string; locale: string | null } | null }).data;
   if (tpRow?.profile) {
     try {
-      toneProfile = ToneProfileSchema.parse(tpRow.profile);
+      const parsed = ToneProfileSchema.parse(tpRow.profile);
+      toneProfile = ToneProfileSchema.parse({
+        ...parsed,
+        localeTone: {
+          ...parsed.localeTone,
+          locale: tpRow.locale ?? parsed.localeTone.locale,
+        },
+      });
     } catch {
       toneProfile = null;
     }
