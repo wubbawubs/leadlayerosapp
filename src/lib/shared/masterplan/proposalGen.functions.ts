@@ -321,51 +321,48 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
       riskFlags.push(...quality.riskFlags);
     }
 
-    try {
-      const prompt = buildPrompt({ item, mapping, goal: goalRow, bp: bpRow, tone });
-      const result = await llmComplete({
-        task: "cheap",
-        system:
-          "You are a senior growth + SEO strategist. Output ONLY valid JSON. Be concrete and human-reviewable. No hype.",
-        prompt,
-        temperature: 0.4,
-        maxTokens: 1400,
-        jsonMode: true,
-      });
-      const parsed = GenOutputSchema.parse(extractJson(result.text));
-      title = normalizeText(parsed.title, 200) || title;
-      summary = normalizeText(parsed.summary, 400) || summary;
-      reasoning = normalizeText(parsed.reasoning, 1500) || reasoning;
-      recommendation = normalizeText(parsed.recommendation, 4000) || recommendation;
-      modelUsed = result.model;
-      if (parsed.riskFlags) riskFlags.push(...parsed.riskFlags);
-      if (parsed.keywordsUsed) keywordsUsed.push(...parsed.keywordsUsed);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error("[masterplan->proposal] llm fail", msg);
-      riskFlags.push("generator:llm_fallback");
+    if (quality.ok) {
+      try {
+        const prompt = buildPrompt({ item, mapping, goal: goalRow, bp: bpRow, tone });
+        const result = await llmComplete({
+          task: "cheap",
+          system:
+            "You are a senior growth + SEO strategist. Output ONLY valid JSON. Be concrete and human-reviewable. No hype.",
+          prompt,
+          temperature: 0.4,
+          maxTokens: 1400,
+          jsonMode: true,
+        });
+        const parsed = GenOutputSchema.parse(extractJson(result.text));
+        title = normalizeText(parsed.title, 200) || title;
+        summary = normalizeText(parsed.summary, 400) || summary;
+        reasoning = normalizeText(parsed.reasoning, 1500) || reasoning;
+        recommendation = normalizeText(parsed.recommendation, 4000) || recommendation;
+        modelUsed = result.model;
+        if (parsed.riskFlags) riskFlags.push(...parsed.riskFlags);
+        if (parsed.keywordsUsed) keywordsUsed.push(...parsed.keywordsUsed);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[masterplan->proposal] llm fail", msg);
+        riskFlags.push("generator:llm_fallback");
+      }
+
+      if (isPlaceholderRecommendation(recommendation)) {
+        recommendation = buildDeterministicRecommendation({
+          itemTitle: item.title,
+          itemDescription: item.description,
+          itemReason: item.reason,
+          itemType: item.type,
+          actionType: mapping.actionType,
+          goal: goalRow,
+        });
+      }
     }
 
-    if (isPlaceholderRecommendation(recommendation)) {
-      recommendation = buildDeterministicRecommendation({
-        itemTitle: item.title,
-        itemDescription: item.description,
-        itemReason: item.reason,
-        itemType: item.type,
-        actionType: mapping.actionType,
-        goal: goalRow,
-      });
-    }
-
-    // 5. Persist proposal_v2 with origin=masterplan_item
-    const insertRow: Record<string, unknown> = {
-      tenant_id: data.tenantId,
-      audit_id: null,
-      page_id: null,
-      issue_id: null,
-      proposal_run_id: null,
-      action_type: mapping.actionType,
-      status: "needs_review",
+    const proposalStatus = quality.ok ? "needs_review" : "needs_context";
+    const blockReason = quality.ok
+      ? null
+      : `Input te breed: ${quality.issues.map((i) => i.field).join(", ")}`;
       origin: "masterplan_item",
       masterplan_item_id: item.id,
       growth_goal_id: goalRow?.id ?? null,
