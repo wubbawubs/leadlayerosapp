@@ -411,7 +411,14 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
       console.error("[tone] extract failed, raw response:", extractResult.text?.slice(0, 1000));
       throw new Error(`Profielextractie gaf geen geldige JSON: ${(e as Error).message}`);
     }
-    const profile = ToneProfileSchema.parse(parsed);
+    const extractedProfile = ToneProfileSchema.parse(parsed);
+    const profile = ToneProfileSchema.parse({
+      ...extractedProfile,
+      localeTone: {
+        ...extractedProfile.localeTone,
+        locale,
+      },
+    });
 
     // 5. Confidence — V2 multi-factor
     const totalWords = [...scored, ...manualAsObs].reduce(
