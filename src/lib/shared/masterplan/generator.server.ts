@@ -262,18 +262,50 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
     source: "ai",
   });
 
-  // I. Website fixes from audit (top N issues)
-  for (const code of ctx.audit.issueCodes.slice(0, 5)) {
+  // I. Website fixes from audit — interpreted via priority mapping.
+  //    Consolidate "content" category into 1 editorial item if there are >2
+  //    content issues; otherwise emit top-N ranked issues individually.
+  const grouped = groupAuditIssuesByCategory(ctx.audit.issueCodes);
+  const contentIssues = grouped.content ?? [];
+  const ranked = rankAuditIssues(ctx.audit.issueCodes);
+
+  if (contentIssues.length > 2) {
     items.push({
       type: "website_fix",
-      title: `Resolve audit issue: ${code}`,
-      description: `Issue gedetecteerd in laatste audit (${code}). Onderzoek en fix.`,
-      reason: "Audit signal — beïnvloedt SEO/UX fundament dat alle pagina's deelt.",
-      priority: "medium",
-      effort: "low",
-      expectedImpact: "medium",
+      title: `Editorial sprint: fix ${contentIssues.length} content issues`,
+      description: `Bundel: ${contentIssues.map((i) => i.label).slice(0, 5).join("; ")}${contentIssues.length > 5 ? "; …" : ""}.`,
+      reason: "Meerdere content-issues los oplossen versnippert effort — bundel als één editorial sprint.",
+      priority: "high",
+      effort: "medium",
+      expectedImpact: "high",
       source: "audit",
-      metadata: { issueCode: code, auditId: ctx.audit.id },
+      metadata: {
+        issueCodes: contentIssues.map((i) => i.code),
+        auditId: ctx.audit.id,
+        category: "content",
+      },
+    });
+  }
+
+  const individualIssues = contentIssues.length > 2
+    ? ranked.filter((i) => i.category !== "content")
+    : ranked;
+  for (const issue of individualIssues.slice(0, 5)) {
+    items.push({
+      type: "website_fix",
+      title: `Resolve: ${issue.label}`,
+      description: `Audit-issue ${issue.code} (${issue.category}). ${issue.rationale}`,
+      reason: issue.rationale,
+      priority: issue.priority,
+      effort: issue.effort,
+      expectedImpact: issue.impact,
+      source: "audit",
+      metadata: {
+        issueCode: issue.code,
+        auditId: ctx.audit.id,
+        category: issue.category,
+        severity: issue.severity,
+      },
     });
   }
 
