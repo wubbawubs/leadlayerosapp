@@ -353,10 +353,13 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
       throw new Error("Kon geen pagina-content ophalen en geen manual samples gevonden.");
     }
 
-    // 3. Score observations (sequential to stay within rate limits)
+    // 3. Score observations in parallel batches (was sequential — too slow for worker timeout)
     const scored: ScoredObservation[] = [];
-    for (const o of observed) {
-      scored.push(await scoreObservation(o));
+    const SCORE_CONCURRENCY = 4;
+    for (let i = 0; i < observed.length; i += SCORE_CONCURRENCY) {
+      const batch = observed.slice(i, i + SCORE_CONCURRENCY);
+      const results = await Promise.all(batch.map((o) => scoreObservation(o)));
+      scored.push(...results);
     }
 
     // Fold manual samples into observations for the aggregated extraction.
@@ -381,7 +384,7 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
         "Je bent een merkstrateeg én linguïst. Je bouwt een diep, bruikbaar taalprofiel. Output uitsluitend valide JSON volgens het gevraagde schema.",
       prompt: buildSynthesisPrompt(scored, manualSamples, aggregated, locale),
       temperature: 0.2,
-      maxTokens: 6000,
+      maxTokens: 4000,
       jsonMode: true,
     });
 
