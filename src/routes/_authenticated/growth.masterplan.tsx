@@ -283,9 +283,28 @@ function MasterplanPage() {
                       ))}
                     </ul>
                   </div>
-                )}
-              </section>
-            )}
+                {(() => {
+                  const gf = (plan.generatedFrom ?? {}) as Record<string, unknown>;
+                  const reasons = Array.isArray(gf.confidenceReasons)
+                    ? (gf.confidenceReasons as Array<{ signal: string; delta: number; detail: string }>)
+                    : [];
+                  if (reasons.length === 0) return null;
+                  return (
+                    <details className="mt-3 text-xs">
+                      <summary className="cursor-pointer font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground">
+                        Confidence reasons ({reasons.length})
+                      </summary>
+                      <ul className="mt-1 space-y-1 pl-4 text-muted-foreground">
+                        {reasons.map((r, i) => (
+                          <li key={i}>
+                            <span className="text-destructive">{(r.delta * 100).toFixed(0)}%</span>{" "}
+                            · {r.detail}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  );
+                })()}
 
             {/* Phased roadmap */}
             {plan && (
