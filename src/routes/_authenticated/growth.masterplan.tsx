@@ -287,24 +287,31 @@ function MasterplanPage() {
               </section>
             )}
 
-            {/* 30/60/90 roadmap */}
+            {/* Phased roadmap */}
             {plan && (
               <section>
-                <h2 className="font-display text-2xl text-foreground">30 / 60 / 90 roadmap</h2>
-                <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
-                  {(["30", "60", "90"] as const).map((bucket) => (
+                <h2 className="font-display text-2xl text-foreground">Phased roadmap</h2>
+                <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  {(
+                    [
+                      "first_30_days",
+                      "days_31_60",
+                      "days_61_90",
+                      "backlog",
+                    ] as const
+                  ).map((phase) => (
                     <div
-                      key={bucket}
+                      key={phase}
                       className="rounded-lg border border-border bg-card/60 p-4"
                     >
                       <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                        Eerste {bucket} dagen
+                        {PHASE_LABEL[phase]}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {buckets[bucket].length} items
+                        {phaseBuckets[phase].length} items
                       </p>
                       <ul className="mt-3 space-y-2 text-sm">
-                        {buckets[bucket].map((it) => (
+                        {phaseBuckets[phase].map((it) => (
                           <li
                             key={it.id}
                             className="flex items-start justify-between gap-2 rounded border border-border/60 bg-background/40 px-2 py-1.5"
@@ -313,7 +320,7 @@ function MasterplanPage() {
                             <PriorityBadge priority={it.priority} />
                           </li>
                         ))}
-                        {buckets[bucket].length === 0 && (
+                        {phaseBuckets[phase].length === 0 && (
                           <li className="text-xs text-muted-foreground">—</li>
                         )}
                       </ul>
@@ -322,6 +329,7 @@ function MasterplanPage() {
                 </div>
               </section>
             )}
+
 
             {/* Item board */}
             {plan && (
