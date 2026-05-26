@@ -89,6 +89,13 @@ function AppHome() {
     enabled: !!tenantId && !!planId,
   });
 
+  const boardQuery = useQuery({
+    queryKey: ["execution-board", tenantId],
+    queryFn: () => fetchBoard({ data: { tenantId: tenantId! } }),
+    enabled: !!tenantId && !!planId,
+  });
+
+
   async function signOut() {
     await supabase.auth.signOut();
     navigate({ to: "/" });
