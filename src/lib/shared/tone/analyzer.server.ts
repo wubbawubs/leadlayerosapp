@@ -336,6 +336,14 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
     );
 
   try {
+    // 0. Source of truth: business profile must exist (provides language/locale).
+    const bizLocale = await loadBusinessLocale(tenantId);
+    if (!bizLocale) {
+      throw new Error(
+        "Geen business profile gevonden. Maak eerst het Business Profile aan — dat bepaalt taal & locale voor de tone analyse.",
+      );
+    }
+
     const picks = await pickFromAuditAndSitemap(tenantId);
     const manualSamples = await loadManualSamples(tenantId);
 
