@@ -165,6 +165,7 @@ export async function evaluateText(
   }
 
   // Hard overrides from deterministic checks
+  const riskFlags: string[] = [];
   if (forbiddenWords.length > 0) score.vocabularyFit = Math.min(score.vocabularyFit, 1);
   if (forbiddenClaims.length > 0) score.claimSafety = 0;
   if (riskyClaims.length > 0) score.claimSafety = Math.min(score.claimSafety, 4);
@@ -172,22 +173,18 @@ export async function evaluateText(
   if (avoidWords.length > 0) score.vocabularyFit = Math.min(score.vocabularyFit, 5);
 
   // Deterministic localeFit — the LLM is unreliable here (often returns 0 for
-  // perfectly valid English). Detect language ourselves vs the target locale
-  // from the profile, and override.
+  // perfectly valid English). Detect language ourselves vs the target locale.
   const targetLang = parseTargetLang(profile.localeTone.locale);
   const detected = detectLanguage(text);
   if (detected) {
     if (detected === targetLang) {
-      const localeKey = profile.localeTone.locale;
-      const hasLocaleSignal = LOCALE_SIGNALS[localeKey]?.test(text) ?? false;
+      const hasLocaleSignal = LOCALE_SIGNALS[profile.localeTone.locale]?.test(text) ?? false;
       score.localeFit = hasLocaleSignal ? 10 : 9;
     } else {
       score.localeFit = 1;
-      riskFlagsPre.push(`locale_mismatch:${detected}!=${targetLang}`);
+      riskFlags.push(`locale_mismatch:${detected}!=${targetLang}`);
     }
   } else {
-    // Too short to confidently detect (typical for CTAs) — assume on-locale
-    // and don't punish.
     score.localeFit = Math.max(score.localeFit, 7);
   }
 
@@ -201,7 +198,6 @@ export async function evaluateText(
     score.localeFit * w.localeFit +
     (10 - score.genericnessRisk) * w.genericnessRisk;
 
-  const riskFlags: string[] = [];
   if (forbiddenWords.length) riskFlags.push(`forbidden_word:${forbiddenWords.join(",")}`);
   if (forbiddenClaims.length) riskFlags.push(`forbidden_claim:${forbiddenClaims.join("|")}`);
   if (riskyClaims.length) riskFlags.push(`risky_claim:${riskyClaims.join("|")}`);
