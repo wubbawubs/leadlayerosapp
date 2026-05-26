@@ -502,7 +502,7 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
         job_status: "done",
         job_error: null,
         analyzed_at: new Date().toISOString(),
-        language: "nl",
+        language: bizLocale.language,
         locale,
       })
       .eq("id", toneProfileId);
