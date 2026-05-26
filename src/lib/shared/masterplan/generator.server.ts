@@ -1,11 +1,19 @@
 /**
- * Masterplan V1 — deterministic generator.
+ * Masterplan V2 — deterministic strategy generator.
+ *
  * Reads active growth goal + BPv2 + page intelligence + latest audit and
- * produces lead math, summary, missing-context list, and a seeded set of
+ * produces lead math, summary, missing-context list, and a phased set of
  * masterplan items covering: tracking, service_page, location_page,
  * gbp, review, conversion, content, reporting, website_fix.
  *
- * V1 is deterministic — no LLM calls. Output is grounded in actual context.
+ * V2 changes:
+ *  - Plan copy is English (business/brand-facing).
+ *  - Each item gets `metadata.phase` (first_30_days | days_31_60 | days_61_90 | backlog).
+ *  - Service items carry lead intent scores; existing high-intent pages
+ *    outrank lower-intent new builds.
+ *  - Per-phase focus limits push overflow to backlog.
+ *  - Manual items carry English `playbookSteps`.
+ *  - Confidence is recalibrated and explained via `confidenceReasons`.
  */
 
 import type {
@@ -16,11 +24,23 @@ import type {
 import { rankAuditIssues, groupAuditIssuesByCategory } from "./auditPriorityMapping";
 import {
   analyzeGoalInputQuality,
-  isBroadLocation,
-  isGenericService,
   type GoalQualityReport,
   type GoalQualityWarning,
 } from "./inputQuality";
+import {
+  assignPhase,
+  applyPhaseLimits,
+  scoreServiceIntent,
+  type MasterplanPhase,
+  type ServiceIntentScore,
+} from "./phasing";
+import {
+  TRACKING_PLAYBOOK,
+  GBP_PLAYBOOK,
+  REVIEW_PLAYBOOK,
+  REPORTING_PLAYBOOK,
+  CONVERSION_PLAYBOOK,
+} from "./playbooks";
 
 /** Per-item readiness — read by Execution Board + proposal generator. */
 export type ItemReadiness = "ready" | "needs_context" | "manual_task" | "blocked";
@@ -35,10 +55,12 @@ export interface ItemMetadata {
   linkedLocation?: string;
   goalContribution?: string;
   evidence?: Array<{ source: string; reason: string }>;
-  // Free-form bag — generator may attach extra context.
+  phase?: MasterplanPhase;
+  priorityReason?: string;
+  intentScore?: ServiceIntentScore;
+  isExistingPage?: boolean;
   [key: string]: unknown;
 }
-
 
 export type GeneratorContext = {
   tenantId: string;
@@ -88,8 +110,14 @@ export type GeneratedItem = {
   expectedImpact: "low" | "medium" | "high";
   source: "goal" | "audit" | "business_profile" | "page_intelligence" | "ai" | "operator";
   linkedPageId?: string | null;
-  metadata?: Record<string, unknown>;
+  metadata?: ItemMetadata;
 };
+
+export interface ConfidenceReason {
+  signal: string;
+  delta: number; // signed contribution
+  detail: string;
+}
 
 export type GenerationResult = {
   summary: string;
@@ -102,16 +130,21 @@ export type GenerationResult = {
   generatedFrom: Record<string, unknown>;
   qualityWarnings: GoalQualityWarning[];
   inputQuality: GoalQualityReport;
+  confidenceReasons: ConfidenceReason[];
 };
 
-
-function hasServicePageForFocus(focus: string, pages: GeneratorContext["pageIntel"]): boolean {
+function findExistingServicePage(
+  focus: string,
+  pages: GeneratorContext["pageIntel"],
+): GeneratorContext["pageIntel"][number] | null {
   const f = focus.toLowerCase();
-  return pages.some((p) => {
-    if (p.pageType !== "service") return false;
-    const hay = `${p.primaryTopic ?? ""} ${p.targetKeyword ?? ""} ${p.pageUrl ?? ""}`.toLowerCase();
-    return hay.includes(f);
-  });
+  return (
+    pages.find((p) => {
+      if (p.pageType !== "service") return false;
+      const hay = `${p.primaryTopic ?? ""} ${p.targetKeyword ?? ""} ${p.pageUrl ?? ""}`.toLowerCase();
+      return hay.includes(f);
+    }) ?? null
+  );
 }
 
 function hasLocationPageForArea(area: string, pages: GeneratorContext["pageIntel"]): boolean {
@@ -148,17 +181,16 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
     timeframeMonths: ctx.goal.timeframeMonths ?? null,
   };
 
-  if (targetCount == null) missingContext.push("target count ontbreekt");
-  if (closeRate == null) missingContext.push("close rate ontbreekt");
-  if (currentCount == null) missingContext.push("huidige leadflow onbekend");
-  if (ctx.goal.serviceFocus.length === 0) missingContext.push("geen service focus");
-  if (ctx.goal.locations.length === 0) missingContext.push("geen regio's");
+  if (targetCount == null) missingContext.push("target count missing");
+  if (closeRate == null) missingContext.push("close rate missing");
+  if (currentCount == null) missingContext.push("current lead flow unknown");
+  if (ctx.goal.serviceFocus.length === 0) missingContext.push("no service focus");
+  if (ctx.goal.locations.length === 0) missingContext.push("no locations");
   if (!ctx.goal.trackingNotes || !ctx.goal.trackingNotes.trim()) {
-    missingContext.push("trackingstatus onbekend");
+    missingContext.push("tracking status unknown");
   }
-  if (!ctx.businessProfile) missingContext.push("business profile niet ingevuld");
+  if (!ctx.businessProfile) missingContext.push("business profile not filled");
 
-  // Input Quality Analysis (Sprint E) — drives service/location item shape.
   const inputQuality = analyzeGoalInputQuality({
     goal: {
       service_focus: ctx.goal.serviceFocus,
@@ -180,174 +212,207 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
   });
   for (const w of inputQuality.warnings) missingContext.push(`${w.code}: ${w.message}`);
 
-  const targetLabel = `${targetCount ?? "?"} ${ctx.goal.targetType}/maand`;
+  // Proof / GBP context awareness — pulled from business profile if present.
+  const proofProfile = (ctx.businessProfile?.proofProfile ?? {}) as Record<string, unknown>;
+  const proofIsWeak = !proofProfile || Object.keys(proofProfile).length === 0;
+  if (proofIsWeak) {
+    missingContext.push(
+      "proof_gaps: verified reviews, licenses/certifications, and service guarantees are not confirmed.",
+    );
+  }
+  // GBP status is not modeled separately yet — treat as unknown for confidence.
+  const gbpUnknown = true;
 
-  // A. Tracking
+  const targetLabel = `${targetCount ?? "?"} ${ctx.goal.targetType}/month`;
+
+  // -------------------------------------------------------------------------
+  // A. Tracking — first 30 days foundation.
+  // -------------------------------------------------------------------------
   const trackingUnknown = inputQuality.trackingQuality === "unknown";
   items.push({
     type: "tracking",
     title: "Set up call and form tracking",
     description:
-      "Zorg dat elke binnenkomende lead (call, form, WhatsApp, chat) gemeten wordt met bron-attributie.",
+      "Make sure every incoming lead (call, form, WhatsApp, chat) is measured with source attribution.",
     reason: trackingUnknown
-      ? `Zonder tracking kunnen we niet bewijzen of het doel van ${targetLabel} dichterbij komt.`
-      : "Tracking is genoteerd; verifieer setup en koppel aan lead inbox.",
+      ? `Without tracking we cannot prove progress toward ${targetLabel}.`
+      : "Tracking is noted; verify the setup and connect it to the lead inbox.",
     priority: trackingUnknown ? "critical" : "high",
     effort: "medium",
     expectedImpact: "high",
     source: trackingUnknown ? "goal" : "operator",
     metadata: {
-      readiness: "manual_task" as ItemReadiness,
-      goalContribution: `Direct meetbaar maken van progressie richting ${targetLabel}.`,
-      successMetric: "Elke binnenkomende lead heeft een bron + attributie veld.",
-      playbookSteps: [
-        "Check of call tracking actief is (provider, nummer, doorschakeling).",
-        "Check of formulier-submits worden gemeten (event + bron).",
-        "Bevestig het primaire telefoonnummer en wie de calls aanneemt.",
-        "Documenteer per kanaal welke bron-attributie wordt opgeslagen.",
-        "Mark done zodra elke lead-bron meetbaar en gedocumenteerd is.",
-      ],
+      readiness: "manual_task",
+      goalContribution: `Makes progress toward ${targetLabel} measurable.`,
+      successMetric: "Every incoming lead has a source + attribution field.",
+      playbookSteps: TRACKING_PLAYBOOK,
       evidence: [
-        { source: "Growth Goal", reason: trackingUnknown ? "tracking_notes is leeg" : "tracking_notes ingevuld" },
+        {
+          source: "Growth Goal",
+          reason: trackingUnknown ? "tracking_notes is empty" : "tracking_notes filled",
+        },
       ],
-    } satisfies ItemMetadata,
+    },
   });
-  if (trackingUnknown) mainConstraints.push("Geen meetbare lead-attributie");
+  if (trackingUnknown) mainConstraints.push("No measurable lead attribution.");
 
-  // B. Service pages — branch on quality
+  // -------------------------------------------------------------------------
+  // B. Service items — scored, with existing-page vs missing-page logic.
+  // -------------------------------------------------------------------------
   if (inputQuality.serviceQuality === "specific") {
     for (const focus of inputQuality.specificServices.slice(0, 6)) {
-      const exists = hasServicePageForFocus(focus, ctx.pageIntel);
+      const existing = findExistingServicePage(focus, ctx.pageIntel);
       const primaryLoc = inputQuality.specificLocations[0];
-      if (!exists) {
+      const intent = scoreServiceIntent(focus);
+
+      if (!existing) {
         const title = primaryLoc
-          ? `Build or improve ${focus} page for ${primaryLoc}`
-          : `Build or improve service page: ${focus}`;
+          ? `Build ${focus} page for ${primaryLoc}`
+          : `Build service page: ${focus}`;
         items.push({
           type: "service_page",
           title,
-          description: `Maak een dedicated pagina voor "${focus}" met duidelijke USP, proof, en directe CTA${primaryLoc ? ` gericht op ${primaryLoc}` : ""}.`,
-          reason: `High-intent dienst die direct bijdraagt aan ${targetLabel}.`,
-          priority: "high",
+          description: `Create a dedicated page for "${focus}" with a clear USP, proof and a direct CTA${
+            primaryLoc ? ` focused on ${primaryLoc}` : ""
+          }.`,
+          reason: `${intent.reason} Directly contributes to ${targetLabel}.`,
+          priority: intent.leadIntent >= 8 ? "high" : intent.leadIntent >= 6 ? "medium" : "low",
           effort: "medium",
-          expectedImpact: "high",
+          expectedImpact: intent.value >= 8 ? "high" : "medium",
           source: "goal",
           metadata: {
-            readiness: "ready" as ItemReadiness,
+            readiness: "ready",
             linkedService: focus,
             linkedLocation: primaryLoc,
-            goalContribution: `Vangt zoekintentie voor "${focus}" en stuurt naar primaire CTA.`,
-            successMetric: "Pagina live + minimaal 1 gekwalificeerde lead per maand toegerekend aan deze pagina.",
+            intentScore: intent,
+            isExistingPage: false,
+            goalContribution: `Captures search intent for "${focus}" and routes to the primary CTA.`,
+            successMetric:
+              "Page live + at least 1 qualified lead per month attributed to this page.",
             evidence: [
-              { source: "Growth Goal", reason: `service_focus bevat "${focus}"` },
-              ...(primaryLoc ? [{ source: "Growth Goal", reason: `locations bevat "${primaryLoc}"` }] : []),
+              { source: "Growth Goal", reason: `service_focus contains "${focus}"` },
+              ...(primaryLoc
+                ? [{ source: "Growth Goal", reason: `locations contains "${primaryLoc}"` }]
+                : []),
             ],
-          } satisfies ItemMetadata,
+          },
         });
       } else {
         items.push({
           type: "website_fix",
           title: `Optimize service page: ${focus}`,
-          description: "Bestaande pagina gevonden — verbeter CTA, schema, intern linken en proof.",
-          reason: "Pagina bestaat; conversie- en SEO-optimalisatie geeft snelste lift.",
-          priority: "medium",
+          description:
+            "Existing page found — improve CTA, schema, internal links and proof to convert existing traffic.",
+          reason: `${intent.reason} Page already exists; optimization is the fastest path to leads.`,
+          priority: intent.leadIntent >= 8 ? "high" : "medium",
           effort: "low",
-          expectedImpact: "medium",
+          expectedImpact: intent.leadIntent >= 8 ? "high" : "medium",
           source: "page_intelligence",
+          linkedPageId: existing.pageId,
           metadata: {
-            readiness: "ready" as ItemReadiness,
+            readiness: "ready",
             linkedService: focus,
-            goalContribution: `Verhoogt conversie op bestaande "${focus}" pagina zonder extra verkeer.`,
+            intentScore: intent,
+            isExistingPage: true,
+            goalContribution: `Lifts conversion on the existing "${focus}" page without extra traffic.`,
             evidence: [
-              { source: "Page Intelligence", reason: `bestaande pagina gevonden voor "${focus}"` },
+              { source: "Page Intelligence", reason: `existing page found for "${focus}"` },
             ],
-          } satisfies ItemMetadata,
+          },
         });
       }
     }
   } else {
-    // Generic OR missing → needs-context item instead of fake "Build service page: Leadgen".
     items.push({
       type: "website_fix",
       title: "Define high-value service offers before building service pages",
       description:
-        "Service-page planning kan pas concreet worden als we 2–5 specifieke diensten kennen (geen brede labels als 'leadgen' of 'marketing').",
+        "Service page planning needs 2–5 specific services (not broad labels like 'leadgen' or 'marketing').",
       reason:
-        "Service-page items op een brede service ('leadgen', 'SEO') leveren generieke pagina's zonder zoekintentie of CTA-richting.",
+        "Service items built on broad labels become generic pages with no search intent or CTA direction.",
       priority: "high",
       effort: "low",
       expectedImpact: "high",
       source: "goal",
       metadata: {
-        readiness: "needs_context" as ItemReadiness,
+        readiness: "needs_context",
         needsContext: true,
         missingContext: ["specific_services"],
         playbookSteps: [
-          "Bepaal 2–5 concrete diensten met sales- of marge-waarde.",
-          "Voor elke dienst: noteer doelgroep, prijsindicatie en typische trigger.",
-          "Vervang brede labels (leadgen, marketing, SEO) in het groeidoel.",
-          "Mark done zodra service_focus alleen concrete diensten bevat.",
+          "Pick 2–5 concrete services with clear sales or margin value.",
+          "For each service: note audience, typical price band, and trigger.",
+          "Replace broad labels in the growth goal (leadgen, marketing, SEO).",
+          "Mark done once service_focus contains only concrete services.",
         ],
         evidence: [
           {
             source: "Input Quality",
             reason:
               inputQuality.serviceQuality === "missing"
-                ? "service_focus is leeg"
-                : `service_focus alleen brede labels: ${inputQuality.broadServices.join(", ")}`,
+                ? "service_focus is empty"
+                : `service_focus only broad labels: ${inputQuality.broadServices.join(", ")}`,
           },
         ],
-      } satisfies ItemMetadata,
+      },
     });
-    mainConstraints.push("Service focus is nog niet concreet genoeg voor execution.");
+    mainConstraints.push("Service focus is not concrete enough for execution.");
   }
 
-  // C. Location pages — branch on quality
+  // -------------------------------------------------------------------------
+  // C. Location pages — phased by order, overflow goes to backlog.
+  // -------------------------------------------------------------------------
   if (inputQuality.locationQuality === "specific") {
-    for (const loc of inputQuality.specificLocations.slice(0, 5)) {
+    let locIndex = 0;
+    for (const loc of inputQuality.specificLocations.slice(0, 6)) {
       const exists = hasLocationPageForArea(loc, ctx.pageIntel);
       if (!exists) {
         items.push({
           type: "location_page",
           title: `Build location page: ${loc}`,
-          description: `Local landing voor "${loc}" met service-area context, lokale proof en routebeschrijving.`,
-          reason: "Lokale zichtbaarheid vergroot Maps + lokale SERP en sluit aan op service area.",
-          priority: "medium",
+          description: `Local landing page for "${loc}" with service-area context, local proof and directions.`,
+          reason:
+            locIndex === 0
+              ? "Primary city — start expanding local visibility here after foundation is set."
+              : locIndex <= 2
+                ? "Priority city — second or third expansion target."
+                : "Additional city — phased after primary cities convert.",
+          priority: locIndex === 0 ? "medium" : "low",
           effort: "medium",
-          expectedImpact: "medium",
+          expectedImpact: locIndex === 0 ? "medium" : "low",
           source: "goal",
           metadata: {
-            readiness: "ready" as ItemReadiness,
+            readiness: "ready",
             linkedLocation: loc,
-            goalContribution: `Lokale zichtbaarheid in ${loc} voor service-search + Maps.`,
-            successMetric: `Pagina live + GBP-koppeling + minimaal 1 lokale lead/maand vanuit ${loc}.`,
-            evidence: [{ source: "Growth Goal", reason: `locations bevat "${loc}"` }],
-          } satisfies ItemMetadata,
+            locationIndex: locIndex,
+            goalContribution: `Local visibility in ${loc} for service search and Maps.`,
+            successMetric: `Page live + GBP link + at least 1 local lead per month from ${loc}.`,
+            evidence: [{ source: "Growth Goal", reason: `locations contains "${loc}"` }],
+          },
         });
+        locIndex++;
       }
     }
   } else if (ctx.goal.locations.length > 0) {
-    // We have locations but only broad ones → needs-context instead of "Build location page: USA".
     items.push({
       type: "location_page",
       title: "Define specific target cities or service areas",
       description:
-        "Location-page items hebben concrete steden / staten / metro areas nodig — een land of markt is geen lokale pagina.",
+        "Location pages need concrete cities / states / metros — a country or market is not a local page.",
       reason:
-        "Met alleen brede locaties ('USA', 'Nederland') kunnen we geen lokale relevantie of GBP-koppeling bouwen.",
+        "With only broad locations ('USA', 'Netherlands') we cannot build local relevance or link GBP.",
       priority: "high",
       effort: "low",
       expectedImpact: "medium",
       source: "goal",
       metadata: {
-        readiness: "needs_context" as ItemReadiness,
+        readiness: "needs_context",
         needsContext: true,
         missingContext: ["specific_locations"],
         playbookSteps: [
-          "Kies 2–5 concrete steden of staten waar je leads wilt winnen.",
-          "Optioneel: voeg metro areas of regio's toe (bv. 'Dallas-Fort Worth metro').",
-          "Vervang country-level entries ('USA', 'Nederland') in het groeidoel.",
-          "Mark done zodra locations alleen concrete plaatsen bevat.",
+          "Pick 2–5 concrete cities or states where you want to win leads.",
+          "Optional: add metro areas or regions (e.g. 'Dallas–Fort Worth metro').",
+          "Replace country-level entries in the growth goal.",
+          "Mark done once locations only contain concrete places.",
         ],
         evidence: [
           {
@@ -355,124 +420,123 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
             reason: `locations is country-level: ${inputQuality.broadLocations.join(", ")}`,
           },
         ],
-      } satisfies ItemMetadata,
+      },
     });
-    mainConstraints.push("Locaties zijn nog country-level — geen lokale pagina's mogelijk.");
+    mainConstraints.push("Locations are still country-level — no local pages possible.");
   }
 
-  // D. GBP — manual task with playbook
+  // -------------------------------------------------------------------------
+  // D. GBP — manual task with operational playbook.
+  // -------------------------------------------------------------------------
   items.push({
     type: "gbp",
     title: "Review and optimize Google Business Profile",
     description:
-      "Controleer NAP, categorieën, services, foto's, posts en reviewbeantwoording. Optimaliseer voor primaire dienst + regio.",
-    reason: "GBP is voor lokale leadflow vaak het hoogste-ROI kanaal — status is onbekend.",
+      "Audit NAP, categories, services, photos, posts and review responses. Align with primary service + region.",
+    reason:
+      "GBP is often the highest-ROI local lead channel — current status is unknown and must be confirmed first.",
     priority: "high",
     effort: "low",
     expectedImpact: "high",
     source: "ai",
     metadata: {
-      readiness: "manual_task" as ItemReadiness,
-      goalContribution: "Verhoogt lokale zichtbaarheid en directe lead-acties (call, route, site visit).",
-      playbookSteps: [
-        "Bevestig toegang tot het Google Business Profile.",
-        "Check primaire categorie en service-categorieën.",
-        "Check services, beschrijving, foto's en review-status.",
-        "Lijn GBP-diensten uit met target services en locaties.",
-        "Mark done zodra GBP gealigneerd is met service_focus + locations.",
-      ],
-    } satisfies ItemMetadata,
+      readiness: "manual_task",
+      goalContribution: "Lifts local visibility and direct lead actions (call, directions, visit).",
+      playbookSteps: GBP_PLAYBOOK,
+    },
   });
 
-  // E. Review flow — manual playbook
+  // -------------------------------------------------------------------------
+  // E. Review flow — manual playbook.
+  // -------------------------------------------------------------------------
   items.push({
     type: "review",
     title: "Set up review request flow",
     description:
-      "Bouw geautomatiseerd review-verzoek na afgeronde klus (e-mail/SMS), gericht op Google reviews.",
-    reason: "Reviews verhogen GBP-ranking en conversie van bezoekers naar leads.",
+      "Build an automated review request after job completion (email/SMS), aimed at Google reviews.",
+    reason: "Reviews lift GBP ranking and visitor-to-lead conversion.",
     priority: "medium",
     effort: "low",
     expectedImpact: "medium",
     source: "ai",
     metadata: {
-      readiness: "manual_task" as ItemReadiness,
-      goalContribution: "Reviews voeden GBP-ranking en social proof op service/location pages.",
-      playbookSteps: [
-        "Bevestig waar reviews worden verzameld (Google, branch-platform, eigen site).",
-        "Identificeer de beste timing voor het verzoek (na klus / na factuur).",
-        "Schrijf één korte review-request boodschap (SMS + mail).",
-        "Track wie er gevraagd en geantwoord is (sheet of CRM-veld).",
-        "Mark done zodra het verzoek standaard onderdeel is van afronding.",
-      ],
-    } satisfies ItemMetadata,
+      readiness: "manual_task",
+      goalContribution: "Reviews feed GBP ranking and social proof on service / location pages.",
+      playbookSteps: REVIEW_PLAYBOOK,
+    },
   });
 
-  // F. Conversion
+  // -------------------------------------------------------------------------
+  // F. Conversion — primary CTA + lead path.
+  // -------------------------------------------------------------------------
   const conversionUnknown = trackingUnknown;
   items.push({
     type: "conversion",
     title: "Improve primary website CTA and lead path",
     description:
-      "Audit primaire CTA, contactformulier, click-to-call en lead-bevestiging. Verlaag friction op high-intent pagina's.",
+      "Audit primary CTA, contact form, click-to-call and lead confirmation. Reduce friction on high-intent pages.",
     reason: conversionUnknown
-      ? "Zonder duidelijke conversiepaden lekt verkeer weg vóór het lead wordt."
-      : "Conversiepaden bestaan; verfijnen verhoogt lead-yield zonder extra verkeer.",
+      ? "Without clear conversion paths, traffic leaks before becoming a lead."
+      : "Conversion paths exist; refinement lifts lead yield with no extra traffic.",
     priority: conversionUnknown ? "high" : "medium",
     effort: "medium",
     expectedImpact: "high",
     source: "ai",
     metadata: {
-      readiness: "ready" as ItemReadiness,
-      goalContribution: `Verhoogt lead-yield op bestaand verkeer richting ${targetLabel}.`,
-      successMetric: "Meetbare lift in form-submits / calls op de primaire conversiepagina.",
-    } satisfies ItemMetadata,
+      readiness: "ready",
+      goalContribution: `Lifts lead yield on existing traffic toward ${targetLabel}.`,
+      successMetric: "Measurable lift in form submits / calls on the primary conversion page.",
+      playbookSteps: CONVERSION_PLAYBOOK,
+    },
   });
 
-  // G. Content — only if service is specific (otherwise it becomes generic too)
+  // -------------------------------------------------------------------------
+  // G. Content cluster — only if services are concrete.
+  // -------------------------------------------------------------------------
   if (inputQuality.serviceQuality === "specific") {
     items.push({
       type: "content",
       title: "Plan supporting content for top services",
       description:
-        "Cluster van FAQ + how-to + case-content rondom de hoofd-diensten om intern te linken naar service pages.",
-      reason: "Ondersteunende content versterkt service-pagina autoriteit en vangt long-tail intent.",
+        "Cluster of FAQ + how-to + case content around the top services, internally linked to service pages.",
+      reason:
+        "Supporting content strengthens service-page authority and captures long-tail intent.",
       priority: "low",
       effort: "medium",
       expectedImpact: "medium",
       source: "ai",
       metadata: {
-        readiness: "ready" as ItemReadiness,
+        readiness: "ready",
         linkedService: inputQuality.specificServices[0],
-        goalContribution: "Vangt long-tail vraag rond hoofd-services en linkt intern naar service pages.",
-      } satisfies ItemMetadata,
+        goalContribution:
+          "Captures long-tail demand around the main services and internal-links to them.",
+      },
     });
   }
 
-  // H. Reporting — manual playbook
+  // -------------------------------------------------------------------------
+  // H. Reporting — monthly loop.
+  // -------------------------------------------------------------------------
   items.push({
     type: "reporting",
-    title: "Create monthly progress reporting against lead goal",
+    title: "Create monthly progress reporting against the lead goal",
     description:
-      "Maandelijks dashboard met leads, bron-attributie, conversie en voortgang t.o.v. doel.",
-    reason: "Zonder rapportage geen feedback-loop tussen execution en doel.",
+      "Monthly dashboard with leads, source attribution, conversion and progress vs the goal.",
+    reason: "Without reporting there is no feedback loop between execution and the goal.",
     priority: "medium",
     effort: "low",
     expectedImpact: "medium",
     source: "ai",
     metadata: {
-      readiness: "manual_task" as ItemReadiness,
-      goalContribution: `Maakt voortgang richting ${targetLabel} zichtbaar en stuurbaar.`,
-      playbookSteps: [
-        "Definieer de lead-KPI (aantal gekwalificeerde leads / maand).",
-        "Track calls en formulier-submits per bron.",
-        "Rapporteer leads, bron, gekwalificeerde leads en progressie vs doel.",
-        "Bespreek next actions maandelijks en herijk masterplan.",
-      ],
-    } satisfies ItemMetadata,
+      readiness: "manual_task",
+      goalContribution: `Makes progress toward ${targetLabel} visible and actionable.`,
+      playbookSteps: REPORTING_PLAYBOOK,
+    },
   });
 
-  // I. Website fixes from audit
+  // -------------------------------------------------------------------------
+  // I. Website fixes from audit.
+  // -------------------------------------------------------------------------
   const grouped = groupAuditIssuesByCategory(ctx.audit.issueCodes);
   const contentIssues = grouped.content ?? [];
   const ranked = rankAuditIssues(ctx.audit.issueCodes);
@@ -481,22 +545,22 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
     items.push({
       type: "website_fix",
       title: `Editorial sprint: fix ${contentIssues.length} content issues`,
-      description: `Bundel: ${contentIssues.map((i) => i.label).slice(0, 5).join("; ")}${contentIssues.length > 5 ? "; …" : ""}.`,
+      description: `Bundle: ${contentIssues.map((i) => i.label).slice(0, 5).join("; ")}${
+        contentIssues.length > 5 ? "; …" : ""
+      }.`,
       reason:
-        "Meerdere content-issues los oplossen versnippert effort — bundel als één editorial sprint.",
+        "Resolving multiple content issues one-by-one fragments effort — bundle them as one editorial sprint.",
       priority: "high",
       effort: "medium",
       expectedImpact: "high",
       source: "audit",
       metadata: {
-        readiness: "ready" as ItemReadiness,
+        readiness: "ready",
         issueCodes: contentIssues.map((i) => i.code),
         auditId: ctx.audit.id,
         category: "content",
-        evidence: [
-          { source: "Audit", reason: `${contentIssues.length} content issues gevonden` },
-        ],
-      } satisfies ItemMetadata,
+        evidence: [{ source: "Audit", reason: `${contentIssues.length} content issues found` }],
+      },
     });
   }
 
@@ -506,69 +570,157 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
     items.push({
       type: "website_fix",
       title: `Resolve: ${issue.label}`,
-      description: `Audit-issue ${issue.code} (${issue.category}). ${issue.rationale}`,
+      description: `Audit issue ${issue.code} (${issue.category}). ${issue.rationale}`,
       reason: issue.rationale,
       priority: issue.priority,
       effort: issue.effort,
       expectedImpact: issue.impact,
       source: "audit",
       metadata: {
-        readiness: "ready" as ItemReadiness,
+        readiness: "ready",
         issueCode: issue.code,
         auditId: ctx.audit.id,
         category: issue.category,
         severity: issue.severity,
         evidence: [{ source: "Audit", reason: `issue ${issue.code} (${issue.severity})` }],
-      } satisfies ItemMetadata,
+      },
     });
   }
 
   // Constraints
-  if (ctx.goal.capacityNotes) mainConstraints.push(`Capaciteit: ${ctx.goal.capacityNotes}`);
+  if (ctx.goal.capacityNotes) mainConstraints.push(`Capacity: ${ctx.goal.capacityNotes}`);
   if (leadGap != null && leadGap > 0 && requiredLeads != null) {
     mainConstraints.push(
-      `${leadGap} extra ${ctx.goal.targetType}/maand nodig → ~${requiredLeads} gekwalificeerde leads/maand.`,
+      `${leadGap} extra ${ctx.goal.targetType}/month needed → ~${requiredLeads} qualified leads/month.`,
     );
   }
   if (inputQuality.closeRateQuality === "high") {
-    mainConstraints.push("Close rate is hoog — valideer met echte sales data.");
+    mainConstraints.push("Close rate is high — validate against real sales data.");
   }
 
-  // Summary
+  // -------------------------------------------------------------------------
+  // Phase assignment pass — attach metadata.phase + priorityReason to every item.
+  // -------------------------------------------------------------------------
+  for (const it of items) {
+    const md = (it.metadata ?? {}) as ItemMetadata;
+    const intent =
+      md.intentScore ??
+      (it.type === "service_page" && typeof md.linkedService === "string"
+        ? scoreServiceIntent(md.linkedService)
+        : null);
+    const phaseResult = assignPhase({
+      type: it.type,
+      priority: it.priority,
+      metadata: md,
+      isExistingPage: md.isExistingPage === true,
+      intent,
+      locationIndex:
+        typeof md.locationIndex === "number" ? md.locationIndex : undefined,
+      needsContext: md.needsContext === true,
+    });
+    it.metadata = {
+      ...md,
+      phase: phaseResult.phase,
+      priorityReason: phaseResult.reason,
+      intentScore: intent ?? md.intentScore,
+    };
+  }
+
+  // Apply per-phase focus limits — overflow demoted to backlog.
+  const phased = applyPhaseLimits(
+    items.map((it) => ({
+      phase: (it.metadata?.phase ?? "backlog") as MasterplanPhase,
+      priority: it.priority,
+      intent: (it.metadata?.intentScore as ServiceIntentScore | null) ?? null,
+      ref: it,
+    })),
+  );
+  for (const p of phased) {
+    if (p.ref.metadata) p.ref.metadata.phase = p.phase;
+  }
+
+  // -------------------------------------------------------------------------
+  // Summary + strategy summary (English).
+  // -------------------------------------------------------------------------
   const goalLine =
     targetCount != null
-      ? `${targetCount} ${ctx.goal.targetType} per maand${ctx.goal.timeframeMonths ? ` binnen ${ctx.goal.timeframeMonths} maanden` : ""}`
-      : "groeidoel (target nog niet ingevuld)";
+      ? `${targetCount} ${ctx.goal.targetType}/month${
+          ctx.goal.timeframeMonths ? ` within ${ctx.goal.timeframeMonths} months` : ""
+        }`
+      : "growth goal (target not yet set)";
   const leadLine =
     requiredLeads != null && closeRate != null
-      ? `Bij ${(closeRate * 100).toFixed(0)}% close rate ≈ ${requiredLeads} gekwalificeerde leads/maand.`
-      : "Lead-math onvolledig — vul target en close rate aan voor concrete leadvolumes.";
-  const summary = `Doel: ${goalLine}. ${leadLine}`;
+      ? `At ${(closeRate * 100).toFixed(0)}% close rate ≈ ${requiredLeads} qualified leads/month.`
+      : "Lead math incomplete — set target and close rate to compute lead volume.";
+  const summary = `Goal: ${goalLine}. ${leadLine}`;
+
   const strategySummary = [
     trackingUnknown
-      ? "Eerst meetbaar maken (tracking)."
-      : "Tracking grotendeels gezet — valideer en koppel aan inbox.",
+      ? "First make it measurable (tracking)."
+      : "Tracking is mostly in place — validate and connect to the inbox.",
     inputQuality.serviceQuality === "specific"
-      ? `Bouw of versterk pagina's voor ${inputQuality.specificServices.slice(0, 3).join(", ")}.`
-      : "Definieer eerst concrete services voordat pagina-strategie kan starten.",
+      ? `Build or strengthen pages for ${inputQuality.specificServices.slice(0, 3).join(", ")}.`
+      : "Define concrete services before page strategy can start.",
     inputQuality.locationQuality === "specific"
-      ? `Lokale zichtbaarheid voor ${inputQuality.specificLocations.slice(0, 3).join(", ")} via GBP + location pages.`
-      : "Lokale strategie nog niet bepaald — voeg concrete steden/staten toe.",
-    "Daarna conversie-optimalisatie + maandelijkse reporting tegen het doel.",
+      ? `Local visibility for ${inputQuality.specificLocations.slice(0, 3).join(", ")} via GBP + location pages.`
+      : "Local strategy not set — add concrete cities/states.",
+    "Then conversion optimization + monthly reporting against the goal.",
   ].join(" ");
 
-  // Confidence — context signals + quality penalty
-  const signals = [
-    targetCount != null,
-    closeRate != null,
-    currentCount != null,
-    inputQuality.serviceQuality === "specific",
-    inputQuality.locationQuality === "specific",
-    inputQuality.trackingQuality === "known",
-    !!ctx.businessProfile,
-    ctx.pageIntel.length > 0,
-  ];
-  const confidence = signals.filter(Boolean).length / signals.length;
+  // -------------------------------------------------------------------------
+  // Confidence — recalibrated. Starts at 0.95 and is reduced by missing signals.
+  // -------------------------------------------------------------------------
+  const reasons: ConfidenceReason[] = [];
+  let confidence = 0.95;
+
+  function penalize(signal: string, delta: number, detail: string) {
+    confidence += delta;
+    reasons.push({ signal, delta, detail });
+  }
+
+  if (targetCount == null) penalize("target_count_missing", -0.1, "Target count is missing.");
+  if (closeRate == null) penalize("close_rate_missing", -0.1, "Close rate is missing.");
+  if (currentCount == null)
+    penalize("current_count_missing", -0.05, "Current lead flow is unknown.");
+  if (inputQuality.serviceQuality !== "specific")
+    penalize(
+      "service_focus_weak",
+      -0.15,
+      "Service focus is missing or too generic — page strategy cannot be concrete.",
+    );
+  if (inputQuality.locationQuality !== "specific" && ctx.goal.locations.length > 0)
+    penalize(
+      "locations_broad",
+      -0.1,
+      "Locations are country-level — local pages and GBP alignment are impossible.",
+    );
+  else if (inputQuality.locationQuality === "missing")
+    penalize("locations_missing", -0.1, "No locations defined on the goal.");
+  if (inputQuality.trackingQuality === "unknown")
+    penalize("tracking_unknown", -0.1, "Lead tracking is not documented.");
+  if (!ctx.businessProfile)
+    penalize("business_profile_missing", -0.1, "Business Profile is not filled.");
+  else {
+    const identity = (ctx.businessProfile.businessIdentity ?? {}) as Record<string, unknown>;
+    if (!identity.industry && !identity.vertical)
+      penalize("vertical_missing", -0.08, "Vertical / industry missing on Business Profile.");
+  }
+  if (proofIsWeak)
+    penalize(
+      "proof_weak",
+      -0.07,
+      "Verified reviews, licenses and guarantees are not confirmed — claim safety is limited.",
+    );
+  if (gbpUnknown)
+    penalize("gbp_unknown", -0.05, "Google Business Profile status not yet confirmed.");
+  if (ctx.pageIntel.length === 0)
+    penalize(
+      "page_intel_empty",
+      -0.05,
+      "No Page Intelligence — cannot detect existing pages or local relevance.",
+    );
+
+  confidence = Math.max(0.1, Math.min(0.99, confidence));
 
   return {
     summary,
@@ -584,8 +736,11 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
       pageIntelCount: ctx.pageIntel.length,
       hasBusinessProfile: !!ctx.businessProfile,
       inputReadiness: inputQuality.readiness,
+      confidenceReasons: reasons,
+      version: "masterplan_v2",
     },
     qualityWarnings: inputQuality.warnings,
     inputQuality,
+    confidenceReasons: reasons,
   };
 }
