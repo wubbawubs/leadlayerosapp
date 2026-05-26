@@ -30,7 +30,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Goal", to: "/settings/growth-goal" },
       { label: "Masterplan", to: "/growth/masterplan" },
-      { label: "Execution", to: "/growth/masterplan", soon: true },
+      { label: "Execution", to: "/growth/execution" },
     ],
   },
   {
