@@ -758,6 +758,43 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
     confidence += delta;
     reasons.push({ signal, delta, detail });
   }
+  function affirm(signal: string, detail: string) {
+    reasons.push({ signal, delta: 0, detail });
+  }
+
+  // Positive signals — operator-facing, explain what IS strong.
+  if (inputQuality.serviceQuality === "specific") {
+    affirm(
+      "service_focus_strong",
+      `Strong service focus: ${inputQuality.specificServices.slice(0, 4).join(", ")}.`,
+    );
+  }
+  if (inputQuality.locationQuality === "specific") {
+    affirm(
+      "locations_strong",
+      `Concrete target locations: ${inputQuality.specificLocations.slice(0, 4).join(", ")}.`,
+    );
+  }
+  if (targetCount != null && closeRate != null) {
+    affirm(
+      "lead_math_complete",
+      `Lead math is complete: ${targetCount} ${ctx.goal.targetType}/month at ${Math.round(Number(closeRate) * 100)}% close rate.`,
+    );
+  }
+  if (ctx.pageIntel.length > 0) {
+    affirm(
+      "page_intel_present",
+      `Page Intelligence available for ${ctx.pageIntel.length} pages — existing pages can be optimized first.`,
+    );
+  }
+  if (inputQuality.closeRateQuality === "high") {
+    affirm(
+      "close_rate_warning",
+      closeRate != null && Number(closeRate) > 0.7
+        ? `Close rate is very high (${Math.round(Number(closeRate) * 100)}%). Confirm with real sales data.`
+        : `Close rate is elevated${closeRate != null ? ` (${Math.round(Number(closeRate) * 100)}%)` : ""}. Confirm with real sales data.`,
+    );
+  }
 
   if (targetCount == null) penalize("target_count_missing", -0.1, "Target count is missing.");
   if (closeRate == null) penalize("close_rate_missing", -0.1, "Close rate is missing.");
