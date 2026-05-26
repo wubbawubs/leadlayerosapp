@@ -23,9 +23,12 @@ import { itemTypeLabel, isManualType, proposalStatusLabel } from "@/lib/shared/m
 import {
   type MasterplanItem,
   type MasterplanItemStatus,
-  roadmapBucket,
+  type MasterplanPhase,
+  itemPhase,
+  PHASE_LABEL,
   priorityRank,
 } from "@/lib/shared/masterplan/schemas";
+
 
 export const Route = createFileRoute("/_authenticated/growth/masterplan")({
   component: MasterplanPage,
@@ -139,12 +142,17 @@ function MasterplanPage() {
   const plan = planQuery.data?.plan ?? null;
   const items = itemsQuery.data?.items ?? [];
 
-  const buckets = useMemo(() => {
-    const out: Record<"30" | "60" | "90", MasterplanItem[]> = { "30": [], "60": [], "90": [] };
-    for (const it of items) out[roadmapBucket(it)].push(it);
-    for (const k of ["30", "60", "90"] as const) {
+  const phaseBuckets = useMemo(() => {
+    const out: Record<MasterplanPhase, MasterplanItem[]> = {
+      first_30_days: [],
+      days_31_60: [],
+      days_61_90: [],
+      backlog: [],
+    };
+    for (const it of items) out[itemPhase(it)].push(it);
+    (Object.keys(out) as MasterplanPhase[]).forEach((k) => {
       out[k].sort((a, b) => priorityRank(b.priority) - priorityRank(a.priority));
-    }
+    });
     return out;
   }, [items]);
 
@@ -276,27 +284,56 @@ function MasterplanPage() {
                     </ul>
                   </div>
                 )}
+                {(() => {
+                  const gf = (plan.generatedFrom ?? {}) as Record<string, unknown>;
+                  const reasons = Array.isArray(gf.confidenceReasons)
+                    ? (gf.confidenceReasons as Array<{ signal: string; delta: number; detail: string }>)
+                    : [];
+                  if (reasons.length === 0) return null;
+                  return (
+                    <details className="mt-3 text-xs">
+                      <summary className="cursor-pointer font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground">
+                        Confidence reasons ({reasons.length})
+                      </summary>
+                      <ul className="mt-1 space-y-1 pl-4 text-muted-foreground">
+                        {reasons.map((r, i) => (
+                          <li key={i}>
+                            <span className="text-destructive">{(r.delta * 100).toFixed(0)}%</span>{" "}
+                            · {r.detail}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  );
+                })()}
               </section>
             )}
 
-            {/* 30/60/90 roadmap */}
+            {/* Phased roadmap */}
             {plan && (
               <section>
-                <h2 className="font-display text-2xl text-foreground">30 / 60 / 90 roadmap</h2>
-                <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
-                  {(["30", "60", "90"] as const).map((bucket) => (
+                <h2 className="font-display text-2xl text-foreground">Phased roadmap</h2>
+                <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  {(
+                    [
+                      "first_30_days",
+                      "days_31_60",
+                      "days_61_90",
+                      "backlog",
+                    ] as const
+                  ).map((phase) => (
                     <div
-                      key={bucket}
+                      key={phase}
                       className="rounded-lg border border-border bg-card/60 p-4"
                     >
                       <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                        Eerste {bucket} dagen
+                        {PHASE_LABEL[phase]}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {buckets[bucket].length} items
+                        {phaseBuckets[phase].length} items
                       </p>
                       <ul className="mt-3 space-y-2 text-sm">
-                        {buckets[bucket].map((it) => (
+                        {phaseBuckets[phase].map((it) => (
                           <li
                             key={it.id}
                             className="flex items-start justify-between gap-2 rounded border border-border/60 bg-background/40 px-2 py-1.5"
@@ -305,7 +342,7 @@ function MasterplanPage() {
                             <PriorityBadge priority={it.priority} />
                           </li>
                         ))}
-                        {buckets[bucket].length === 0 && (
+                        {phaseBuckets[phase].length === 0 && (
                           <li className="text-xs text-muted-foreground">—</li>
                         )}
                       </ul>
@@ -314,6 +351,7 @@ function MasterplanPage() {
                 </div>
               </section>
             )}
+
 
             {/* Item board */}
             {plan && (
@@ -352,6 +390,15 @@ function MasterplanPage() {
                                   {counts.latestStatus ? ` · ${proposalStatusLabel(counts.latestStatus)}` : ""}
                                 </span>
                               )}
+                              {(() => {
+                                const md = (it.metadata ?? {}) as Record<string, unknown>;
+                                const phase = md.phase as MasterplanPhase | undefined;
+                                return phase ? (
+                                  <span className="rounded bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                                    {PHASE_LABEL[phase]}
+                                  </span>
+                                ) : null;
+                              })()}
                             </div>
                             <h3 className="mt-1 font-semibold text-foreground">{it.title}</h3>
                             {it.description && (
@@ -359,9 +406,37 @@ function MasterplanPage() {
                             )}
                             {it.reason && (
                               <p className="mt-2 text-xs italic text-muted-foreground">
-                                Waarom: {it.reason}
+                                Why: {it.reason}
                               </p>
                             )}
+                            {(() => {
+                              const md = (it.metadata ?? {}) as Record<string, unknown>;
+                              const pr = typeof md.priorityReason === "string" ? md.priorityReason : null;
+                              const steps = Array.isArray(md.playbookSteps)
+                                ? (md.playbookSteps as string[])
+                                : [];
+                              return (
+                                <>
+                                  {pr && (
+                                    <p className="mt-2 text-xs text-primary/80">
+                                      Phase reason: {pr}
+                                    </p>
+                                  )}
+                                  {steps.length > 0 && (
+                                    <details className="mt-2 text-xs">
+                                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                                        Playbook ({steps.length} steps)
+                                      </summary>
+                                      <ol className="mt-1 list-decimal space-y-1 pl-5 text-muted-foreground">
+                                        {steps.map((s, i) => (
+                                          <li key={i}>{s}</li>
+                                        ))}
+                                      </ol>
+                                    </details>
+                                  )}
+                                </>
+                              );
+                            })()}
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                               {mapping.supported ? (
                                 <button
