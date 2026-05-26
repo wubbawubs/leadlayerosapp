@@ -113,7 +113,8 @@ function MasterplanPage() {
         : Promise.resolve({ counts: {} }),
     enabled: !!tenantId && !!planId,
   });
-  const proposalCounts = proposalCountsQuery.data?.counts ?? {};
+  const proposalCounts: Record<string, { total: number; latestStatus: string | null }> =
+    proposalCountsQuery.data?.counts ?? {};
 
   const generateProposalMut = useMutation({
     mutationFn: async (vars: { itemId: string }) => {
