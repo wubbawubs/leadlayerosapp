@@ -46,26 +46,10 @@ function ExecutionBoardPage() {
 
   const boardQuery = useQuery({
     queryKey: ["execution-board", tenantId],
-    queryFn: () =>
-      tenantId
-        ? fetchBoard({ data: { tenantId } })
-        : Promise.resolve({
-            plan: null,
-            items: [],
-            summary: {
-              total: 0,
-              planned: 0,
-              in_qa: 0,
-              needs_edit: 0,
-              approved: 0,
-              manual_task: 0,
-              blocked: 0,
-              done: 0,
-            },
-            nextAction: "",
-          }),
+    queryFn: () => fetchBoard({ data: { tenantId: tenantId! } }),
     enabled: !!tenantId,
   });
+
 
   const [pendingId, setPendingId] = useState<string | null>(null);
 
