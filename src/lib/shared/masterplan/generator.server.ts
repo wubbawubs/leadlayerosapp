@@ -166,6 +166,8 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
       close_rate: ctx.goal.closeRate,
       tracking_notes: ctx.goal.trackingNotes,
       current_count: ctx.goal.currentCount,
+      good_fit_leads: ctx.goal.goodFitLeads ?? [],
+      bad_fit_leads: ctx.goal.badFitLeads ?? [],
     },
     bp: ctx.businessProfile
       ? {
