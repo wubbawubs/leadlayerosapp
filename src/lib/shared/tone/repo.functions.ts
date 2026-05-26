@@ -178,7 +178,7 @@ export const testToneOutput = createServerFn({ method: "POST" })
     });
 
     const text = result.text.trim().replace(/^"|"$/g, "");
-    const evaluation = await evaluateText(text, profile);
+    const evaluation = await evaluateText(text, profile, { kind: data.kind });
     return {
       ok: true as const,
       text,

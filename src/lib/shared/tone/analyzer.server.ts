@@ -242,11 +242,13 @@ function buildSynthesisPrompt(
     `Doeltaal: ${bizLocale.languageName} (locale: ${locale}). ALLE tekstuele velden in het profiel (summary, persona, examples, ctaPatterns, claims, vocabulary, replacements, rewritePatterns, etc.) MOETEN in ${bizLocale.languageName} geschreven worden. Beschrijvende veldnamen blijven Engels (schema-keys), waarden zijn in ${bizLocale.languageName}.`,
     "",
     "STRIKTE REGELS:",
-    "- CTA-velden (primaryCtaPatterns, secondaryCtaPatterns) MOETEN letterlijk komen uit de 'WAARGENOMEN CTA's' lijst hieronder. Verzin geen CTA's. Kies de 3-6 sterkste primary en 2-4 secondary.",
+    "- primaryCtaPatterns / secondaryCtaPatterns MOETEN echte ACTIE-CTA's zijn: werkwoord-eerst (Book, Schedule, Request, Call, Get, Start, Download, ...) of een duidelijke call-to-action zin. NAVIGATIE-LABELS en SERVICE-CATEGORIE-NAMEN (zoals 'AC Repair Services', 'HVAC Maintenance', 'About Us', 'Contact') zijn GEEN CTA's en mogen NIET in deze lijsten staan, zelfs als ze in de waargenomen lijst voorkomen. Als er geen echte actie-CTA's waargenomen zijn, geef dan een lege lijst — verzin er geen.",
     "- examples.good MOET 5-8 LETTERLIJKE zinnen uit de samples bevatten (kopieer woord-voor-woord).",
     "- vocabulary.avoid mag GEEN woord bevatten dat in de samples meer dan 1× positief gebruikt wordt door het merk zelf. Bij twijfel: laat weg.",
     "- vocabulary.forbidden = hype/overclaim taal die NIET in de samples voorkomt (gegarandeerd, nummer 1, explosieve groei, etc.).",
     "- claimStyle.allowedClaims: gebruik de 'WAARGENOMEN CLAIM-ZINNEN' als basis; herformuleer alleen voor herbruikbaarheid.",
+    "- claimStyle.riskyClaims MOET in elk geval bevatten (indien van toepassing op de markt): trust/authority-claims zonder bewijs zoals 'trusted local partner', 'top-rated', 'highly rated', 'most reliable', 'fastest response', 'same-day service', 'local experts', 'industry leader' — tenzij het merk hier expliciet bewijs voor toont (reviews, awards, jaartal). Voeg toe aan riskyClaims, niet aan allowedClaims.",
+    "- Voor lokale service-businesses (bv. HVAC, loodgieter, autoschade): noteer in voiceIdentity.summary en localeTone.culturalNotes dat sterke H1/meta de SERVICE-CATEGORIE EN locatie/audience expliciet zouden moeten bevatten (bv. 'HVAC Service for Dallas Homeowners' i.p.v. 'HVAC Help for Homeowners').",
     "",
     "WAARGENOMEN CTA's (sorted by frequency — kies hieruit):",
     ctaList,
@@ -430,7 +432,7 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
       (aggregated.ctas.length + aggregated.claimSentences.length + aggregated.headlines.length) / 25,
     );
     const manualBoost = manualSamples.length > 0 ? 0.1 : 0;
-    const confidence = Math.min(
+    let confidence = Math.min(
       10,
       (corpusSize * 0.25 +
         sourceDiversity * 0.2 +
@@ -440,6 +442,10 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
         0.1) *
         10,
     );
+    // Honesty cap: if our samples are mediocre we should NOT claim high confidence,
+    // even when diversity and density are perfect.
+    if (avgQuality < 6.5) confidence = Math.min(confidence, 7.5);
+    if (avgQuality < 5) confidence = Math.min(confidence, 6.5);
 
     // 6. Persist
     const { data: existing } = await supabaseAdmin
