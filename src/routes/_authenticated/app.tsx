@@ -108,6 +108,9 @@ function AppHome() {
     acc[it.status] = (acc[it.status] ?? 0) + 1;
     return acc;
   }, {});
+  const execSummary = boardQuery.data?.summary;
+  const execNext = boardQuery.data?.nextAction;
+
 
   const nextSteps: { title: string; to: string; reason: string }[] = [];
   if (!goal) {
