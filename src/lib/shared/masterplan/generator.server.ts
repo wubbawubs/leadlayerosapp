@@ -55,12 +55,15 @@ export type GeneratorContext = {
     locations: string[];
     trackingNotes: string | null;
     capacityNotes: string | null;
+    goodFitLeads?: string[];
+    badFitLeads?: string[];
   };
   businessProfile: {
     offerProfile?: Record<string, unknown>;
     locationProfile?: Record<string, unknown>;
     conversionProfile?: Record<string, unknown>;
     proofProfile?: Record<string, unknown>;
+    businessIdentity?: Record<string, unknown>;
   } | null;
   pageIntel: Array<{
     pageId: string | null;
@@ -163,6 +166,8 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
       close_rate: ctx.goal.closeRate,
       tracking_notes: ctx.goal.trackingNotes,
       current_count: ctx.goal.currentCount,
+      good_fit_leads: ctx.goal.goodFitLeads ?? [],
+      bad_fit_leads: ctx.goal.badFitLeads ?? [],
     },
     bp: ctx.businessProfile
       ? {
