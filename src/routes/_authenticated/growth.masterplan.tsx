@@ -41,6 +41,8 @@ function MasterplanPage() {
   const fetchItems = useServerFn(listMasterplanItems);
   const generateFn = useServerFn(generateMasterplan);
   const updateItemFn = useServerFn(updateMasterplanItem);
+  const generateProposalFn = useServerFn(generateProposalV2ForMasterplanItem);
+  const fetchProposalCounts = useServerFn(listProposalCountsForMasterplan);
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
