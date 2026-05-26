@@ -363,6 +363,16 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
     const blockReason = quality.ok
       ? null
       : `Input te breed: ${quality.issues.map((i) => i.field).join(", ")}`;
+
+    // 5. Persist proposal_v2 with origin=masterplan_item
+    const insertRow: Record<string, unknown> = {
+      tenant_id: data.tenantId,
+      audit_id: null,
+      page_id: null,
+      issue_id: null,
+      proposal_run_id: null,
+      action_type: mapping.actionType,
+      status: proposalStatus,
       origin: "masterplan_item",
       masterplan_item_id: item.id,
       growth_goal_id: goalRow?.id ?? null,
@@ -370,7 +380,7 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
       summary,
       reasoning,
       before: { masterplanItem: { id: item.id, title: item.title, type: item.type } },
-      after: { recommendation },
+      after: { recommendation, inputQuality: quality },
       scores: {},
       context_used: {
         toneProfile: !!tone,
@@ -385,10 +395,11 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
         origin: "masterplan_item",
         masterplanItem: item,
         goalId: goalRow?.id ?? null,
+        inputQuality: quality,
       },
       publishable: false,
       model_used: modelUsed,
-      block_reason: null,
+      block_reason: blockReason,
     };
 
     const { data: row, error } = await admin
