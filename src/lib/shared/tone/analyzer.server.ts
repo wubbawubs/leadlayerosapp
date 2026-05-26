@@ -391,13 +391,12 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
 
     const aggregated = aggregateLists([...observed]);
 
-    // 4. Synthesis
-    const locale = "nl-NL";
+    // 4. Synthesis (locale derived from business profile)
+    const locale = bizLocale.locale;
     const extractResult = await llmComplete({
       task: "default",
-      system:
-        "Je bent een merkstrateeg én linguïst. Je bouwt een diep, bruikbaar taalprofiel. Output uitsluitend valide JSON volgens het gevraagde schema.",
-      prompt: buildSynthesisPrompt(scored, manualSamples, aggregated, locale),
+      system: `Je bent een merkstrateeg én linguïst. Je bouwt een diep, bruikbaar taalprofiel. Tekstuele waarden in het profiel schrijf je in ${bizLocale.languageName}. Output uitsluitend valide JSON volgens het gevraagde schema.`,
+      prompt: buildSynthesisPrompt(scored, manualSamples, aggregated, bizLocale),
       temperature: 0.2,
       maxTokens: 4000,
       jsonMode: true,
