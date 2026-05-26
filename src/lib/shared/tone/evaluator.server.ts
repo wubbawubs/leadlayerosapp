@@ -27,7 +27,9 @@ function detectForbidden(text: string, words: string[]): string[] {
   return words.filter((w) => {
     const needle = w.trim().toLowerCase();
     if (!needle) return false;
-    const re = new RegExp(`\\b${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Match base form + common plural/comparative variants (expert → experts, fast → fastest)
+    const re = new RegExp(`\\b${escaped}(?:s|es|er|est|ly|ing)?\\b`, "i");
     return re.test(lower);
   });
 }
@@ -91,9 +93,54 @@ const TRUST_PHRASES = [
   "same-day service",
   "same day service",
   "local experts",
+  "local expert",
+  "hvac experts",
+  "hvac expert",
   "industry leader",
   "market leader",
+  "licensed and insured",
+  "number 1",
+  "#1",
+  "best in",
+  "lowest prices",
+  "guaranteed",
 ];
+
+// Generic local-service phrases that should bump genericnessRisk.
+const GENERIC_PHRASES: { phrase: RegExp; weight: number }[] = [
+  { phrase: /\byour local [a-z]+ experts?\b/i, weight: 5 },
+  { phrase: /\b(hvac|plumbing|roofing) help\b/i, weight: 4 },
+  { phrase: /\bhome comfort\b/i, weight: 3 },
+  { phrase: /\bquality service\b/i, weight: 4 },
+  { phrase: /\breliable service\b/i, weight: 4 },
+  { phrase: /\blocal partner\b/i, weight: 4 },
+  { phrase: /\bget(s)? the job done( right)?\b/i, weight: 5 },
+  { phrase: /\bhome service\b/i, weight: 3 },
+];
+
+// Fallback risky/forbidden claims for local-service businesses when the
+// profile hasn't populated claim guardrails. Used as evaluation overlay only
+// — does not mutate the stored profile.
+const DEFAULT_RISKY_CLAIMS = [
+  "trusted local partner",
+  "local experts",
+  "reliable service",
+  "fast service",
+  "gets the job done right",
+  "affordable repair",
+  "top-rated",
+  "highly rated",
+  "licensed and insured",
+];
+const DEFAULT_FORBIDDEN_CLAIMS = [
+  "guaranteed same-day repair",
+  "best hvac company",
+  "number 1 hvac",
+  "#1 hvac",
+  "lowest prices",
+  "guaranteed lower energy bills",
+];
+
 
 export async function evaluateText(
   text: string,
@@ -168,11 +215,33 @@ export async function evaluateText(
 
   // Hard overrides from deterministic checks
   const riskFlags: string[] = [];
+
+  // Claim guard fallback: when profile has no risky/forbidden claims, overlay
+  // sensible defaults for local-service businesses (not stored on profile).
+  const usingDefaultRisky = profile.claimStyle.riskyClaims.length === 0;
+  const usingDefaultForbidden = profile.claimStyle.forbiddenClaims.length === 0;
+  const riskyFromDefaults = usingDefaultRisky ? detectForbiddenClaim(text, DEFAULT_RISKY_CLAIMS) : [];
+  const forbiddenFromDefaults = usingDefaultForbidden ? detectForbiddenClaim(text, DEFAULT_FORBIDDEN_CLAIMS) : [];
+  const allRiskyHits = Array.from(new Set([...riskyClaims, ...riskyFromDefaults]));
+  const allForbiddenHits = Array.from(new Set([...forbiddenClaims, ...forbiddenFromDefaults]));
+  if (usingDefaultRisky || usingDefaultForbidden) {
+    riskFlags.push("claim_guardrails_empty_default_used");
+  }
+
   if (forbiddenWords.length > 0) score.vocabularyFit = Math.min(score.vocabularyFit, 1);
-  if (forbiddenClaims.length > 0) score.claimSafety = 0;
-  if (riskyClaims.length > 0) score.claimSafety = Math.min(score.claimSafety, 4);
+  if (allForbiddenHits.length > 0) score.claimSafety = 0;
+  if (allRiskyHits.length > 0) score.claimSafety = Math.min(score.claimSafety, 4);
   if (trustHits.length > 0) score.claimSafety = Math.min(score.claimSafety, 4);
   if (avoidWords.length > 0) score.vocabularyFit = Math.min(score.vocabularyFit, 5);
+
+  // Deterministic genericness bump for known cookie-cutter phrases.
+  let genericBump = 0;
+  for (const { phrase, weight } of GENERIC_PHRASES) {
+    if (phrase.test(text)) genericBump = Math.max(genericBump, weight);
+  }
+  if (genericBump > 0) {
+    score.genericnessRisk = Math.max(score.genericnessRisk, genericBump);
+  }
 
   // Deterministic localeFit — the LLM is unreliable here (often returns 0 for
   // perfectly valid English). Detect language ourselves vs the target locale.
@@ -201,34 +270,46 @@ export async function evaluateText(
     (10 - score.genericnessRisk) * w.genericnessRisk;
 
   if (forbiddenWords.length) riskFlags.push(`forbidden_word:${forbiddenWords.join(",")}`);
-  if (forbiddenClaims.length) riskFlags.push(`forbidden_claim:${forbiddenClaims.join("|")}`);
-  if (riskyClaims.length) riskFlags.push(`risky_claim:${riskyClaims.join("|")}`);
+  if (allForbiddenHits.length) riskFlags.push(`forbidden_claim:${allForbiddenHits.join("|")}`);
+  if (allRiskyHits.length) riskFlags.push(`risky_claim:${allRiskyHits.join("|")}`);
   if (trustHits.length) riskFlags.push(`unsupported_trust_claim:${trustHits.join("|")}`);
   if (avoidWords.length) riskFlags.push(`avoid_word:${avoidWords.join(",")}`);
   if (score.genericnessRisk >= 7) riskFlags.push("generic");
 
   // Kind-aware verdict gates
+  const commercial = kind === "meta" || kind === "cta" || kind === "h1";
   let verdict: ToneVerdict;
-  if (forbiddenWords.length > 0 || forbiddenClaims.length > 0) {
+  if (forbiddenWords.length > 0 || allForbiddenHits.length > 0) {
     verdict = "rejected";
   } else if (score.genericnessRisk >= 8) {
     verdict = "regenerate";
   } else {
     verdict = weighted >= 8 ? "publishable" : "needs_review";
 
-    if (verdict === "publishable") {
-      if ((kind === "meta" || kind === "cta") && score.ctaFit < 5) {
+    const downgrade = (reason: string) => {
+      if (verdict === "publishable") {
         verdict = "needs_review";
-        riskFlags.push("gate:cta_fit_low");
+        riskFlags.push(reason);
       }
-      if ((kind === "h1" || kind === "meta") && score.genericnessRisk >= 5) {
-        verdict = "needs_review";
-        riskFlags.push("gate:too_generic_for_local");
-      }
-      if (score.claimSafety < 5) {
-        verdict = "needs_review";
-        riskFlags.push("gate:claim_safety_low");
-      }
+    };
+
+    if ((kind === "meta" || kind === "cta") && score.ctaFit < 7) {
+      downgrade("gate:cta_fit_low");
+    }
+    if ((kind === "h1" || kind === "meta") && score.genericnessRisk >= 5) {
+      downgrade("gate:too_generic_for_local");
+    }
+    if (avoidWords.length > 0 && commercial) {
+      downgrade("gate:avoid_word_present");
+    }
+    if (allRiskyHits.length > 0 || trustHits.length > 0) {
+      downgrade("gate:risky_claim_unsupported");
+    }
+    if (commercial && score.claimSafety < 9) {
+      downgrade("gate:claim_safety_below_threshold");
+    }
+    if (score.claimSafety < 5) {
+      downgrade("gate:claim_safety_low");
     }
   }
 
