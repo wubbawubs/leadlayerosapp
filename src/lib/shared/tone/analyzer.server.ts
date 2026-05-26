@@ -236,10 +236,10 @@ function buildSynthesisPrompt(
     : "(geen headlines gevonden)";
 
   return [
-    "Bouw een gedetailleerd LINGUISTISCH MERKMODEL uit onderstaande website-samples.",
+    `Bouw een gedetailleerd LINGUISTISCH MERKMODEL uit onderstaande website-samples voor merk: ${bizLocale.businessName ?? "(onbekend)"}.`,
     "Niet generiek. Concreet. Beschrijf hoe DIT merk schrijft, niet hoe een 'professioneel merk' schrijft.",
     "",
-    `Locale: ${locale}`,
+    `Doeltaal: ${bizLocale.languageName} (locale: ${locale}). ALLE tekstuele velden in het profiel (summary, persona, examples, ctaPatterns, claims, vocabulary, replacements, rewritePatterns, etc.) MOETEN in ${bizLocale.languageName} geschreven worden. Beschrijvende veldnamen blijven Engels (schema-keys), waarden zijn in ${bizLocale.languageName}.`,
     "",
     "STRIKTE REGELS:",
     "- CTA-velden (primaryCtaPatterns, secondaryCtaPatterns) MOETEN letterlijk komen uit de 'WAARGENOMEN CTA's' lijst hieronder. Verzin geen CTA's. Kies de 3-6 sterkste primary en 2-4 secondary.",
