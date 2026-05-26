@@ -257,6 +257,42 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
     if (!itemRow) throw new Error("Masterplan item not found");
     const item = rowToMasterplanItem(itemRow);
 
+    // 1b. Per-item readiness guard (Sprint E). If the masterplan generator
+    // already marked the item as needs_context or manual_task, refuse to
+    // synthesize a proposal — return a structured response so the UI can
+    // tell the operator exactly what to fix or do manually.
+    const itemMeta = (item.metadata ?? {}) as Record<string, unknown>;
+    const itemReadiness = typeof itemMeta.readiness === "string" ? itemMeta.readiness : null;
+    const itemNeedsContext =
+      itemMeta.needsContext === true || itemReadiness === "needs_context";
+    if (itemNeedsContext) {
+      return {
+        ok: false as const,
+        reason: "needs_context" as const,
+        message:
+          "Dit masterplan item heeft eerst meer context nodig voordat we een voorstel kunnen genereren.",
+        itemType: item.type,
+        missingContext: Array.isArray(itemMeta.missingContext)
+          ? (itemMeta.missingContext as string[])
+          : [],
+        playbookSteps: Array.isArray(itemMeta.playbookSteps)
+          ? (itemMeta.playbookSteps as string[])
+          : [],
+      };
+    }
+    if (itemReadiness === "manual_task") {
+      return {
+        ok: false as const,
+        reason: "manual_task" as const,
+        message:
+          "Dit is een manual task — geen proposal nodig. Volg de playbook stappen op het item.",
+        itemType: item.type,
+        playbookSteps: Array.isArray(itemMeta.playbookSteps)
+          ? (itemMeta.playbookSteps as string[])
+          : [],
+      };
+    }
+
     const mapping = mapMasterplanItemToAction(item);
     if (!mapping.supported) {
       return {
@@ -266,6 +302,7 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
         itemType: item.type,
       };
     }
+
 
     // 2. Load active growth goal (linked, else active)
     const goalId = item.linkedGoalId;
