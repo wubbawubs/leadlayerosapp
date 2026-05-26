@@ -426,10 +426,12 @@ function GrowthGoalPage() {
                       <li key={`${w.fieldPath}-${i}`}>
                         <span className="text-foreground">{w.fieldPath}</span> ·{" "}
                         {w.reason === "locked"
-                          ? "veld is locked"
+                          ? "veld is locked — niet overschreven"
                           : w.reason === "already_set"
                             ? "al ingevuld — niet overschreven"
-                            : `fout: ${w.detail ?? ""}`}
+                            : w.reason === "unchanged"
+                              ? "waarde was al gelijk"
+                              : `fout: ${w.detail ?? ""}`}
                       </li>
                     ))}
                   </ul>
