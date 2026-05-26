@@ -258,12 +258,63 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
 
   // -------------------------------------------------------------------------
   // B. Service items — scored, with existing-page vs missing-page logic.
+  //    Eligibility guard: a service is "explicitly prioritized" only if it
+  //    appears in goal.service_focus OR BP.offerProfile.highValueOffers.
+  //    Seasonal heating gets demoted in assignPhase regardless of intent score.
   // -------------------------------------------------------------------------
+  const offerProfile = (ctx.businessProfile?.offerProfile ?? {}) as Record<string, unknown>;
+  const highValueOffers = Array.isArray(offerProfile.highValueOffers)
+    ? (offerProfile.highValueOffers as unknown[]).filter((x): x is string => typeof x === "string")
+    : [];
+  const secondaryOffers = Array.isArray(offerProfile.secondaryOffers)
+    ? (offerProfile.secondaryOffers as unknown[]).filter((x): x is string => typeof x === "string")
+    : [];
+  const norm = (s: string) => s.trim().toLowerCase();
+  const goalServiceSet = new Set(ctx.goal.serviceFocus.map(norm));
+  const highValueSet = new Set(highValueOffers.map(norm));
+  const secondarySet = new Set(secondaryOffers.map(norm));
+  function isExplicitlyPrioritized(service: string): boolean {
+    const n = norm(service);
+    return goalServiceSet.has(n) || highValueSet.has(n);
+  }
+  function isKnownOffer(service: string): boolean {
+    const n = norm(service);
+    return goalServiceSet.has(n) || highValueSet.has(n) || secondarySet.has(n);
+  }
+
   if (inputQuality.serviceQuality === "specific") {
     for (const focus of inputQuality.specificServices.slice(0, 6)) {
       const existing = findExistingServicePage(focus, ctx.pageIntel);
       const primaryLoc = inputQuality.specificLocations[0];
       const intent = scoreServiceIntent(focus);
+      const explicitlyPrioritized = isExplicitlyPrioritized(focus);
+      const inferred = !isKnownOffer(focus);
+
+      const guardMeta: Record<string, unknown> = {
+        explicitlyPrioritized,
+        inferredService: inferred,
+      };
+      if (inferred) {
+        guardMeta.needsConfirmation = true;
+        guardMeta.priorityGuardReason =
+          "Service not confirmed in growth goal or Business Profile high-value offers.";
+      }
+      if (intent.category === "seasonal_heating") {
+        guardMeta.seasonalHeating = true;
+        guardMeta.priorityGuardReason = explicitlyPrioritized
+          ? "Heating service confirmed but seasonal — scheduled before heating season, not first 30 days."
+          : "Heating service not confirmed as a high-value offer — backlog.";
+      }
+
+      // Effective priority: cap at medium for inferred/seasonal-heating-without-explicit.
+      const intentPriority: MasterplanItemPriority =
+        intent.leadIntent >= 8 ? "high" : intent.leadIntent >= 6 ? "medium" : "low";
+      const cappedPriority: MasterplanItemPriority =
+        inferred || (intent.category === "seasonal_heating" && !explicitlyPrioritized)
+          ? "low"
+          : intent.category === "seasonal_heating"
+            ? "medium"
+            : intentPriority;
 
       if (!existing) {
         const title = primaryLoc
@@ -276,7 +327,7 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
             primaryLoc ? ` focused on ${primaryLoc}` : ""
           }.`,
           reason: `${intent.reason} Directly contributes to ${targetLabel}.`,
-          priority: intent.leadIntent >= 8 ? "high" : intent.leadIntent >= 6 ? "medium" : "low",
+          priority: cappedPriority,
           effort: "medium",
           expectedImpact: intent.value >= 8 ? "high" : "medium",
           source: "goal",
@@ -286,6 +337,7 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
             linkedLocation: primaryLoc,
             intentScore: intent,
             isExistingPage: false,
+            ...guardMeta,
             goalContribution: `Captures search intent for "${focus}" and routes to the primary CTA.`,
             successMetric:
               "Page live + at least 1 qualified lead per month attributed to this page.",
@@ -304,7 +356,7 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
           description:
             "Existing page found — improve CTA, schema, internal links and proof to convert existing traffic.",
           reason: `${intent.reason} Page already exists; optimization is the fastest path to leads.`,
-          priority: intent.leadIntent >= 8 ? "high" : "medium",
+          priority: cappedPriority,
           effort: "low",
           expectedImpact: intent.leadIntent >= 8 ? "high" : "medium",
           source: "page_intelligence",
@@ -314,6 +366,7 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
             linkedService: focus,
             intentScore: intent,
             isExistingPage: true,
+            ...guardMeta,
             goalContribution: `Lifts conversion on the existing "${focus}" page without extra traffic.`,
             evidence: [
               { source: "Page Intelligence", reason: `existing page found for "${focus}"` },
