@@ -104,7 +104,8 @@ function ExecutionBoardPage() {
     blocked: [],
     done: [],
   };
-  for (const it of items) grouped[it.executionStatus].push(it);
+  for (const it of items) grouped[it.executionStatus as ExecutionStatus].push(it);
+
 
   return (
     <div className="min-h-screen bg-background bg-blueprint">
