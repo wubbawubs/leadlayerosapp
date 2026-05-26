@@ -39,6 +39,43 @@ function detectForbiddenClaim(text: string, claims: string[]): string[] {
 
 export type EvalKind = "meta" | "h1" | "cta" | "generic";
 
+// Deterministic language detection — small stopword frequency check.
+// Returns the dominant language code or null when ambiguous/too short.
+const STOPWORDS: Record<string, string[]> = {
+  nl: ["de","het","een","en","van","voor","zijn","niet","met","op","aan","wij","jij","jouw","onze","ook","maar","dat","die","hoe","wat","kun","kunt","wordt","worden","bij","naar","over","hebben","heeft"],
+  en: ["the","and","of","for","with","your","you","we","our","is","are","to","in","on","at","this","that","how","what","can","will","get","help","from","by"],
+  de: ["und","der","die","das","ein","eine","ist","nicht","mit","für","auf","sie","wir","ihr","ihre","sind","werden","haben"],
+  fr: ["le","la","les","et","de","des","un","une","pour","avec","votre","vous","nous","est","sont","ne","pas","sur"],
+  es: ["el","la","los","las","y","de","un","una","para","con","su","nosotros","es","son","no","en","sobre"],
+};
+function detectLanguage(text: string): string | null {
+  const tokens = text.toLowerCase().match(/[a-zà-ÿ']+/gi);
+  if (!tokens || tokens.length < 4) return null;
+  const counts: Record<string, number> = {};
+  for (const [lang, words] of Object.entries(STOPWORDS)) {
+    const set = new Set(words);
+    counts[lang] = tokens.filter((t) => set.has(t)).length;
+  }
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const [topLang, topScore] = sorted[0];
+  const secondScore = sorted[1]?.[1] ?? 0;
+  if (topScore === 0) return null;
+  if (topScore - secondScore < 1) return null;
+  return topLang;
+}
+
+function parseTargetLang(locale: string | undefined | null): string {
+  if (!locale) return "en";
+  return locale.toLowerCase().split(/[-_]/)[0].slice(0, 2) || "en";
+}
+
+// Locale-specific positive signals — bumps fit toward 10 when present.
+const LOCALE_SIGNALS: Record<string, RegExp> = {
+  "en-US": /\b(dallas|tx|texas|homeowners?|service call|estimate|zip code|ac repair|hvac|near me|usd|\$)\b/i,
+  "en-GB": /\b(london|uk|britain|colour|favour|petrol|postcode|£)\b/i,
+  "nl-NL": /\b(nederland|nl|amsterdam|rotterdam|btw|postcode|euro|€)\b/i,
+};
+
 // Trust/authority phrases that demand proof. If used without evidence in the
 // generated text, treat as risky (claim safety capped).
 const TRUST_PHRASES = [
