@@ -305,6 +305,9 @@ function ToneProfilePage() {
                   {testResult.riskFlags.length > 0 && (
                     <div className="mt-2 text-xs text-destructive">Flags: {testResult.riskFlags.join(", ")}</div>
                   )}
+                  {"debug" in testResult && testResult.debug && (
+                    <pre className="mt-2 text-xs text-muted-foreground">{JSON.stringify(testResult.debug, null, 2)}</pre>
+                  )}
                 </div>
               )}
             </Section>
