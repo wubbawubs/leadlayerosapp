@@ -226,6 +226,12 @@ export interface PhaseInput {
   intent?: ServiceIntentScore | null;
   locationIndex?: number; // 0-based — used to phase out extra location pages
   needsContext?: boolean;
+  /** True when the underlying service is explicitly in goal.service_focus or
+   *  the BP's highValueOffers — i.e. operator-confirmed priority. */
+  explicitlyPrioritized?: boolean;
+  /** True when the underlying service was inferred (not in goal/BP) and must
+   *  be parked in backlog until an operator confirms it. */
+  inferredService?: boolean;
 }
 
 export interface PhaseResult {
