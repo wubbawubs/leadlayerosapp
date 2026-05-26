@@ -294,6 +294,14 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
       .maybeSingle();
     const tone = (toneRow?.profile as Record<string, unknown> | null) ?? null;
 
+    // 3b. Input quality guard — refuse to invent specifics from vague input
+    const quality = evaluateInputQuality({
+      goal: goalRow,
+      bp: bpRow,
+      itemTitle: item.title,
+      itemDescription: item.description,
+    });
+
     // 4. Generate
     let title = `Voorstel: ${item.title}`;
     let summary = item.description ?? item.title;
@@ -302,6 +310,16 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
     let modelUsed = "n/a";
     const riskFlags: string[] = [];
     const keywordsUsed: string[] = [];
+
+    if (!quality.ok) {
+      // Skip the LLM entirely. Persist a needs_context proposal so the
+      // operator sees exactly what to fix before regenerating.
+      title = `Needs context: ${item.title}`;
+      summary = `Input is te breed om een concreet voorstel te bouwen (${quality.issues.length} issue${quality.issues.length === 1 ? "" : "s"}).`;
+      reasoning = quality.issues.map((i) => `- ${i.message}`).join("\n");
+      recommendation = buildNeedsContextRecommendation(quality, item.title);
+      riskFlags.push(...quality.riskFlags);
+    }
 
     try {
       const prompt = buildPrompt({ item, mapping, goal: goalRow, bp: bpRow, tone });
