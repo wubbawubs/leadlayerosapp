@@ -1576,6 +1576,9 @@ export type Database = {
         Row: {
           action_type: string
           after: Json
+          approval_notes: string | null
+          approved_at: string | null
+          approved_by: string | null
           audit_id: string | null
           before: Json
           block_reason: string | null
@@ -1593,6 +1596,9 @@ export type Database = {
           proposal_run_id: string | null
           publishable: boolean
           reasoning: string
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
           risk_flags: Json
           scores: Json
           status: string
@@ -1604,6 +1610,9 @@ export type Database = {
         Insert: {
           action_type: string
           after?: Json
+          approval_notes?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           audit_id?: string | null
           before?: Json
           block_reason?: string | null
@@ -1621,6 +1630,9 @@ export type Database = {
           proposal_run_id?: string | null
           publishable?: boolean
           reasoning?: string
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           risk_flags?: Json
           scores?: Json
           status?: string
@@ -1632,6 +1644,9 @@ export type Database = {
         Update: {
           action_type?: string
           after?: Json
+          approval_notes?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           audit_id?: string | null
           before?: Json
           block_reason?: string | null
@@ -1649,6 +1664,9 @@ export type Database = {
           proposal_run_id?: string | null
           publishable?: boolean
           reasoning?: string
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           risk_flags?: Json
           scores?: Json
           status?: string

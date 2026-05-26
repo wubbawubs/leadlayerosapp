@@ -22,6 +22,7 @@ import {
   type MasterplanActionMapping,
 } from "./proposalMapping";
 import { rowToMasterplanItem, type MasterplanItem } from "./schemas";
+import { evaluateInputQuality, buildNeedsContextRecommendation } from "./inputQuality";
 
 // masterplan_items / growth_goals not in generated types yet
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -293,6 +294,14 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
       .maybeSingle();
     const tone = (toneRow?.profile as Record<string, unknown> | null) ?? null;
 
+    // 3b. Input quality guard — refuse to invent specifics from vague input
+    const quality = evaluateInputQuality({
+      goal: goalRow,
+      bp: bpRow,
+      itemTitle: item.title,
+      itemDescription: item.description,
+    });
+
     // 4. Generate
     let title = `Voorstel: ${item.title}`;
     let summary = item.description ?? item.title;
@@ -302,41 +311,58 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
     const riskFlags: string[] = [];
     const keywordsUsed: string[] = [];
 
-    try {
-      const prompt = buildPrompt({ item, mapping, goal: goalRow, bp: bpRow, tone });
-      const result = await llmComplete({
-        task: "cheap",
-        system:
-          "You are a senior growth + SEO strategist. Output ONLY valid JSON. Be concrete and human-reviewable. No hype.",
-        prompt,
-        temperature: 0.4,
-        maxTokens: 1400,
-        jsonMode: true,
-      });
-      const parsed = GenOutputSchema.parse(extractJson(result.text));
-      title = normalizeText(parsed.title, 200) || title;
-      summary = normalizeText(parsed.summary, 400) || summary;
-      reasoning = normalizeText(parsed.reasoning, 1500) || reasoning;
-      recommendation = normalizeText(parsed.recommendation, 4000) || recommendation;
-      modelUsed = result.model;
-      if (parsed.riskFlags) riskFlags.push(...parsed.riskFlags);
-      if (parsed.keywordsUsed) keywordsUsed.push(...parsed.keywordsUsed);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error("[masterplan->proposal] llm fail", msg);
-      riskFlags.push("generator:llm_fallback");
+    if (!quality.ok) {
+      // Skip the LLM entirely. Persist a needs_context proposal so the
+      // operator sees exactly what to fix before regenerating.
+      title = `Needs context: ${item.title}`;
+      summary = `Input is te breed om een concreet voorstel te bouwen (${quality.issues.length} issue${quality.issues.length === 1 ? "" : "s"}).`;
+      reasoning = quality.issues.map((i) => `- ${i.message}`).join("\n");
+      recommendation = buildNeedsContextRecommendation(quality, item.title);
+      riskFlags.push(...quality.riskFlags);
     }
 
-    if (isPlaceholderRecommendation(recommendation)) {
-      recommendation = buildDeterministicRecommendation({
-        itemTitle: item.title,
-        itemDescription: item.description,
-        itemReason: item.reason,
-        itemType: item.type,
-        actionType: mapping.actionType,
-        goal: goalRow,
-      });
+    if (quality.ok) {
+      try {
+        const prompt = buildPrompt({ item, mapping, goal: goalRow, bp: bpRow, tone });
+        const result = await llmComplete({
+          task: "cheap",
+          system:
+            "You are a senior growth + SEO strategist. Output ONLY valid JSON. Be concrete and human-reviewable. No hype.",
+          prompt,
+          temperature: 0.4,
+          maxTokens: 1400,
+          jsonMode: true,
+        });
+        const parsed = GenOutputSchema.parse(extractJson(result.text));
+        title = normalizeText(parsed.title, 200) || title;
+        summary = normalizeText(parsed.summary, 400) || summary;
+        reasoning = normalizeText(parsed.reasoning, 1500) || reasoning;
+        recommendation = normalizeText(parsed.recommendation, 4000) || recommendation;
+        modelUsed = result.model;
+        if (parsed.riskFlags) riskFlags.push(...parsed.riskFlags);
+        if (parsed.keywordsUsed) keywordsUsed.push(...parsed.keywordsUsed);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[masterplan->proposal] llm fail", msg);
+        riskFlags.push("generator:llm_fallback");
+      }
+
+      if (isPlaceholderRecommendation(recommendation)) {
+        recommendation = buildDeterministicRecommendation({
+          itemTitle: item.title,
+          itemDescription: item.description,
+          itemReason: item.reason,
+          itemType: item.type,
+          actionType: mapping.actionType,
+          goal: goalRow,
+        });
+      }
     }
+
+    const proposalStatus = quality.ok ? "needs_review" : "needs_context";
+    const blockReason = quality.ok
+      ? null
+      : `Input te breed: ${quality.issues.map((i) => i.field).join(", ")}`;
 
     // 5. Persist proposal_v2 with origin=masterplan_item
     const insertRow: Record<string, unknown> = {
@@ -346,7 +372,7 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
       issue_id: null,
       proposal_run_id: null,
       action_type: mapping.actionType,
-      status: "needs_review",
+      status: proposalStatus,
       origin: "masterplan_item",
       masterplan_item_id: item.id,
       growth_goal_id: goalRow?.id ?? null,
@@ -354,7 +380,7 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
       summary,
       reasoning,
       before: { masterplanItem: { id: item.id, title: item.title, type: item.type } },
-      after: { recommendation },
+      after: { recommendation, inputQuality: quality },
       scores: {},
       context_used: {
         toneProfile: !!tone,
@@ -369,10 +395,11 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
         origin: "masterplan_item",
         masterplanItem: item,
         goalId: goalRow?.id ?? null,
+        inputQuality: quality,
       },
       publishable: false,
       model_used: modelUsed,
-      block_reason: null,
+      block_reason: blockReason,
     };
 
     const { data: row, error } = await admin
