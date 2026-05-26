@@ -297,7 +297,7 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
     let title = `Voorstel: ${item.title}`;
     let summary = item.description ?? item.title;
     let reasoning = item.reason ?? "Afgeleid van masterplan item.";
-    let recommendation = "Concrete actie wordt gegenereerd.";
+    let recommendation = FALLBACK_RECOMMENDATION;
     let modelUsed = "n/a";
     const riskFlags: string[] = [];
     const keywordsUsed: string[] = [];
@@ -325,6 +325,17 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[masterplan->proposal] llm fail", msg);
       riskFlags.push("generator:llm_fallback");
+    }
+
+    if (isPlaceholderRecommendation(recommendation)) {
+      recommendation = buildDeterministicRecommendation({
+        itemTitle: item.title,
+        itemDescription: item.description,
+        itemReason: item.reason,
+        itemType: item.type,
+        actionType: mapping.actionType,
+        goal: goalRow,
+      });
     }
 
     // 5. Persist proposal_v2 with origin=masterplan_item
