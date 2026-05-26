@@ -39,17 +39,22 @@ The product only matters if it can answer:
 
 ## Sprint order
 
-1. **Roadmap + Dashboard Alignment V1** ← *this sprint*
-2. Masterplan → Proposal V2 Link V1
-3. Audit Issue → Masterplan Priority Mapping
-4. Execution Board V1
-5. Safe Publishing
-6. Tracking / Lead Inbox V1
-7. GBP / Reviews / Local Visibility
-8. Reporting / Monthly Growth Loop
+1. ✅ Roadmap + Dashboard Alignment V1 (Sprint A)
+2. ✅ Masterplan → Proposal V2 Link V1 (Sprint B)
+3. ✅ Execution Board V1 (Sprint C)
+4. ✅ End-to-End System Validation (Sprint D)
+5. ✅ Pre-Publishing Cleanup (Sprint E0) — labels, manual-task badges, partial unique indexes on active goal / active masterplan
+6. ⬜ Audit Issue → Masterplan Priority Mapping
+7. ⬜ Approval / Ready-for-Publishing Gate (Sprint E1)
+8. ⬜ Safe Publishing V1 (Sprint F) — **blocked** until E1 lands and live operator validation passes
+9. ⬜ Tracking / Lead Inbox V1
+10. ⬜ GBP / Reviews / Local Visibility
+11. ⬜ Reporting / Monthly Growth Loop
 
-Sprint 1 ships docs + nav + dashboard alignment only. No new tables, no
-proposal-masterplan coupling, no publishing.
+Safe Publishing remains blocked. The execution spine is stable and labelled,
+but no client website is touched until the approval gate exists and an
+operator has driven a full Goal → Masterplan → Execution → QA → Approved
+loop end-to-end in the preview.
 
 ## Modular Architecture Contract
 

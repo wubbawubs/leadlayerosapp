@@ -263,6 +263,44 @@ button exists.
 - Code-level validation: **complete**.
 - Live operator validation: **PENDING** — see §9 checklist.
 - Validation notes: written (this file).
-- New features added in this sprint: **none** (per Sprint D contract).
+- New features added in Sprint D: **none** (per Sprint D contract).
 - Publishing code added: **none**.
 - Architecture refactors: **none**.
+
+---
+
+## 13. Sprint E0 — Pre-Publishing Cleanup (applied)
+
+Date: 2026-05-26.
+
+Scope intentionally minimal — no new features, no publishing, no WP writes.
+
+Applied:
+- **DB integrity**: partial unique indexes on `growth_goals(tenant_id) WHERE
+  status='active'` and `master_plans(tenant_id) WHERE status='active'` so the
+  database — not just app code — enforces a single active row per tenant.
+  Pre-check confirmed zero duplicate active rows before applying.
+- **Label map** added at `src/lib/shared/masterplan/labels.ts` covering item
+  types, execution statuses, QA winner codes, and proposal statuses.
+- **Execution Board UI**: raw `type` / `proposalStatus` / `qaStatus` codes
+  replaced with friendly labels. Empty columns now show a per-status hint
+  instead of "No items.". Unsupported types render an explicit
+  **Manual task for now** badge and a "Handle outside LeadLayer for now"
+  hint instead of going silent.
+- **Masterplan board UI**: same label treatment + Manual badge applied to
+  the item cards.
+- **Server fns already deduplicate** `setActive*` / create paths archive any
+  other active row before activating, so they keep working under the new
+  partial unique indexes.
+
+Out of scope (deferred):
+- Generator copy polish for GBP/review/reporting/content reasons (finding §10.1).
+- "From masterplan" indicator on the QA compare screen (finding §10.2).
+- Board layout density above `xl` (finding §10.3).
+
+Safe Publishing remains blocked until:
+- ✅ active goal/masterplan uniqueness enforced at DB level
+- ✅ execution statuses & labels are stable and human-readable
+- ⬜ live operator validation (§9) executed against the cleaned-up UI
+- ⬜ Approval / Ready-for-Publishing gate (Sprint E1) designed
+
