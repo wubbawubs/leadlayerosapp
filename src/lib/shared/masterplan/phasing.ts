@@ -35,11 +35,20 @@ export const PHASE_LABEL: Record<MasterplanPhase, string> = {
 // Lead intent scoring for service items (HVAC + general home services).
 // ---------------------------------------------------------------------------
 
+export type ServiceIntentCategory =
+  | "emergency"
+  | "repair"
+  | "install"
+  | "maintenance"
+  | "seasonal"
+  | "seasonal_heating"
+  | "generic";
+
 export interface ServiceIntentScore {
-  leadIntent: number; // 0-10 — how directly people search this when ready to buy/book now
-  urgency: number; // 0-10 — emergency / now / today
-  value: number; // 0-10 — revenue-per-job for the business
-  category: "emergency" | "repair" | "install" | "maintenance" | "seasonal" | "generic";
+  leadIntent: number;
+  urgency: number;
+  value: number;
+  category: ServiceIntentCategory;
   reason: string;
 }
 
