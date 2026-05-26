@@ -13,7 +13,24 @@ import {
 import { analyzeToneProfileForTenant } from "./analyzer.server";
 import { evaluateText } from "./evaluator.server";
 import { llmComplete } from "@/lib/shared/llm/router.server";
-import { loadBusinessLocale } from "./businessContext.server";
+import { loadBusinessLocale, localeFromLanguageCountry, normalizeLocale } from "./businessContext.server";
+
+type ToneLocaleDebug = {
+  profileLanguage: string | null;
+  profileCountry: string | null;
+  profileLocale: string | null;
+  businessLanguage: string | null;
+  businessCountry: string | null;
+  resolvedTargetLocale: string;
+  resolvedTargetLanguage: string;
+  detectedTextLanguage?: string | null;
+  uiLocale: null;
+};
+
+function countryFromLocale(locale?: string | null): string | null {
+  const normalized = normalizeLocale(locale);
+  return normalized?.split("-")[1] ?? null;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function assertOperator(supabase: any, userId: string, tenantId: string) {
@@ -47,11 +64,19 @@ export const getToneProfile = createServerFn({ method: "POST" })
 
     if (!row) return { profile: null as null };
 
+    const parsedProfile = ToneProfileSchema.safeParse(row.profile);
+    const profileForClient = parsedProfile.success && row.locale
+      ? ToneProfileSchema.parse({
+          ...parsedProfile.data,
+          localeTone: { ...parsedProfile.data.localeTone, locale: row.locale },
+        })
+      : row.profile ?? {};
+
     // Serialize JSON columns so they survive the RPC boundary cleanly
     return {
       profile: {
         ...row,
-        profile: JSON.stringify(row.profile ?? {}),
+        profile: JSON.stringify(profileForClient),
         locked_fields: JSON.stringify(row.locked_fields ?? []),
         source_summary: JSON.stringify(row.source_summary ?? {}),
       },
@@ -89,7 +114,19 @@ export const saveToneProfile = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     await assertOperator(supabase, userId, data.tenantId);
     const parsed: ToneProfile = ToneProfileSchema.parse(data.profile);
-    const patch: Record<string, unknown> = { profile: parsed };
+    const bizLocale = await loadBusinessLocale(data.tenantId);
+    const savedProfile = ToneProfileSchema.parse({
+      ...parsed,
+      localeTone: {
+        ...parsed.localeTone,
+        locale: bizLocale?.locale ?? parsed.localeTone.locale,
+      },
+    });
+    const patch: Record<string, unknown> = { profile: savedProfile };
+    if (bizLocale) {
+      patch.language = bizLocale.language;
+      patch.locale = bizLocale.locale;
+    }
     if (data.status) patch.status = data.status;
     await supabaseAdmin
       .from("tone_profiles")
@@ -136,14 +173,34 @@ export const testToneOutput = createServerFn({ method: "POST" })
 
     const { data: row } = await supabaseAdmin
       .from("tone_profiles")
-      .select("profile")
+      .select("profile, language, locale")
       .eq("tenant_id", data.tenantId)
       .maybeSingle();
     if (!row) return { ok: false as const, error: "Geen tone profile gevonden. Analyseer eerst." };
-    const profile = ToneProfileSchema.parse(row.profile);
+    const rawProfile = (row.profile ?? {}) as { localeTone?: { locale?: unknown } };
+    const profile = ToneProfileSchema.parse(rawProfile);
 
     const bizLocale = await loadBusinessLocale(data.tenantId);
-    const langName = bizLocale?.languageName ?? "Dutch (Nederlands)";
+    const rowLocale = normalizeLocale(row.locale as string | null);
+    const profileJsonLocale = typeof rawProfile.localeTone?.locale === "string" ? normalizeLocale(rawProfile.localeTone.locale) : null;
+    const profileLocale = rowLocale ?? profileJsonLocale;
+    const profileLanguage = (row.language as string | null) ?? null;
+    const profileLanguageLocale = profileLanguage
+      ? localeFromLanguageCountry(profileLanguage, countryFromLocale(profileLocale) ?? bizLocale?.country ?? null).locale
+      : null;
+    const resolvedTargetLocale = rowLocale ?? profileLanguageLocale ?? bizLocale?.locale ?? profileJsonLocale ?? "nl-NL";
+    const resolvedTargetLanguage = resolvedTargetLocale.split(/[-_]/)[0];
+    const langName = bizLocale?.languageName ?? localeFromLanguageCountry(resolvedTargetLanguage, countryFromLocale(resolvedTargetLocale)).languageName;
+    const localeDebugBase: ToneLocaleDebug = {
+      profileLanguage,
+      profileCountry: countryFromLocale(profileLocale),
+      profileLocale,
+      businessLanguage: bizLocale?.language ?? null,
+      businessCountry: bizLocale?.country ?? null,
+      resolvedTargetLocale,
+      resolvedTargetLanguage,
+      uiLocale: null,
+    };
 
     const kindLabel =
       data.kind === "meta"
@@ -154,7 +211,7 @@ export const testToneOutput = createServerFn({ method: "POST" })
 
     const prompt = [
       `Genereer ${kindLabel} die past bij dit merkstem-profiel.`,
-      `Schrijf in ${langName}. Output: alleen de tekst zelf, geen quotes, geen uitleg.`,
+      `Schrijf in ${langName} (${resolvedTargetLocale}). Output: alleen de tekst zelf, geen quotes, geen uitleg.`,
       "",
       "PROFIEL:",
       JSON.stringify({
@@ -178,7 +235,7 @@ export const testToneOutput = createServerFn({ method: "POST" })
     });
 
     const text = result.text.trim().replace(/^"|"$/g, "");
-    const evaluation = await evaluateText(text, profile, { kind: data.kind });
+    const evaluation = await evaluateText(text, profile, { kind: data.kind, targetLocale: resolvedTargetLocale });
     return {
       ok: true as const,
       text,
@@ -186,6 +243,12 @@ export const testToneOutput = createServerFn({ method: "POST" })
       weighted: evaluation.weighted,
       verdict: evaluation.verdict,
       riskFlags: evaluation.riskFlags,
+      debug: {
+        ...localeDebugBase,
+        detectedTextLanguage: evaluation.debug?.detectedTextLanguage ?? null,
+        resolvedTargetLocale: evaluation.debug?.resolvedTargetLocale ?? resolvedTargetLocale,
+        resolvedTargetLanguage: evaluation.debug?.resolvedTargetLanguage ?? resolvedTargetLanguage,
+      },
     };
   });
 

@@ -120,6 +120,11 @@ export interface ToneEvaluation {
   weighted: number; // 0-10 composite
   verdict: ToneVerdict;
   riskFlags: string[];
+  debug?: {
+    resolvedTargetLocale: string;
+    resolvedTargetLanguage: string;
+    detectedTextLanguage: string | null;
+  };
 }
 
 // Empty profile (used as fallback in UI when no row exists yet)
