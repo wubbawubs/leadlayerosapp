@@ -251,13 +251,13 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
         jsonMode: true,
       });
       const parsed = GenOutputSchema.parse(extractJson(result.text));
-      title = parsed.title;
-      summary = parsed.summary;
-      reasoning = parsed.reasoning;
-      recommendation = parsed.recommendation;
+      title = normalizeText(parsed.title, 200) || title;
+      summary = normalizeText(parsed.summary, 400) || summary;
+      reasoning = normalizeText(parsed.reasoning, 1500) || reasoning;
+      recommendation = normalizeText(parsed.recommendation, 4000) || recommendation;
       modelUsed = result.model;
-      riskFlags.push(...parsed.riskFlags);
-      keywordsUsed.push(...parsed.keywordsUsed);
+      if (parsed.riskFlags) riskFlags.push(...parsed.riskFlags);
+      if (parsed.keywordsUsed) keywordsUsed.push(...parsed.keywordsUsed);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[masterplan->proposal] llm fail", msg);
