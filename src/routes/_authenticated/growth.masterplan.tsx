@@ -19,6 +19,7 @@ import {
   listProposalsForMasterplanItem,
 } from "@/lib/shared/masterplan/proposalGen.functions";
 import { mapMasterplanItemToAction } from "@/lib/shared/masterplan/proposalMapping";
+import { itemTypeLabel, isManualType, proposalStatusLabel } from "@/lib/shared/masterplan/labels";
 import {
   type MasterplanItem,
   type MasterplanItemStatus,
