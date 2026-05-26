@@ -13,6 +13,7 @@ import type {
   MasterplanItemType,
   LeadMath,
 } from "./schemas";
+import { rankAuditIssues, groupAuditIssuesByCategory } from "./auditPriorityMapping";
 
 export type GeneratorContext = {
   tenantId: string;
