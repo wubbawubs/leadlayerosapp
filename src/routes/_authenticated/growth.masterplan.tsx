@@ -142,12 +142,17 @@ function MasterplanPage() {
   const plan = planQuery.data?.plan ?? null;
   const items = itemsQuery.data?.items ?? [];
 
-  const buckets = useMemo(() => {
-    const out: Record<"30" | "60" | "90", MasterplanItem[]> = { "30": [], "60": [], "90": [] };
-    for (const it of items) out[roadmapBucket(it)].push(it);
-    for (const k of ["30", "60", "90"] as const) {
+  const phaseBuckets = useMemo(() => {
+    const out: Record<MasterplanPhase, MasterplanItem[]> = {
+      first_30_days: [],
+      days_31_60: [],
+      days_61_90: [],
+      backlog: [],
+    };
+    for (const it of items) out[itemPhase(it)].push(it);
+    (Object.keys(out) as MasterplanPhase[]).forEach((k) => {
       out[k].sort((a, b) => priorityRank(b.priority) - priorityRank(a.priority));
-    }
+    });
     return out;
   }, [items]);
 
