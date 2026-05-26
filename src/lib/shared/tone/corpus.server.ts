@@ -169,7 +169,22 @@ export function extractVisibleText(html: string, max = 6000): string {
 const NAV_NOISE = new Set([
   "home", "login", "inloggen", "menu", "search", "zoeken", "nl", "en", "fr", "de",
   "account", "instellingen", "settings", "submit", "verzenden", "lees meer", "more", "info",
+  "subscribe", "subscribed", "blog", "about", "faqs", "authors", "events", "shop", "contact page",
 ]);
+
+const CTA_ACTION_RE = /^(book|schedule|request|call|get|start|contact|download|reserve|apply|order|buy|shop|try|join|sign up|maak|plan|vraag|bel|neem contact|start|download|bestel|koop)\b/i;
+const CTA_QUESTION_RE = /\b(ready to|get help|need help|urgent)\b/i;
+const SERVICE_LABEL_RE = /\b(services?|repair|maintenance|hvac|ac|heating|air conditioning|about|contact|faq|blog)\b/i;
+
+export function isActionCta(text: string): boolean {
+  const clean = text.replace(/&#\d+;/g, " ").replace(/\s+/g, " ").trim();
+  if (!clean || clean.length < 3 || clean.length > 60) return false;
+  const lc = clean.toLowerCase();
+  if (NAV_NOISE.has(lc)) return false;
+  if (/^https?:\/\//i.test(clean) || /@/.test(clean)) return false;
+  if (CTA_ACTION_RE.test(clean) || CTA_QUESTION_RE.test(clean)) return true;
+  return false;
+}
 
 export function extractCtas(html: string): string[] {
   const out = new Map<string, number>();
@@ -188,6 +203,9 @@ export function extractCtas(html: string): string[] {
     if (NAV_NOISE.has(lc)) continue;
     // Skip pure URLs / emails
     if (/^https?:\/\//i.test(raw) || /@/.test(raw)) continue;
+    // Keep actual action CTAs, not navigation labels or service-category links.
+    if (!isActionCta(raw)) continue;
+    if (SERVICE_LABEL_RE.test(raw) && !CTA_ACTION_RE.test(raw) && !CTA_QUESTION_RE.test(raw)) continue;
     out.set(raw, (out.get(raw) ?? 0) + 1);
   }
   // Sort by frequency desc, return up to 30 unique
@@ -295,7 +313,7 @@ export function aggregateLists(observations: PageObservation[]) {
       .map(([t, count]) => ({ text: t, count }));
   };
   return {
-    ctas: tally("ctas").slice(0, 25),
+    ctas: tally("ctas").filter((c) => isActionCta(c.text)).slice(0, 25),
     claimSentences: tally("claimSentences").slice(0, 30),
     headlines: tally("headlines").slice(0, 25),
   };
