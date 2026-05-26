@@ -409,7 +409,9 @@ export async function evaluateText(
     if ((kind === "meta" || kind === "cta") && score.ctaFit < 7) {
       downgrade("gate:cta_fit_low");
     }
-    if ((kind === "h1" || kind === "meta") && score.genericnessRisk >= 5) {
+    if (kind === "h1" && h1MissingServiceIntent) {
+      downgrade("gate:h1_missing_service_intent");
+    } else if ((kind === "h1" || kind === "meta") && score.genericnessRisk >= 5) {
       downgrade("gate:too_generic_for_local");
     }
     if (avoidWords.length > 0 && commercial) {
