@@ -335,11 +335,20 @@ export function analyzeGoalInputQuality(args: {
     closeRateQuality = "high";
     warnings.push({
       code: "close_rate_high",
-      severity: "medium",
-      message: `Close rate is hoog (${(Number(closeRate) * 100).toFixed(0)}%). Bevestig dat dit op echte verkoopdata gebaseerd is.`,
+      severity: "high",
+      message: `Close rate is very high (${(Number(closeRate) * 100).toFixed(0)}%). Confirm this is based on real sales data — local-service close rates above 70% are rare.`,
       suggestedFix: "Valideer met laatste 3–6 maanden sales data.",
     });
     riskFlags.push("input:close_rate_high");
+  } else if (Number(closeRate) > 0.45) {
+    closeRateQuality = "high";
+    warnings.push({
+      code: "close_rate_elevated",
+      severity: "medium",
+      message: `Close rate is high (${(Number(closeRate) * 100).toFixed(0)}%). Confirm this is based on real sales data.`,
+      suggestedFix: "Valideer met laatste 3–6 maanden sales data.",
+    });
+    riskFlags.push("input:close_rate_elevated");
   } else {
     closeRateQuality = "normal";
   }
