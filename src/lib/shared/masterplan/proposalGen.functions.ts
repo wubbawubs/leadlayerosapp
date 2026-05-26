@@ -86,6 +86,69 @@ function normalizeText(value: unknown, maxLen: number): string {
   return text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text;
 }
 
+const FALLBACK_RECOMMENDATION = "Concrete actie wordt gegenereerd.";
+
+function isPlaceholderRecommendation(value: unknown): boolean {
+  return typeof value !== "string" || value.trim() === "" || value.trim() === FALLBACK_RECOMMENDATION;
+}
+
+function buildDeterministicRecommendation(args: {
+  itemTitle: string;
+  itemDescription?: string | null;
+  itemReason?: string | null;
+  itemType?: string | null;
+  actionType: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  goal?: any;
+}): string {
+  const title = args.itemTitle.replace(/^Voorstel:\s*/i, "").trim() || "dit masterplan item";
+  const description = args.itemDescription?.trim();
+  const reason = args.itemReason?.trim();
+  const target = args.goal?.target_count
+    ? `${args.goal.target_count} ${args.goal.target_type ?? "clients"}/maand`
+    : "het actieve groeidoel";
+
+  const shared = [
+    `Scope: werk het masterplan item “${title}” uit tot een reviewbaar voorstel.`,
+    description ? `Gebruik deze inhoudelijke richting: ${description}` : null,
+    reason ? `Bewaar de strategische reden: ${reason}` : null,
+    `Koppel de aanbeveling expliciet aan ${target}; maak duidelijk hoe dit extra relevante vraag, leads of conversies ondersteunt.`,
+  ].filter(Boolean) as string[];
+
+  if (args.itemType === "service_page" || args.itemType === "location_page") {
+    return [
+      ...shared,
+      "Maak een pagina-brief met: H1, intro-belofte, doelgroep/probleem, aanbodsecties, bewijs, FAQ, interne links en primaire CTA.",
+      "Schrijf geen definitieve publicatiecopy; lever eerst de structuur en copy-richting voor menselijke QA.",
+      "Controleer vóór goedkeuring: claim-risico’s, lokale/service-relevantie, CTA-match en of er genoeg bewijs is voor de belofte.",
+    ].map((line) => `- ${line}`).join("\n");
+  }
+
+  if (args.itemType === "content") {
+    return [
+      ...shared,
+      "Plan 3–5 ondersteunende contentstukken rond de hoofdservice: FAQ, how-to, comparison, case of probleemgerichte uitleg.",
+      "Geef per stuk aan: zoekintentie, beoogde lezer, interne link naar servicepagina en verwachte bijdrage aan leadkwaliteit.",
+      "Laat het cluster pas door naar uitvoering nadat de prioriteit, linkdoelen en meetbare CTA’s zijn bevestigd.",
+    ].map((line) => `- ${line}`).join("\n");
+  }
+
+  if (args.itemType === "conversion" || args.actionType === "write_cta") {
+    return [
+      ...shared,
+      "Werk één concreet conversiepad uit: huidige frictie, gewenste actie, CTA-tekst, plaatsing en meetpunt.",
+      "Maak de wijziging klein genoeg voor QA: één pagina/sectie, één primaire CTA, één meetbare hypothese.",
+      "Blokkeer publishing totdat tracking en risico-checks bevestigd zijn.",
+    ].map((line) => `- ${line}`).join("\n");
+  }
+
+  return [
+    ...shared,
+    "Vertaal dit naar één uitvoerbare websiteverbetering met before/after-context, eigenaar, acceptatiecriteria en QA-check.",
+    "Laat publishing geblokkeerd totdat het voorstel is goedgekeurd en er een recente page snapshot bestaat.",
+  ].map((line) => `- ${line}`).join("\n");
+}
+
 const GenOutputSchema = z.object({
   title: FlexibleTextSchema,
   summary: FlexibleTextSchema,
@@ -234,7 +297,7 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
     let title = `Voorstel: ${item.title}`;
     let summary = item.description ?? item.title;
     let reasoning = item.reason ?? "Afgeleid van masterplan item.";
-    let recommendation = "Concrete actie wordt gegenereerd.";
+    let recommendation = FALLBACK_RECOMMENDATION;
     let modelUsed = "n/a";
     const riskFlags: string[] = [];
     const keywordsUsed: string[] = [];
@@ -262,6 +325,17 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[masterplan->proposal] llm fail", msg);
       riskFlags.push("generator:llm_fallback");
+    }
+
+    if (isPlaceholderRecommendation(recommendation)) {
+      recommendation = buildDeterministicRecommendation({
+        itemTitle: item.title,
+        itemDescription: item.description,
+        itemReason: item.reason,
+        itemType: item.type,
+        actionType: mapping.actionType,
+        goal: goalRow,
+      });
     }
 
     // 5. Persist proposal_v2 with origin=masterplan_item
@@ -351,14 +425,27 @@ export const listProposalsForMasterplanItem = createServerFn({ method: "POST" })
     const { data: rows, error } = await admin
       .from("proposal_v2")
       .select(
-        "id, status, action_type, title, summary, reasoning, before, after, origin, created_at, model_used, risk_flags",
+        "id, status, action_type, title, summary, reasoning, before, after, origin, created_at, model_used, risk_flags, context_snapshot",
       )
       .eq("tenant_id", data.tenantId)
       .eq("masterplan_item_id", data.masterplanItemId)
       .order("created_at", { ascending: false });
     if (error) throw error;
     return {
-      proposals: (rows ?? []).map((r: Record<string, unknown>) => ({
+      proposals: (rows ?? []).map((r: Record<string, unknown>) => {
+        const after = (r.after as Record<string, unknown> | null) ?? {};
+        const contextSnapshot = (r.context_snapshot as Record<string, unknown> | null) ?? {};
+        const masterplanItem = (contextSnapshot.masterplanItem as Record<string, unknown> | null) ?? {};
+        if (isPlaceholderRecommendation(after.recommendation)) {
+          after.recommendation = buildDeterministicRecommendation({
+            itemTitle: (masterplanItem.title as string | undefined) ?? (r.title as string),
+            itemDescription: (masterplanItem.description as string | null | undefined) ?? null,
+            itemReason: (masterplanItem.reason as string | null | undefined) ?? (r.reasoning as string | undefined),
+            itemType: (masterplanItem.type as string | null | undefined) ?? null,
+            actionType: r.action_type as string,
+          });
+        }
+        return {
         id: r.id as string,
         status: r.status as string,
         actionType: r.action_type as string,
@@ -366,12 +453,13 @@ export const listProposalsForMasterplanItem = createServerFn({ method: "POST" })
         summary: r.summary as string,
         reasoning: (r.reasoning as string) ?? "",
         before: (r.before as Record<string, unknown>) ?? {},
-        after: (r.after as Record<string, unknown>) ?? {},
+        after,
         origin: r.origin as string,
         createdAt: r.created_at as string,
         modelUsed: (r.model_used as string) ?? "",
         riskFlags: (r.risk_flags as string[]) ?? [],
-      })),
+        };
+      }),
     };
   });
 
