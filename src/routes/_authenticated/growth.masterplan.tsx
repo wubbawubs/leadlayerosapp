@@ -368,6 +368,15 @@ function MasterplanPage() {
                                   {counts.latestStatus ? ` · ${proposalStatusLabel(counts.latestStatus)}` : ""}
                                 </span>
                               )}
+                              {(() => {
+                                const md = (it.metadata ?? {}) as Record<string, unknown>;
+                                const phase = md.phase as MasterplanPhase | undefined;
+                                return phase ? (
+                                  <span className="rounded bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                                    {PHASE_LABEL[phase]}
+                                  </span>
+                                ) : null;
+                              })()}
                             </div>
                             <h3 className="mt-1 font-semibold text-foreground">{it.title}</h3>
                             {it.description && (
@@ -375,9 +384,37 @@ function MasterplanPage() {
                             )}
                             {it.reason && (
                               <p className="mt-2 text-xs italic text-muted-foreground">
-                                Waarom: {it.reason}
+                                Why: {it.reason}
                               </p>
                             )}
+                            {(() => {
+                              const md = (it.metadata ?? {}) as Record<string, unknown>;
+                              const pr = typeof md.priorityReason === "string" ? md.priorityReason : null;
+                              const steps = Array.isArray(md.playbookSteps)
+                                ? (md.playbookSteps as string[])
+                                : [];
+                              return (
+                                <>
+                                  {pr && (
+                                    <p className="mt-2 text-xs text-primary/80">
+                                      Phase reason: {pr}
+                                    </p>
+                                  )}
+                                  {steps.length > 0 && (
+                                    <details className="mt-2 text-xs">
+                                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                                        Playbook ({steps.length} steps)
+                                      </summary>
+                                      <ol className="mt-1 list-decimal space-y-1 pl-5 text-muted-foreground">
+                                        {steps.map((s, i) => (
+                                          <li key={i}>{s}</li>
+                                        ))}
+                                      </ol>
+                                    </details>
+                                  )}
+                                </>
+                              );
+                            })()}
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                               {mapping.supported ? (
                                 <button
