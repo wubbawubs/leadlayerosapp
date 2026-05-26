@@ -56,6 +56,8 @@ function AppHome() {
   const fetchGoal = useServerFn(getActiveGrowthGoal);
   const fetchPlan = useServerFn(getActiveMasterplan);
   const fetchItems = useServerFn(listMasterplanItems);
+  const fetchBoard = useServerFn(getExecutionBoard);
+
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
