@@ -430,7 +430,7 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
       (aggregated.ctas.length + aggregated.claimSentences.length + aggregated.headlines.length) / 25,
     );
     const manualBoost = manualSamples.length > 0 ? 0.1 : 0;
-    const confidence = Math.min(
+    let confidence = Math.min(
       10,
       (corpusSize * 0.25 +
         sourceDiversity * 0.2 +
@@ -440,6 +440,10 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
         0.1) *
         10,
     );
+    // Honesty cap: if our samples are mediocre we should NOT claim high confidence,
+    // even when diversity and density are perfect.
+    if (avgQuality < 6.5) confidence = Math.min(confidence, 7.5);
+    if (avgQuality < 5) confidence = Math.min(confidence, 6.5);
 
     // 6. Persist
     const { data: existing } = await supabaseAdmin
