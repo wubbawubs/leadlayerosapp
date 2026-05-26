@@ -325,8 +325,8 @@ export const syncGrowthGoalToBusinessProfile = createServerFn({ method: "POST" }
         continue;
       }
       const current = readPath(bpRow as Record<string, unknown> | undefined, c.fieldPath);
-      if (!isEmpty(current)) {
-        warnings.push({ fieldPath: c.fieldPath, reason: "already_set" });
+      if (!isEmpty(current) && valuesEqual(current, c.value)) {
+        warnings.push({ fieldPath: c.fieldPath, reason: "unchanged" });
         continue;
       }
       try {
