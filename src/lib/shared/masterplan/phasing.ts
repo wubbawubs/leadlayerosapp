@@ -244,12 +244,33 @@ export interface PhaseResult {
  * + location ordering. Confidence/limits are applied later in a second pass.
  */
 export function assignPhase(input: PhaseInput): PhaseResult {
-  const { type, intent, isExistingPage, locationIndex, needsContext } = input;
+  const {
+    type,
+    intent,
+    isExistingPage,
+    locationIndex,
+    needsContext,
+    explicitlyPrioritized,
+    inferredService,
+  } = input;
 
   if (needsContext) {
     return {
       phase: "first_30_days",
       reason: "Resolves a context gap that blocks downstream execution.",
+    };
+  }
+
+  // Inferred services (not confirmed in goal/BP) are always parked in backlog
+  // pending operator confirmation, regardless of intent score.
+  if (
+    (type === "service_page" || type === "website_fix") &&
+    inferredService === true
+  ) {
+    return {
+      phase: "backlog",
+      reason:
+        "Service not confirmed in growth goal or Business Profile high-value offers — parked in backlog until an operator confirms it.",
     };
   }
 
@@ -273,7 +294,16 @@ export function assignPhase(input: PhaseInput): PhaseResult {
       };
 
     case "service_page": {
-      // High-intent services live in first 30 days when missing.
+      // Seasonal heating (furnace/boiler) is never first-30 — even if confirmed
+      // as a high-value offer it is sequenced after the year-round cooling stack.
+      if (intent && intent.category === "seasonal_heating") {
+        return {
+          phase: explicitlyPrioritized ? "days_61_90" : "backlog",
+          reason: explicitlyPrioritized
+            ? `${intent.reason} Confirmed as a high-value offer — scheduled before heating season, not in the first 30 days.`
+            : `${intent.reason} Not confirmed as a high-value offer — parked in backlog.`,
+        };
+      }
       if (intent && (intent.category === "emergency" || intent.leadIntent >= 9)) {
         return {
           phase: "first_30_days",
@@ -305,6 +335,14 @@ export function assignPhase(input: PhaseInput): PhaseResult {
     }
 
     case "website_fix": {
+      if (intent && intent.category === "seasonal_heating") {
+        return {
+          phase: explicitlyPrioritized ? "days_61_90" : "backlog",
+          reason: explicitlyPrioritized
+            ? `Existing heating page — seasonal; optimize before heating season, not in the first 30 days.`
+            : `Existing heating page — seasonal and not confirmed as a high-value offer; backlog.`,
+        };
+      }
       // Optimizing an existing high-intent page beats building a new lower-intent one.
       if (isExistingPage && intent && intent.leadIntent >= 8) {
         return {
