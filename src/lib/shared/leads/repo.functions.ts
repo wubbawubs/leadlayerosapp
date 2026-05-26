@@ -51,7 +51,7 @@ const LogLeadInputSchema = z.object({
   status: z.enum(LEAD_STATUSES).optional(),
   notes: z.string().max(2000).optional(),
   pageId: z.string().uuid().optional(),
-  attribution: z.record(z.string(), z.unknown()).optional(),
+  attribution: z.record(z.string(), z.any()).optional(),
   occurredAt: z.string().datetime().optional(),
 });
 
