@@ -163,15 +163,15 @@ export const testToneOutput = createServerFn({ method: "POST" })
     const bizLocale = await loadBusinessLocale(data.tenantId);
     const profileLocale = normalizeLocale(row.locale as string | null)
       ?? (typeof rawProfile.localeTone?.locale === "string" ? normalizeLocale(rawProfile.localeTone.locale) : null);
-    const profileLanguageLocale = localeFromLanguageCountry(
-      (row.language as string | null) ?? profileLocale?.split("-")[0] ?? null,
-      countryFromLocale(profileLocale),
-    ).locale;
-    const resolvedTargetLocale = profileLocale ?? profileLanguageLocale ?? bizLocale?.locale ?? "nl-NL";
+    const profileLanguage = (row.language as string | null) ?? null;
+    const profileLanguageLocale = profileLanguage
+      ? localeFromLanguageCountry(profileLanguage, countryFromLocale(profileLocale) ?? bizLocale?.country ?? null).locale
+      : null;
+    const resolvedTargetLocale = bizLocale?.locale ?? profileLocale ?? profileLanguageLocale ?? "nl-NL";
     const resolvedTargetLanguage = resolvedTargetLocale.split(/[-_]/)[0];
     const langName = bizLocale?.languageName ?? localeFromLanguageCountry(resolvedTargetLanguage, countryFromLocale(resolvedTargetLocale)).languageName;
     const localeDebugBase: ToneLocaleDebug = {
-      profileLanguage: (row.language as string | null) ?? null,
+      profileLanguage,
       profileCountry: countryFromLocale(profileLocale),
       profileLocale,
       businessLanguage: bizLocale?.language ?? null,
