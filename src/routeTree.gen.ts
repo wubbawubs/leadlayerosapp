@@ -33,7 +33,7 @@ import { Route as ApiPublicWpcomCallbackRouteImport } from './routes/api/public/
 import { Route as AuthenticatedSitesSiteIdAuditsRouteImport } from './routes/_authenticated/sites.$siteId.audits'
 import { Route as AuthenticatedAuditsAuditIdProposalsRouteImport } from './routes/_authenticated/audits.$auditId_.proposals'
 import { Route as AuthenticatedAuditsAuditIdCompareRouteImport } from './routes/_authenticated/audits.$auditId_.compare'
-import { Route as AuthenticatedGrowthMasterplanItemIdProposalsRouteImport } from './routes/_authenticated/growth.masterplan.$itemId.proposals'
+import { Route as AuthenticatedGrowthMasterplanItemIdProposalsRouteImport } from './routes/_authenticated/growth.masterplan.$itemId_.proposals'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -169,7 +169,7 @@ const AuthenticatedAuditsAuditIdCompareRoute =
   } as any)
 const AuthenticatedGrowthMasterplanItemIdProposalsRoute =
   AuthenticatedGrowthMasterplanItemIdProposalsRouteImport.update({
-    id: '/$itemId/proposals',
+    id: '/$itemId_/proposals',
     path: '/$itemId/proposals',
     getParentRoute: () => AuthenticatedGrowthMasterplanRoute,
   } as any)
@@ -252,7 +252,7 @@ export interface FileRoutesById {
   '/_authenticated/audits/$auditId_/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/_authenticated/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
-  '/_authenticated/growth/masterplan/$itemId/proposals': typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
+  '/_authenticated/growth/masterplan/$itemId_/proposals': typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -333,7 +333,7 @@ export interface FileRouteTypes {
     | '/_authenticated/audits/$auditId_/proposals'
     | '/_authenticated/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
-    | '/_authenticated/growth/masterplan/$itemId/proposals'
+    | '/_authenticated/growth/masterplan/$itemId_/proposals'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -516,8 +516,8 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuditsAuditIdCompareRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/growth/masterplan/$itemId/proposals': {
-      id: '/_authenticated/growth/masterplan/$itemId/proposals'
+    '/_authenticated/growth/masterplan/$itemId_/proposals': {
+      id: '/_authenticated/growth/masterplan/$itemId_/proposals'
       path: '/$itemId/proposals'
       fullPath: '/growth/masterplan/$itemId/proposals'
       preLoaderRoute: typeof AuthenticatedGrowthMasterplanItemIdProposalsRouteImport
@@ -613,3 +613,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

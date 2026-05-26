@@ -8,7 +8,7 @@ import { listProposalsForMasterplanItem } from "@/lib/shared/masterplan/proposal
 import { proposalStatusLabel } from "@/lib/shared/masterplan/labels";
 
 export const Route = createFileRoute(
-  "/_authenticated/growth/masterplan/$itemId/proposals",
+  "/_authenticated/growth/masterplan/$itemId_/proposals",
 )({
   component: LinkedProposalsPage,
   head: () => ({
