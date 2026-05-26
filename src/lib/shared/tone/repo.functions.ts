@@ -153,14 +153,33 @@ export const testToneOutput = createServerFn({ method: "POST" })
 
     const { data: row } = await supabaseAdmin
       .from("tone_profiles")
-      .select("profile")
+      .select("profile, language, locale")
       .eq("tenant_id", data.tenantId)
       .maybeSingle();
     if (!row) return { ok: false as const, error: "Geen tone profile gevonden. Analyseer eerst." };
-    const profile = ToneProfileSchema.parse(row.profile);
+    const rawProfile = (row.profile ?? {}) as { localeTone?: { locale?: unknown } };
+    const profile = ToneProfileSchema.parse(rawProfile);
 
     const bizLocale = await loadBusinessLocale(data.tenantId);
-    const langName = bizLocale?.languageName ?? "Dutch (Nederlands)";
+    const profileLocale = normalizeLocale(row.locale as string | null)
+      ?? (typeof rawProfile.localeTone?.locale === "string" ? normalizeLocale(rawProfile.localeTone.locale) : null);
+    const profileLanguageLocale = localeFromLanguageCountry(
+      (row.language as string | null) ?? profileLocale?.split("-")[0] ?? null,
+      countryFromLocale(profileLocale),
+    ).locale;
+    const resolvedTargetLocale = profileLocale ?? profileLanguageLocale ?? bizLocale?.locale ?? "nl-NL";
+    const resolvedTargetLanguage = resolvedTargetLocale.split(/[-_]/)[0];
+    const langName = bizLocale?.languageName ?? localeFromLanguageCountry(resolvedTargetLanguage, countryFromLocale(resolvedTargetLocale)).languageName;
+    const localeDebugBase: ToneLocaleDebug = {
+      profileLanguage: (row.language as string | null) ?? null,
+      profileCountry: countryFromLocale(profileLocale),
+      profileLocale,
+      businessLanguage: bizLocale?.language ?? null,
+      businessCountry: bizLocale?.country ?? null,
+      resolvedTargetLocale,
+      resolvedTargetLanguage,
+      uiLocale: null,
+    };
 
     const kindLabel =
       data.kind === "meta"
@@ -171,7 +190,7 @@ export const testToneOutput = createServerFn({ method: "POST" })
 
     const prompt = [
       `Genereer ${kindLabel} die past bij dit merkstem-profiel.`,
-      `Schrijf in ${langName}. Output: alleen de tekst zelf, geen quotes, geen uitleg.`,
+      `Schrijf in ${langName} (${resolvedTargetLocale}). Output: alleen de tekst zelf, geen quotes, geen uitleg.`,
       "",
       "PROFIEL:",
       JSON.stringify({
@@ -195,7 +214,7 @@ export const testToneOutput = createServerFn({ method: "POST" })
     });
 
     const text = result.text.trim().replace(/^"|"$/g, "");
-    const evaluation = await evaluateText(text, profile, { kind: data.kind });
+    const evaluation = await evaluateText(text, profile, { kind: data.kind, targetLocale: resolvedTargetLocale });
     return {
       ok: true as const,
       text,
@@ -203,6 +222,12 @@ export const testToneOutput = createServerFn({ method: "POST" })
       weighted: evaluation.weighted,
       verdict: evaluation.verdict,
       riskFlags: evaluation.riskFlags,
+      debug: {
+        ...localeDebugBase,
+        detectedTextLanguage: evaluation.debug?.detectedTextLanguage ?? null,
+        resolvedTargetLocale: evaluation.debug?.resolvedTargetLocale ?? resolvedTargetLocale,
+        resolvedTargetLanguage: evaluation.debug?.resolvedTargetLanguage ?? resolvedTargetLanguage,
+      },
     };
   });
 
