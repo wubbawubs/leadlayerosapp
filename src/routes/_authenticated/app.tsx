@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import { Logo } from "@/components/brand/Logo";
 import {
@@ -64,8 +65,13 @@ function AppHome() {
     queryFn: () => fetchTenants(),
   });
 
+  const [storedTenantId, setStoredTenantId] = useState<string | null>(null);
+  useEffect(() => {
+    setStoredTenantId(getActiveTenantId());
+  }, []);
+
   const tenantId =
-    (typeof window !== "undefined" ? getActiveTenantId() : null) ??
+    storedTenantId ??
     tenantsQuery.data?.tenants[0]?.id ??
     null;
 
