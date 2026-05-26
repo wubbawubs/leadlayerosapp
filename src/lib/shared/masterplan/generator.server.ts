@@ -668,7 +668,13 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
     );
   }
   if (inputQuality.closeRateQuality === "high") {
-    mainConstraints.push("Close rate is high — validate against real sales data.");
+    const cr = closeRate != null ? Math.round(Number(closeRate) * 100) : null;
+    const isVeryHigh = cr != null && cr > 70;
+    const msg = isVeryHigh
+      ? `Close rate is very high (${cr}%). Confirm this is based on real sales data — local-service close rates above 70% are rare.`
+      : `Close rate is high${cr != null ? ` (${cr}%)` : ""}. Confirm this is based on real sales data.`;
+    mainConstraints.push(msg);
+    missingContext.push(`close_rate_warning: ${msg}`);
   }
 
   // -------------------------------------------------------------------------
@@ -690,6 +696,8 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
       locationIndex:
         typeof md.locationIndex === "number" ? md.locationIndex : undefined,
       needsContext: md.needsContext === true,
+      explicitlyPrioritized: md.explicitlyPrioritized === true,
+      inferredService: md.inferredService === true,
     });
     it.metadata = {
       ...md,
