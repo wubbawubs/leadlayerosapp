@@ -13,7 +13,24 @@ import {
 import { analyzeToneProfileForTenant } from "./analyzer.server";
 import { evaluateText } from "./evaluator.server";
 import { llmComplete } from "@/lib/shared/llm/router.server";
-import { loadBusinessLocale } from "./businessContext.server";
+import { loadBusinessLocale, localeFromLanguageCountry, normalizeLocale } from "./businessContext.server";
+
+type ToneLocaleDebug = {
+  profileLanguage: string | null;
+  profileCountry: string | null;
+  profileLocale: string | null;
+  businessLanguage: string | null;
+  businessCountry: string | null;
+  resolvedTargetLocale: string;
+  resolvedTargetLanguage: string;
+  detectedTextLanguage?: string | null;
+  uiLocale: null;
+};
+
+function countryFromLocale(locale?: string | null): string | null {
+  const normalized = normalizeLocale(locale);
+  return normalized?.split("-")[1] ?? null;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function assertOperator(supabase: any, userId: string, tenantId: string) {
