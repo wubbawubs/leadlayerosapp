@@ -425,14 +425,27 @@ export const listProposalsForMasterplanItem = createServerFn({ method: "POST" })
     const { data: rows, error } = await admin
       .from("proposal_v2")
       .select(
-        "id, status, action_type, title, summary, reasoning, before, after, origin, created_at, model_used, risk_flags",
+        "id, status, action_type, title, summary, reasoning, before, after, origin, created_at, model_used, risk_flags, context_snapshot",
       )
       .eq("tenant_id", data.tenantId)
       .eq("masterplan_item_id", data.masterplanItemId)
       .order("created_at", { ascending: false });
     if (error) throw error;
     return {
-      proposals: (rows ?? []).map((r: Record<string, unknown>) => ({
+      proposals: (rows ?? []).map((r: Record<string, unknown>) => {
+        const after = (r.after as Record<string, unknown> | null) ?? {};
+        const contextSnapshot = (r.context_snapshot as Record<string, unknown> | null) ?? {};
+        const masterplanItem = (contextSnapshot.masterplanItem as Record<string, unknown> | null) ?? {};
+        if (isPlaceholderRecommendation(after.recommendation)) {
+          after.recommendation = buildDeterministicRecommendation({
+            itemTitle: (masterplanItem.title as string | undefined) ?? (r.title as string),
+            itemDescription: (masterplanItem.description as string | null | undefined) ?? null,
+            itemReason: (masterplanItem.reason as string | null | undefined) ?? (r.reasoning as string | undefined),
+            itemType: (masterplanItem.type as string | null | undefined) ?? null,
+            actionType: r.action_type as string,
+          });
+        }
+        return {
         id: r.id as string,
         status: r.status as string,
         actionType: r.action_type as string,
@@ -440,12 +453,13 @@ export const listProposalsForMasterplanItem = createServerFn({ method: "POST" })
         summary: r.summary as string,
         reasoning: (r.reasoning as string) ?? "",
         before: (r.before as Record<string, unknown>) ?? {},
-        after: (r.after as Record<string, unknown>) ?? {},
+        after,
         origin: r.origin as string,
         createdAt: r.created_at as string,
         modelUsed: (r.model_used as string) ?? "",
         riskFlags: (r.risk_flags as string[]) ?? [],
-      })),
+        };
+      }),
     };
   });
 
