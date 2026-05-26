@@ -258,8 +258,13 @@ function BoardCard({
     <article className="rounded border border-border bg-background/60 p-3">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-foreground">
-          {item.type}
+          {itemTypeLabel(item.type)}
         </span>
+        {isManualType(item.type) && (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            Manual task for now
+          </span>
+        )}
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
           {item.priority}
         </span>
@@ -277,10 +282,11 @@ function BoardCard({
       <h3 className="mt-1.5 text-sm font-medium text-foreground">{item.title}</h3>
       {item.proposalStatus && (
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Proposal: <span className="text-foreground">{item.proposalStatus}</span>
+          Proposal:{" "}
+          <span className="text-foreground">{proposalStatusLabel(item.proposalStatus)}</span>
           {item.qaStatus && (
             <>
-              {" · "}QA: <span className="text-foreground">{item.qaStatus}</span>
+              {" · "}QA: <span className="text-foreground">{qaWinnerLabel(item.qaStatus)}</span>
             </>
           )}
         </p>
@@ -301,6 +307,11 @@ function BoardCard({
           >
             {busy ? "Generating…" : "Generate proposal"}
           </button>
+        )}
+        {item.executionStatus === "manual_task" && (
+          <span className="rounded border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground">
+            Handle outside LeadLayer for now
+          </span>
         )}
         {item.proposalId && (
           <Link
