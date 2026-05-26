@@ -118,6 +118,108 @@ const GENERIC_PHRASES: { phrase: RegExp; weight: number }[] = [
   { phrase: /\bhome service\b/i, weight: 3 },
 ];
 
+// Local Service H1 Specificity Gate — H1 must contain a clear service category
+// or core service term. If only soft/generic terms are used, force needs_review.
+const SERVICE_CATEGORY_TERMS = [
+  /\bhvac\b/i,
+  /\bac repair\b/i,
+  /\bheating and cooling\b/i,
+  /\bemergency hvac\b/i,
+  /\bmaintenance\b/i,
+  /\bfurnace repair\b/i,
+  /\bair conditioning\b/i,
+  /\bplumbing\b/i,
+  /\broofing\b/i,
+  /\belectrical\b/i,
+  /\bremodeling\b/i,
+  /\blandscaping\b/i,
+  /\bcleaning\b/i,
+  /\bpest control\b/i,
+  /\bwater damage\b/i,
+  /\bflooring\b/i,
+  /\bwindow(s)?\b/i,
+  /\bsiding\b/i,
+  /\bgutter(s)?\b/i,
+  /\btree service\b/i,
+  /\bpainting\b/i,
+  /\bgarage door\b/i,
+  /\bappliance repair\b/i,
+  /\bpool\b/i,
+  /\btile\b/i,
+  /\bconcrete\b/i,
+  /\bfence\b/i,
+  /\blawn\b/i,
+  /\birrigation\b/i,
+  /\bseptic\b/i,
+  /\bwelding\b/i,
+  /\bhandyman\b/i,
+  /\bmoving\b/i,
+  /\bdrywall\b/i,
+  /\bpressure wash(ing)?\b/i,
+  /\bchimney\b/i,
+  /\binsulation\b/i,
+  /\bsolar\b/i,
+  /\bgenerator\b/i,
+  /\bsprinkler\b/i,
+  /\blocksmith\b/i,
+  /\bsecurity system\b/i,
+  /\bauto repair\b/i,
+  /\bcar service\b/i,
+  /\btire\b/i,
+  /\bbrake\b/i,
+  /\boil change\b/i,
+  /\btransmission\b/i,
+  /\bdetailing\b/i,
+  /\btowing\b/i,
+  /\bdent\b/i,
+  /\bbody work\b/i,
+  /\bmechanic\b/i,
+];
+const SOFT_GENERIC_TERMS = [
+  /\bhome comfort\b/i,
+  /\bhelp\b/i,
+  /\blocal service\b/i,
+  /\byour home\b/i,
+  /\bsolutions\b/i,
+  /\banswers\b/i,
+  /\bsimply explained\b/i,
+  /\bhome care\b/i,
+  /\bhome solutions\b/i,
+  /\bhome services\b/i,
+  /\bquality care\b/i,
+  /\bget started\b/i,
+  /\bdiscover\b/i,
+  /\bexperience\b/i,
+  /\bwelcome\b/i,
+  /\byour trusted\b/i,
+  /\bwe'?re here\b/i,
+  /\blet us\b/i,
+  /\babout us\b/i,
+  /\bwho we are\b/i,
+  /\bwhat we do\b/i,
+  /\bcount on us\b/i,
+  /\bcount on\b/i,
+];
+
+function checkH1ServiceSpecificity(text: string): {
+  hasServiceTerm: boolean;
+  hasOnlySoftTerms: boolean;
+  softTermMatches: string[];
+} {
+  const hasServiceTerm = SERVICE_CATEGORY_TERMS.some((re) => re.test(text));
+  const softMatches: string[] = [];
+  for (const re of SOFT_GENERIC_TERMS) {
+    const m = text.match(re);
+    if (m) softMatches.push(m[0]);
+  }
+  const hasOnlySoftTerms = !hasServiceTerm && softMatches.length > 0;
+  return {
+    hasServiceTerm,
+    hasOnlySoftTerms,
+    softTermMatches: softMatches,
+  };
+}
+
 // Fallback risky/forbidden claims for local-service businesses when the
 // profile hasn't populated claim guardrails. Used as evaluation overlay only
 // — does not mutate the stored profile.
