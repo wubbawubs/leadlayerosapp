@@ -22,6 +22,7 @@ import {
 import {
   aggregateLists,
   discoverSitemapUrls,
+  isActionCta,
   observePage,
   pickDiverse,
   type PageObservation,
@@ -412,8 +413,18 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
       throw new Error(`Profielextractie gaf geen geldige JSON: ${(e as Error).message}`);
     }
     const extractedProfile = ToneProfileSchema.parse(parsed);
+    const observedActionCtas = aggregated.ctas.map((c) => c.text).filter(isActionCta);
     const profile = ToneProfileSchema.parse({
       ...extractedProfile,
+      ctaStyle: {
+        ...extractedProfile.ctaStyle,
+        primaryCtaPatterns: extractedProfile.ctaStyle.primaryCtaPatterns.length
+          ? extractedProfile.ctaStyle.primaryCtaPatterns
+          : observedActionCtas.slice(0, 4),
+        secondaryCtaPatterns: extractedProfile.ctaStyle.secondaryCtaPatterns.length
+          ? extractedProfile.ctaStyle.secondaryCtaPatterns
+          : observedActionCtas.slice(4, 8),
+      },
       localeTone: {
         ...extractedProfile.localeTone,
         locale,
