@@ -11,6 +11,7 @@ import {
   type ToneScore,
   type ToneVerdict,
 } from "./schemas";
+import { normalizeLocale } from "./businessContext.server";
 
 function extractJson(text: string): unknown {
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
@@ -97,9 +98,10 @@ const TRUST_PHRASES = [
 export async function evaluateText(
   text: string,
   profile: ToneProfile,
-  opts: { kind?: EvalKind } = {},
+  opts: { kind?: EvalKind; targetLocale?: string | null } = {},
 ): Promise<ToneEvaluation> {
   const kind: EvalKind = opts.kind ?? "generic";
+  const resolvedTargetLocale = normalizeLocale(opts.targetLocale) ?? normalizeLocale(profile.localeTone.locale) ?? "en-US";
   const forbiddenWords = detectForbidden(text, profile.vocabulary.forbidden);
   const avoidWords = detectForbidden(text, profile.vocabulary.avoid);
   const forbiddenClaims = detectForbiddenClaim(text, profile.claimStyle.forbiddenClaims);
@@ -113,7 +115,7 @@ export async function evaluateText(
     avoidWords: profile.vocabulary.avoid.slice(0, 15),
     goodExamples: profile.examples.good.slice(0, 4),
     badExamples: profile.examples.bad.slice(0, 4),
-    locale: profile.localeTone.locale,
+    locale: resolvedTargetLocale,
     salesIntensity: profile.localeTone.salesIntensity,
   };
 
@@ -174,11 +176,11 @@ export async function evaluateText(
 
   // Deterministic localeFit — the LLM is unreliable here (often returns 0 for
   // perfectly valid English). Detect language ourselves vs the target locale.
-  const targetLang = parseTargetLang(profile.localeTone.locale);
+  const targetLang = parseTargetLang(resolvedTargetLocale);
   const detected = detectLanguage(text);
   if (detected) {
     if (detected === targetLang) {
-      const hasLocaleSignal = LOCALE_SIGNALS[profile.localeTone.locale]?.test(text) ?? false;
+      const hasLocaleSignal = LOCALE_SIGNALS[resolvedTargetLocale]?.test(text) ?? false;
       score.localeFit = hasLocaleSignal ? 10 : 9;
     } else {
       score.localeFit = 1;
@@ -230,5 +232,15 @@ export async function evaluateText(
     }
   }
 
-  return { score, weighted, verdict, riskFlags };
+  return {
+    score,
+    weighted,
+    verdict,
+    riskFlags,
+    debug: {
+      resolvedTargetLocale,
+      resolvedTargetLanguage: targetLang,
+      detectedTextLanguage: detected,
+    },
+  };
 }
