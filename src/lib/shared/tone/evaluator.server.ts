@@ -37,16 +37,38 @@ function detectForbiddenClaim(text: string, claims: string[]): string[] {
   return claims.filter((c) => lower.includes(c.trim().toLowerCase()));
 }
 
+export type EvalKind = "meta" | "h1" | "cta" | "generic";
+
+// Trust/authority phrases that demand proof. If used without evidence in the
+// generated text, treat as risky (claim safety capped).
+const TRUST_PHRASES = [
+  "trusted local partner",
+  "trusted hvac",
+  "trusted partner",
+  "top-rated",
+  "top rated",
+  "highly rated",
+  "most reliable",
+  "fastest response",
+  "same-day service",
+  "same day service",
+  "local experts",
+  "industry leader",
+  "market leader",
+];
+
 export async function evaluateText(
   text: string,
   profile: ToneProfile,
+  opts: { kind?: EvalKind } = {},
 ): Promise<ToneEvaluation> {
+  const kind: EvalKind = opts.kind ?? "generic";
   const forbiddenWords = detectForbidden(text, profile.vocabulary.forbidden);
   const avoidWords = detectForbidden(text, profile.vocabulary.avoid);
   const forbiddenClaims = detectForbiddenClaim(text, profile.claimStyle.forbiddenClaims);
   const riskyClaims = detectForbiddenClaim(text, profile.claimStyle.riskyClaims);
+  const trustHits = detectForbiddenClaim(text, TRUST_PHRASES);
 
-  // Compact profile for the LLM evaluator (keep prompt small)
   const compactProfile = {
     persona: profile.voiceIdentity.persona,
     summary: profile.voiceIdentity.summary,
@@ -58,9 +80,19 @@ export async function evaluateText(
     salesIntensity: profile.localeTone.salesIntensity,
   };
 
+  const kindHint =
+    kind === "meta"
+      ? "Dit is een META DESCRIPTION voor een commerciële/service pagina. ctaFit beoordeelt of er een duidelijke vervolgactie in zit. genericnessRisk omhoog (>=5) als geen locatie of specifieke service genoemd wordt."
+      : kind === "h1"
+      ? "Dit is een H1 voor een lokale service-pagina. genericnessRisk omhoog (>=5) als de H1 zonder service-categorie OF locatie/audience kan voor elke concurrent. ctaFit telt minder (H1 is geen knop)."
+      : kind === "cta"
+      ? "Dit is een CTA BUTTON-tekst (max 5 woorden). ctaFit beoordeelt of het werkwoord-eerst is, specifiek genoeg en past bij merk-CTA's. genericnessRisk omhoog bij vage CTA's zoals 'Learn More', 'Click Here'."
+      : "";
+
   const prompt = [
     "Beoordeel de volgende tekst tegen het meegegeven merkstemprofiel.",
     "Geef scores op een schaal van 0-10. Voor genericnessRisk: 0 = zeer specifiek, 10 = generieke AI-rommel.",
+    kindHint,
     "",
     "Output UITSLUITEND JSON:",
     `{"voiceFit":0-10,"vocabularyFit":0-10,"sentenceRhythmFit":0-10,"claimSafety":0-10,"ctaFit":0-10,"localeFit":0-10,"genericnessRisk":0-10}`,
@@ -84,7 +116,6 @@ export async function evaluateText(
     score = ToneScoreSchema.parse(extractJson(r.text));
   } catch (e) {
     console.error("[tone-eval] LLM eval failed", (e as Error).message);
-    // Neutral fallback so blocking gate doesn't kill everything on a transient error
     score = {
       voiceFit: 5,
       vocabularyFit: forbiddenWords.length > 0 ? 0 : 6,
@@ -100,6 +131,7 @@ export async function evaluateText(
   if (forbiddenWords.length > 0) score.vocabularyFit = Math.min(score.vocabularyFit, 1);
   if (forbiddenClaims.length > 0) score.claimSafety = 0;
   if (riskyClaims.length > 0) score.claimSafety = Math.min(score.claimSafety, 4);
+  if (trustHits.length > 0) score.claimSafety = Math.min(score.claimSafety, 4);
   if (avoidWords.length > 0) score.vocabularyFit = Math.min(score.vocabularyFit, 5);
 
   const w = profile.scoringWeights;
@@ -116,14 +148,34 @@ export async function evaluateText(
   if (forbiddenWords.length) riskFlags.push(`forbidden_word:${forbiddenWords.join(",")}`);
   if (forbiddenClaims.length) riskFlags.push(`forbidden_claim:${forbiddenClaims.join("|")}`);
   if (riskyClaims.length) riskFlags.push(`risky_claim:${riskyClaims.join("|")}`);
+  if (trustHits.length) riskFlags.push(`unsupported_trust_claim:${trustHits.join("|")}`);
   if (avoidWords.length) riskFlags.push(`avoid_word:${avoidWords.join(",")}`);
   if (score.genericnessRisk >= 7) riskFlags.push("generic");
 
+  // Kind-aware verdict gates
   let verdict: ToneVerdict;
-  if (forbiddenWords.length > 0 || forbiddenClaims.length > 0) verdict = "rejected";
-  else if (score.genericnessRisk >= 8) verdict = "regenerate";
-  else if (weighted >= 8) verdict = "publishable";
-  else verdict = "needs_review";
+  if (forbiddenWords.length > 0 || forbiddenClaims.length > 0) {
+    verdict = "rejected";
+  } else if (score.genericnessRisk >= 8) {
+    verdict = "regenerate";
+  } else {
+    verdict = weighted >= 8 ? "publishable" : "needs_review";
+
+    if (verdict === "publishable") {
+      if ((kind === "meta" || kind === "cta") && score.ctaFit < 5) {
+        verdict = "needs_review";
+        riskFlags.push("gate:cta_fit_low");
+      }
+      if ((kind === "h1" || kind === "meta") && score.genericnessRisk >= 5) {
+        verdict = "needs_review";
+        riskFlags.push("gate:too_generic_for_local");
+      }
+      if (score.claimSafety < 5) {
+        verdict = "needs_review";
+        riskFlags.push("gate:claim_safety_low");
+      }
+    }
+  }
 
   return { score, weighted, verdict, riskFlags };
 }
