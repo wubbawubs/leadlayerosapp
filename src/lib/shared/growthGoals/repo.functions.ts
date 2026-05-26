@@ -212,7 +212,22 @@ export const setActiveGrowthGoal = createServerFn({ method: "POST" })
 // empty AND not locked. Returns list of warnings for skipped fields.
 // ----------------------------------------------------------------------------
 
-type SyncWarning = { fieldPath: string; reason: "locked" | "already_set" | "error"; detail?: string };
+type SyncWarning = { fieldPath: string; reason: "locked" | "already_set" | "unchanged" | "error"; detail?: string };
+
+function valuesEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    const sa = [...a].map((v) => JSON.stringify(v)).sort();
+    const sb = [...b].map((v) => JSON.stringify(v)).sort();
+    return sa.every((v, i) => v === sb[i]);
+  }
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
 
 function isEmpty(value: unknown): boolean {
   if (value == null) return true;
@@ -310,8 +325,8 @@ export const syncGrowthGoalToBusinessProfile = createServerFn({ method: "POST" }
         continue;
       }
       const current = readPath(bpRow as Record<string, unknown> | undefined, c.fieldPath);
-      if (!isEmpty(current)) {
-        warnings.push({ fieldPath: c.fieldPath, reason: "already_set" });
+      if (!isEmpty(current) && valuesEqual(current, c.value)) {
+        warnings.push({ fieldPath: c.fieldPath, reason: "unchanged" });
         continue;
       }
       try {
