@@ -288,6 +288,50 @@ function AppHome() {
           </Card>
         </section>
 
+        <section className="mt-6">
+          <Card
+            title="Execution board"
+            subtitle="Sprint C · Masterplan → Proposal → QA"
+            cta={{ label: "Open execution board", to: "/growth/execution" }}
+          >
+            {!execSummary ? (
+              <p className="text-sm text-muted-foreground">
+                Generate a masterplan to populate the execution board.
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-4 gap-2 text-xs sm:grid-cols-8">
+                  {(
+                    [
+                      ["Planned", execSummary.planned],
+                      ["In QA", execSummary.in_qa],
+                      ["Needs edit", execSummary.needs_edit],
+                      ["Approved", execSummary.approved],
+                      ["Manual", execSummary.manual_task],
+                      ["Blocked", execSummary.blocked],
+                      ["Done", execSummary.done],
+                      ["Total", execSummary.total],
+                    ] as const
+                  ).map(([label, value]) => (
+                    <div key={label} className="rounded border border-border bg-background/40 p-2">
+                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {label}
+                      </div>
+                      <div className="font-mono text-foreground">{value}</div>
+                    </div>
+                  ))}
+                </div>
+                {execNext && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Next: <span className="text-foreground">{execNext}</span>
+                  </p>
+                )}
+              </>
+            )}
+          </Card>
+        </section>
+
+
         <section className="mt-10 grid gap-5 lg:grid-cols-2">
           <Card title="Next steps" subtitle="What to do now">
             <ul className="space-y-3 text-sm">
