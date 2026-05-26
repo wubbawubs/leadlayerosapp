@@ -55,12 +55,15 @@ export type GeneratorContext = {
     locations: string[];
     trackingNotes: string | null;
     capacityNotes: string | null;
+    goodFitLeads?: string[];
+    badFitLeads?: string[];
   };
   businessProfile: {
     offerProfile?: Record<string, unknown>;
     locationProfile?: Record<string, unknown>;
     conversionProfile?: Record<string, unknown>;
     proofProfile?: Record<string, unknown>;
+    businessIdentity?: Record<string, unknown>;
   } | null;
   pageIntel: Array<{
     pageId: string | null;
