@@ -1576,17 +1576,20 @@ export type Database = {
         Row: {
           action_type: string
           after: Json
-          audit_id: string
+          audit_id: string | null
           before: Json
           block_reason: string | null
           context_snapshot: Json
           context_used: Json
           created_at: string
+          growth_goal_id: string | null
           id: string
-          issue_id: string
+          issue_id: string | null
           keywords_used: Json
+          masterplan_item_id: string | null
           model_used: string | null
-          page_id: string
+          origin: string
+          page_id: string | null
           proposal_run_id: string | null
           publishable: boolean
           reasoning: string
@@ -1601,17 +1604,20 @@ export type Database = {
         Insert: {
           action_type: string
           after?: Json
-          audit_id: string
+          audit_id?: string | null
           before?: Json
           block_reason?: string | null
           context_snapshot?: Json
           context_used?: Json
           created_at?: string
+          growth_goal_id?: string | null
           id?: string
-          issue_id: string
+          issue_id?: string | null
           keywords_used?: Json
+          masterplan_item_id?: string | null
           model_used?: string | null
-          page_id: string
+          origin?: string
+          page_id?: string | null
           proposal_run_id?: string | null
           publishable?: boolean
           reasoning?: string
@@ -1626,17 +1632,20 @@ export type Database = {
         Update: {
           action_type?: string
           after?: Json
-          audit_id?: string
+          audit_id?: string | null
           before?: Json
           block_reason?: string | null
           context_snapshot?: Json
           context_used?: Json
           created_at?: string
+          growth_goal_id?: string | null
           id?: string
-          issue_id?: string
+          issue_id?: string | null
           keywords_used?: Json
+          masterplan_item_id?: string | null
           model_used?: string | null
-          page_id?: string
+          origin?: string
+          page_id?: string | null
           proposal_run_id?: string | null
           publishable?: boolean
           reasoning?: string
@@ -1648,7 +1657,22 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "proposal_v2_growth_goal_id_fkey"
+            columns: ["growth_goal_id"]
+            isOneToOne: false
+            referencedRelation: "growth_goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposal_v2_masterplan_item_id_fkey"
+            columns: ["masterplan_item_id"]
+            isOneToOne: false
+            referencedRelation: "masterplan_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       raw_events: {
         Row: {

@@ -32,6 +32,7 @@ import { Route as ApiPublicWpcomCallbackRouteImport } from './routes/api/public/
 import { Route as AuthenticatedSitesSiteIdAuditsRouteImport } from './routes/_authenticated/sites.$siteId.audits'
 import { Route as AuthenticatedAuditsAuditIdProposalsRouteImport } from './routes/_authenticated/audits.$auditId_.proposals'
 import { Route as AuthenticatedAuditsAuditIdCompareRouteImport } from './routes/_authenticated/audits.$auditId_.compare'
+import { Route as AuthenticatedGrowthMasterplanItemIdProposalsRouteImport } from './routes/_authenticated/growth.masterplan.$itemId.proposals'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -159,6 +160,12 @@ const AuthenticatedAuditsAuditIdCompareRoute =
     path: '/audits/$auditId/compare',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedGrowthMasterplanItemIdProposalsRoute =
+  AuthenticatedGrowthMasterplanItemIdProposalsRouteImport.update({
+    id: '/$itemId/proposals',
+    path: '/$itemId/proposals',
+    getParentRoute: () => AuthenticatedGrowthMasterplanRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -168,7 +175,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
-  '/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
+  '/growth/masterplan': typeof AuthenticatedGrowthMasterplanRouteWithChildren
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
@@ -183,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
+  '/growth/masterplan/$itemId/proposals': typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -192,7 +200,7 @@ export interface FileRoutesByTo {
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
-  '/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
+  '/growth/masterplan': typeof AuthenticatedGrowthMasterplanRouteWithChildren
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
@@ -207,6 +215,7 @@ export interface FileRoutesByTo {
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
+  '/growth/masterplan/$itemId/proposals': typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -218,7 +227,7 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
   '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
-  '/_authenticated/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
+  '/_authenticated/growth/masterplan': typeof AuthenticatedGrowthMasterplanRouteWithChildren
   '/_authenticated/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/_authenticated/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
@@ -233,6 +242,7 @@ export interface FileRoutesById {
   '/_authenticated/audits/$auditId_/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/_authenticated/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
+  '/_authenticated/growth/masterplan/$itemId/proposals': typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -259,6 +269,7 @@ export interface FileRouteTypes {
     | '/audits/$auditId/proposals'
     | '/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
+    | '/growth/masterplan/$itemId/proposals'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '/audits/$auditId/proposals'
     | '/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
+    | '/growth/masterplan/$itemId/proposals'
   id:
     | '__root__'
     | '/'
@@ -308,6 +320,7 @@ export interface FileRouteTypes {
     | '/_authenticated/audits/$auditId_/proposals'
     | '/_authenticated/sites/$siteId/audits'
     | '/api/public/wpcom/callback'
+    | '/_authenticated/growth/masterplan/$itemId/proposals'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -483,6 +496,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuditsAuditIdCompareRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/growth/masterplan/$itemId/proposals': {
+      id: '/_authenticated/growth/masterplan/$itemId/proposals'
+      path: '/$itemId/proposals'
+      fullPath: '/growth/masterplan/$itemId/proposals'
+      preLoaderRoute: typeof AuthenticatedGrowthMasterplanItemIdProposalsRouteImport
+      parentRoute: typeof AuthenticatedGrowthMasterplanRoute
+    }
   }
 }
 
@@ -506,11 +526,26 @@ const AuthenticatedOnboardingRouteWithChildren =
     AuthenticatedOnboardingRouteChildren,
   )
 
+interface AuthenticatedGrowthMasterplanRouteChildren {
+  AuthenticatedGrowthMasterplanItemIdProposalsRoute: typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
+}
+
+const AuthenticatedGrowthMasterplanRouteChildren: AuthenticatedGrowthMasterplanRouteChildren =
+  {
+    AuthenticatedGrowthMasterplanItemIdProposalsRoute:
+      AuthenticatedGrowthMasterplanItemIdProposalsRoute,
+  }
+
+const AuthenticatedGrowthMasterplanRouteWithChildren =
+  AuthenticatedGrowthMasterplanRoute._addFileChildren(
+    AuthenticatedGrowthMasterplanRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRouteWithChildren
   AuthenticatedAuditsAuditIdRoute: typeof AuthenticatedAuditsAuditIdRoute
-  AuthenticatedGrowthMasterplanRoute: typeof AuthenticatedGrowthMasterplanRoute
+  AuthenticatedGrowthMasterplanRoute: typeof AuthenticatedGrowthMasterplanRouteWithChildren
   AuthenticatedSettingsBusinessProfileRoute: typeof AuthenticatedSettingsBusinessProfileRoute
   AuthenticatedSettingsGrowthGoalRoute: typeof AuthenticatedSettingsGrowthGoalRoute
   AuthenticatedSettingsToneProfileRoute: typeof AuthenticatedSettingsToneProfileRoute
@@ -525,7 +560,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRouteWithChildren,
   AuthenticatedAuditsAuditIdRoute: AuthenticatedAuditsAuditIdRoute,
-  AuthenticatedGrowthMasterplanRoute: AuthenticatedGrowthMasterplanRoute,
+  AuthenticatedGrowthMasterplanRoute:
+    AuthenticatedGrowthMasterplanRouteWithChildren,
   AuthenticatedSettingsBusinessProfileRoute:
     AuthenticatedSettingsBusinessProfileRoute,
   AuthenticatedSettingsGrowthGoalRoute: AuthenticatedSettingsGrowthGoalRoute,

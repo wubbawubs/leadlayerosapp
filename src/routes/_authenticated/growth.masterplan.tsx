@@ -14,6 +14,12 @@ import {
   updateMasterplanItem,
 } from "@/lib/shared/masterplan/repo.functions";
 import {
+  generateProposalV2ForMasterplanItem,
+  listProposalCountsForMasterplan,
+  listProposalsForMasterplanItem,
+} from "@/lib/shared/masterplan/proposalGen.functions";
+import { mapMasterplanItemToAction } from "@/lib/shared/masterplan/proposalMapping";
+import {
   type MasterplanItem,
   type MasterplanItemStatus,
   roadmapBucket,
@@ -35,6 +41,8 @@ function MasterplanPage() {
   const fetchItems = useServerFn(listMasterplanItems);
   const generateFn = useServerFn(generateMasterplan);
   const updateItemFn = useServerFn(updateMasterplanItem);
+  const generateProposalFn = useServerFn(generateProposalV2ForMasterplanItem);
+  const fetchProposalCounts = useServerFn(listProposalCountsForMasterplan);
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
@@ -93,6 +101,35 @@ function MasterplanPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["masterplan-items", tenantId, planId] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const proposalCountsQuery = useQuery({
+    queryKey: ["masterplan-proposal-counts", tenantId, planId],
+    queryFn: () =>
+      tenantId && planId
+        ? fetchProposalCounts({ data: { tenantId, masterPlanId: planId } })
+        : Promise.resolve({ counts: {} }),
+    enabled: !!tenantId && !!planId,
+  });
+  const proposalCounts: Record<string, { total: number; latestStatus: string | null }> =
+    proposalCountsQuery.data?.counts ?? {};
+
+  const generateProposalMut = useMutation({
+    mutationFn: async (vars: { itemId: string }) => {
+      if (!tenantId) throw new Error("Geen tenant");
+      return generateProposalFn({
+        data: { tenantId, masterplanItemId: vars.itemId },
+      });
+    },
+    onSuccess: (res) => {
+      if ("ok" in res && res.ok) {
+        toast.success("Proposal gegenereerd — open Proposals voor review.");
+        qc.invalidateQueries({ queryKey: ["masterplan-proposal-counts", tenantId, planId] });
+      } else if ("reason" in res) {
+        toast.message("Niet ondersteund in V1", { description: res.message });
+      }
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -285,61 +322,102 @@ function MasterplanPage() {
                   {items.length} items · {plan.status}
                 </p>
                 <div className="mt-3 space-y-3">
-                  {items.map((it) => (
-                    <article
-                      key={it.id}
-                      className="rounded-lg border border-border bg-card/70 p-4"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground">
-                              {it.type}
-                            </span>
-                            <PriorityBadge priority={it.priority} />
-                            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                              effort {it.effort} · impact {it.expectedImpact} · {it.source}
-                            </span>
+                  {items.map((it) => {
+                    const mapping = mapMasterplanItemToAction({ type: it.type });
+                    const counts = proposalCounts[it.id] ?? { total: 0, latestStatus: null };
+                    return (
+                      <article
+                        key={it.id}
+                        className="rounded-lg border border-border bg-card/70 p-4"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground">
+                                {it.type}
+                              </span>
+                              <PriorityBadge priority={it.priority} />
+                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                effort {it.effort} · impact {it.expectedImpact} · {it.source}
+                              </span>
+                              {counts.total > 0 && (
+                                <span className="rounded bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                                  {counts.total} proposal{counts.total === 1 ? "" : "s"}
+                                  {counts.latestStatus ? ` · ${counts.latestStatus}` : ""}
+                                </span>
+                              )}
+                            </div>
+                            <h3 className="mt-1 font-semibold text-foreground">{it.title}</h3>
+                            {it.description && (
+                              <p className="mt-1 text-sm text-muted-foreground">{it.description}</p>
+                            )}
+                            {it.reason && (
+                              <p className="mt-2 text-xs italic text-muted-foreground">
+                                Waarom: {it.reason}
+                              </p>
+                            )}
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              {mapping.supported ? (
+                                <button
+                                  onClick={() =>
+                                    generateProposalMut.mutate({ itemId: it.id })
+                                  }
+                                  disabled={generateProposalMut.isPending}
+                                  className="rounded-md bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                                >
+                                  {generateProposalMut.isPending &&
+                                  generateProposalMut.variables?.itemId === it.id
+                                    ? "Genereren…"
+                                    : counts.total > 0
+                                      ? "Regenerate proposal"
+                                      : "Generate proposal"}
+                                </button>
+                              ) : (
+                                <span className="rounded border border-dashed border-border px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                  Manual task for now
+                                </span>
+                              )}
+                              {counts.total > 0 && (
+                                <Link
+                                  to="/growth/masterplan/$itemId/proposals"
+                                  params={{ itemId: it.id }}
+                                  className="text-[11px] text-primary underline-offset-4 hover:underline"
+                                >
+                                  View linked proposals →
+                                </Link>
+                              )}
+                            </div>
                           </div>
-                          <h3 className="mt-1 font-semibold text-foreground">{it.title}</h3>
-                          {it.description && (
-                            <p className="mt-1 text-sm text-muted-foreground">{it.description}</p>
-                          )}
-                          {it.reason && (
-                            <p className="mt-2 text-xs italic text-muted-foreground">
-                              Waarom: {it.reason}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <StatusPill status={it.status} />
-                          <div className="flex flex-wrap gap-1">
-                            {(
-                              [
-                                ["approved", "Approve"],
-                                ["in_progress", "Start"],
-                                ["done", "Done"],
-                                ["skipped", "Skip"],
-                              ] as const
-                            ).map(([s, label]) => (
-                              <button
-                                key={s}
-                                disabled={
-                                  it.status === s || updateItemMut.isPending
-                                }
-                                onClick={() =>
-                                  updateItemMut.mutate({ itemId: it.id, status: s })
-                                }
-                                className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] text-foreground hover:bg-secondary disabled:opacity-40"
-                              >
-                                {label}
-                              </button>
-                            ))}
+                          <div className="flex flex-col items-end gap-2">
+                            <StatusPill status={it.status} />
+                            <div className="flex flex-wrap gap-1">
+                              {(
+                                [
+                                  ["approved", "Approve"],
+                                  ["in_progress", "Start"],
+                                  ["done", "Done"],
+                                  ["skipped", "Skip"],
+                                ] as const
+                              ).map(([s, label]) => (
+                                <button
+                                  key={s}
+                                  disabled={
+                                    it.status === s || updateItemMut.isPending
+                                  }
+                                  onClick={() =>
+                                    updateItemMut.mutate({ itemId: it.id, status: s })
+                                  }
+                                  className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] text-foreground hover:bg-secondary disabled:opacity-40"
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </article>
-                  ))}
+                      </article>
+                    );
+                  })}
                   {items.length === 0 && (
                     <p className="text-sm text-muted-foreground">Nog geen items.</p>
                   )}
