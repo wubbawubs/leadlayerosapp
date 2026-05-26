@@ -123,7 +123,7 @@ async function pickFromAuditAndSitemap(tenantId: string): Promise<UrlPick[]> {
   // Merge with audit URLs first (likely already verified working)
   const merged = [...auditUrls, ...sitemapUrls];
   if (merged.length === 0) return [];
-  return pickDiverse(merged, 18);
+  return pickDiverse(merged, 8);
 }
 
 interface ManualSample {
