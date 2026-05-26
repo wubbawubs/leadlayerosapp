@@ -171,6 +171,26 @@ export async function evaluateText(
   if (trustHits.length > 0) score.claimSafety = Math.min(score.claimSafety, 4);
   if (avoidWords.length > 0) score.vocabularyFit = Math.min(score.vocabularyFit, 5);
 
+  // Deterministic localeFit — the LLM is unreliable here (often returns 0 for
+  // perfectly valid English). Detect language ourselves vs the target locale
+  // from the profile, and override.
+  const targetLang = parseTargetLang(profile.localeTone.locale);
+  const detected = detectLanguage(text);
+  if (detected) {
+    if (detected === targetLang) {
+      const localeKey = profile.localeTone.locale;
+      const hasLocaleSignal = LOCALE_SIGNALS[localeKey]?.test(text) ?? false;
+      score.localeFit = hasLocaleSignal ? 10 : 9;
+    } else {
+      score.localeFit = 1;
+      riskFlagsPre.push(`locale_mismatch:${detected}!=${targetLang}`);
+    }
+  } else {
+    // Too short to confidently detect (typical for CTAs) — assume on-locale
+    // and don't punish.
+    score.localeFit = Math.max(score.localeFit, 7);
+  }
+
   const w = profile.scoringWeights;
   const weighted =
     score.voiceFit * w.voiceFit +
