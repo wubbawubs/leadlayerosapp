@@ -345,6 +345,17 @@ export async function evaluateText(
     score.genericnessRisk = Math.max(score.genericnessRisk, genericBump);
   }
 
+  // Local Service H1 Specificity Gate — H1 must contain a clear service category.
+  let h1MissingServiceIntent = false;
+  if (kind === "h1") {
+    const h1Spec = checkH1ServiceSpecificity(text);
+    if (h1Spec.hasOnlySoftTerms) {
+      h1MissingServiceIntent = true;
+      score.genericnessRisk = Math.max(score.genericnessRisk, 5);
+      riskFlags.push(`h1:missing_service_intent:soft=[${h1Spec.softTermMatches.join(",")}]`);
+    }
+  }
+
   // Deterministic localeFit — the LLM is unreliable here (often returns 0 for
   // perfectly valid English). Detect language ourselves vs the target locale.
   const targetLang = parseTargetLang(resolvedTargetLocale);
