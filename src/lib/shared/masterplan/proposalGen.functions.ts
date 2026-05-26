@@ -86,6 +86,69 @@ function normalizeText(value: unknown, maxLen: number): string {
   return text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text;
 }
 
+const FALLBACK_RECOMMENDATION = "Concrete actie wordt gegenereerd.";
+
+function isPlaceholderRecommendation(value: unknown): boolean {
+  return typeof value !== "string" || value.trim() === "" || value.trim() === FALLBACK_RECOMMENDATION;
+}
+
+function buildDeterministicRecommendation(args: {
+  itemTitle: string;
+  itemDescription?: string | null;
+  itemReason?: string | null;
+  itemType?: string | null;
+  actionType: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  goal?: any;
+}): string {
+  const title = args.itemTitle.replace(/^Voorstel:\s*/i, "").trim() || "dit masterplan item";
+  const description = args.itemDescription?.trim();
+  const reason = args.itemReason?.trim();
+  const target = args.goal?.target_count
+    ? `${args.goal.target_count} ${args.goal.target_type ?? "clients"}/maand`
+    : "het actieve groeidoel";
+
+  const shared = [
+    `Scope: werk het masterplan item “${title}” uit tot een reviewbaar voorstel.`,
+    description ? `Gebruik deze inhoudelijke richting: ${description}` : null,
+    reason ? `Bewaar de strategische reden: ${reason}` : null,
+    `Koppel de aanbeveling expliciet aan ${target}; maak duidelijk hoe dit extra relevante vraag, leads of conversies ondersteunt.`,
+  ].filter(Boolean) as string[];
+
+  if (args.itemType === "service_page" || args.itemType === "location_page") {
+    return [
+      ...shared,
+      "Maak een pagina-brief met: H1, intro-belofte, doelgroep/probleem, aanbodsecties, bewijs, FAQ, interne links en primaire CTA.",
+      "Schrijf geen definitieve publicatiecopy; lever eerst de structuur en copy-richting voor menselijke QA.",
+      "Controleer vóór goedkeuring: claim-risico’s, lokale/service-relevantie, CTA-match en of er genoeg bewijs is voor de belofte.",
+    ].map((line) => `- ${line}`).join("\n");
+  }
+
+  if (args.itemType === "content") {
+    return [
+      ...shared,
+      "Plan 3–5 ondersteunende contentstukken rond de hoofdservice: FAQ, how-to, comparison, case of probleemgerichte uitleg.",
+      "Geef per stuk aan: zoekintentie, beoogde lezer, interne link naar servicepagina en verwachte bijdrage aan leadkwaliteit.",
+      "Laat het cluster pas door naar uitvoering nadat de prioriteit, linkdoelen en meetbare CTA’s zijn bevestigd.",
+    ].map((line) => `- ${line}`).join("\n");
+  }
+
+  if (args.itemType === "conversion" || args.actionType === "write_cta") {
+    return [
+      ...shared,
+      "Werk één concreet conversiepad uit: huidige frictie, gewenste actie, CTA-tekst, plaatsing en meetpunt.",
+      "Maak de wijziging klein genoeg voor QA: één pagina/sectie, één primaire CTA, één meetbare hypothese.",
+      "Blokkeer publishing totdat tracking en risico-checks bevestigd zijn.",
+    ].map((line) => `- ${line}`).join("\n");
+  }
+
+  return [
+    ...shared,
+    "Vertaal dit naar één uitvoerbare websiteverbetering met before/after-context, eigenaar, acceptatiecriteria en QA-check.",
+    "Laat publishing geblokkeerd totdat het voorstel is goedgekeurd en er een recente page snapshot bestaat.",
+  ].map((line) => `- ${line}`).join("\n");
+}
+
 const GenOutputSchema = z.object({
   title: FlexibleTextSchema,
   summary: FlexibleTextSchema,
