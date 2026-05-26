@@ -114,7 +114,7 @@ export interface LeadSummary {
   email: string | null;
   phone: string | null;
   createdAt: string;
-  attribution: Record<string, unknown>;
+  attribution: Record<string, any>;
 }
 
 export const listLeads = createServerFn({ method: "POST" })
@@ -146,7 +146,7 @@ export const listLeads = createServerFn({ method: "POST" })
         email: r.email ?? null,
         phone: r.phone ?? null,
         createdAt: r.created_at,
-        attribution: (r.attribution ?? {}) as Record<string, unknown>,
+        attribution: (r.attribution ?? {}) as Record<string, any>,
       })),
     };
   });
