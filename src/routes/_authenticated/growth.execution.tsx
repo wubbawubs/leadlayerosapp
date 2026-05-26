@@ -190,7 +190,9 @@ function ExecutionBoardPage() {
                   </div>
                   <div className="space-y-2">
                     {grouped[col.key].length === 0 && (
-                      <p className="text-xs text-muted-foreground">No items.</p>
+                      <p className="text-xs text-muted-foreground">
+                        {EXECUTION_STATUS_HINT[col.key]}
+                      </p>
                     )}
                     {grouped[col.key].map((it) => (
                       <BoardCard
