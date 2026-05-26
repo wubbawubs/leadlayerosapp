@@ -22,6 +22,7 @@ import {
   type MasterplanActionMapping,
 } from "./proposalMapping";
 import { rowToMasterplanItem, type MasterplanItem } from "./schemas";
+import { evaluateInputQuality, buildNeedsContextRecommendation } from "./inputQuality";
 
 // masterplan_items / growth_goals not in generated types yet
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
