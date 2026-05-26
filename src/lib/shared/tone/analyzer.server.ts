@@ -405,12 +405,12 @@ export async function analyzeToneProfileForTenant(tenantId: string): Promise<Ton
     const distinctBuckets = new Set(
       [...scored.map((s) => s.source_type), ...manualAsObs.map((s) => s.source_type)],
     ).size;
-    const corpusSize = Math.min(1, totalWords / 4000);
-    const sourceDiversity = Math.min(1, distinctBuckets / 6);
+    const corpusSize = Math.min(1, totalWords / 2500);
+    const sourceDiversity = Math.min(1, distinctBuckets / 5);
     const avgQuality = scored.length
       ? scored.reduce((a, s) => a + s.quality, 0) / scored.length
       : 6;
-    const sampleQuality = avgQuality / 10;
+    const sampleQuality = Math.min(1, avgQuality / 8);
     const evidenceDensity = Math.min(
       1,
       (aggregated.ctas.length + aggregated.claimSentences.length + aggregated.headlines.length) / 25,
