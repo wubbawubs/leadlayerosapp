@@ -142,16 +142,19 @@ export const testToneOutput = createServerFn({ method: "POST" })
     if (!row) return { ok: false as const, error: "Geen tone profile gevonden. Analyseer eerst." };
     const profile = ToneProfileSchema.parse(row.profile);
 
+    const bizLocale = await loadBusinessLocale(data.tenantId);
+    const langName = bizLocale?.languageName ?? "Dutch (Nederlands)";
+
     const kindLabel =
       data.kind === "meta"
-        ? "een meta-description van 120-160 tekens"
+        ? `een meta-description van 120-160 tekens in ${langName}`
         : data.kind === "h1"
-        ? "een H1 van max 60 tekens"
-        : "een primaire CTA-knoptekst (max 5 woorden)";
+        ? `een H1 van max 60 tekens in ${langName}`
+        : `een primaire CTA-knoptekst (max 5 woorden) in ${langName}`;
 
     const prompt = [
       `Genereer ${kindLabel} die past bij dit merkstem-profiel.`,
-      "Output: alleen de tekst zelf, geen quotes, geen uitleg.",
+      `Schrijf in ${langName}. Output: alleen de tekst zelf, geen quotes, geen uitleg.`,
       "",
       "PROFIEL:",
       JSON.stringify({
@@ -168,7 +171,7 @@ export const testToneOutput = createServerFn({ method: "POST" })
 
     const result = await llmComplete({
       task: "cheap",
-      system: "Je schrijft conform een meegegeven merkstem. Antwoord alleen met de gevraagde tekst.",
+      system: `Je schrijft conform een meegegeven merkstem. Schrijf uitsluitend in ${langName}. Antwoord alleen met de gevraagde tekst.`,
       prompt,
       temperature: 0.6,
       maxTokens: 200,
