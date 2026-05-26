@@ -14,6 +14,31 @@ import type {
   LeadMath,
 } from "./schemas";
 import { rankAuditIssues, groupAuditIssuesByCategory } from "./auditPriorityMapping";
+import {
+  analyzeGoalInputQuality,
+  isBroadLocation,
+  isGenericService,
+  type GoalQualityReport,
+  type GoalQualityWarning,
+} from "./inputQuality";
+
+/** Per-item readiness — read by Execution Board + proposal generator. */
+export type ItemReadiness = "ready" | "needs_context" | "manual_task" | "blocked";
+
+export interface ItemMetadata {
+  readiness?: ItemReadiness;
+  needsContext?: boolean;
+  missingContext?: string[];
+  successMetric?: string;
+  playbookSteps?: string[];
+  linkedService?: string;
+  linkedLocation?: string;
+  goalContribution?: string;
+  evidence?: Array<{ source: string; reason: string }>;
+  // Free-form bag — generator may attach extra context.
+  [key: string]: unknown;
+}
+
 
 export type GeneratorContext = {
   tenantId: string;
