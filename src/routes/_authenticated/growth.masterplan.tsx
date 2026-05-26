@@ -283,6 +283,7 @@ function MasterplanPage() {
                       ))}
                     </ul>
                   </div>
+                )}
                 {(() => {
                   const gf = (plan.generatedFrom ?? {}) as Record<string, unknown>;
                   const reasons = Array.isArray(gf.confidenceReasons)
@@ -305,6 +306,8 @@ function MasterplanPage() {
                     </details>
                   );
                 })()}
+              </section>
+            )}
 
             {/* Phased roadmap */}
             {plan && (
