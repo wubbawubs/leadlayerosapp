@@ -23,9 +23,12 @@ import { itemTypeLabel, isManualType, proposalStatusLabel } from "@/lib/shared/m
 import {
   type MasterplanItem,
   type MasterplanItemStatus,
-  roadmapBucket,
+  type MasterplanPhase,
+  itemPhase,
+  PHASE_LABEL,
   priorityRank,
 } from "@/lib/shared/masterplan/schemas";
+import { useState } from "react";
 
 export const Route = createFileRoute("/_authenticated/growth/masterplan")({
   component: MasterplanPage,
