@@ -154,10 +154,41 @@ export function priorityRank(p: MasterplanItemPriority): number {
   return { critical: 4, high: 3, medium: 2, low: 1 }[p];
 }
 
-/** 30/60/90 day bucket derived from priority+effort. */
+export const MASTERPLAN_PHASES = [
+  "first_30_days",
+  "days_31_60",
+  "days_61_90",
+  "backlog",
+] as const;
+export type MasterplanPhase = (typeof MASTERPLAN_PHASES)[number];
+
+export const PHASE_LABEL: Record<MasterplanPhase, string> = {
+  first_30_days: "First 30 days",
+  days_31_60: "Days 31–60",
+  days_61_90: "Days 61–90",
+  backlog: "Backlog",
+};
+
+function isPhase(v: unknown): v is MasterplanPhase {
+  return (
+    v === "first_30_days" || v === "days_31_60" || v === "days_61_90" || v === "backlog"
+  );
+}
+
+/** Resolve item's phase from metadata (V2) with a priority-based fallback (V1). */
+export function itemPhase(item: MasterplanItem): MasterplanPhase {
+  const p = (item.metadata as Record<string, unknown> | null)?.phase;
+  if (isPhase(p)) return p;
+  if (item.priority === "critical") return "first_30_days";
+  if (item.priority === "high") return item.effort === "high" ? "days_31_60" : "first_30_days";
+  if (item.priority === "medium") return "days_31_60";
+  return "days_61_90";
+}
+
+/** Legacy 30/60/90 bucket for old callers (Execution Board still uses this). */
 export function roadmapBucket(item: MasterplanItem): "30" | "60" | "90" {
-  if (item.priority === "critical") return "30";
-  if (item.priority === "high") return item.effort === "high" ? "60" : "30";
-  if (item.priority === "medium") return "60";
+  const phase = itemPhase(item);
+  if (phase === "first_30_days") return "30";
+  if (phase === "days_31_60") return "60";
   return "90";
 }
