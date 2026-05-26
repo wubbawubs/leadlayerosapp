@@ -258,12 +258,63 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
 
   // -------------------------------------------------------------------------
   // B. Service items — scored, with existing-page vs missing-page logic.
+  //    Eligibility guard: a service is "explicitly prioritized" only if it
+  //    appears in goal.service_focus OR BP.offerProfile.highValueOffers.
+  //    Seasonal heating gets demoted in assignPhase regardless of intent score.
   // -------------------------------------------------------------------------
+  const offerProfile = (ctx.businessProfile?.offerProfile ?? {}) as Record<string, unknown>;
+  const highValueOffers = Array.isArray(offerProfile.highValueOffers)
+    ? (offerProfile.highValueOffers as unknown[]).filter((x): x is string => typeof x === "string")
+    : [];
+  const secondaryOffers = Array.isArray(offerProfile.secondaryOffers)
+    ? (offerProfile.secondaryOffers as unknown[]).filter((x): x is string => typeof x === "string")
+    : [];
+  const norm = (s: string) => s.trim().toLowerCase();
+  const goalServiceSet = new Set(ctx.goal.serviceFocus.map(norm));
+  const highValueSet = new Set(highValueOffers.map(norm));
+  const secondarySet = new Set(secondaryOffers.map(norm));
+  function isExplicitlyPrioritized(service: string): boolean {
+    const n = norm(service);
+    return goalServiceSet.has(n) || highValueSet.has(n);
+  }
+  function isKnownOffer(service: string): boolean {
+    const n = norm(service);
+    return goalServiceSet.has(n) || highValueSet.has(n) || secondarySet.has(n);
+  }
+
   if (inputQuality.serviceQuality === "specific") {
     for (const focus of inputQuality.specificServices.slice(0, 6)) {
       const existing = findExistingServicePage(focus, ctx.pageIntel);
       const primaryLoc = inputQuality.specificLocations[0];
       const intent = scoreServiceIntent(focus);
+      const explicitlyPrioritized = isExplicitlyPrioritized(focus);
+      const inferred = !isKnownOffer(focus);
+
+      const guardMeta: Record<string, unknown> = {
+        explicitlyPrioritized,
+        inferredService: inferred,
+      };
+      if (inferred) {
+        guardMeta.needsConfirmation = true;
+        guardMeta.priorityGuardReason =
+          "Service not confirmed in growth goal or Business Profile high-value offers.";
+      }
+      if (intent.category === "seasonal_heating") {
+        guardMeta.seasonalHeating = true;
+        guardMeta.priorityGuardReason = explicitlyPrioritized
+          ? "Heating service confirmed but seasonal — scheduled before heating season, not first 30 days."
+          : "Heating service not confirmed as a high-value offer — backlog.";
+      }
+
+      // Effective priority: cap at medium for inferred/seasonal-heating-without-explicit.
+      const intentPriority: MasterplanItemPriority =
+        intent.leadIntent >= 8 ? "high" : intent.leadIntent >= 6 ? "medium" : "low";
+      const cappedPriority: MasterplanItemPriority =
+        inferred || (intent.category === "seasonal_heating" && !explicitlyPrioritized)
+          ? "low"
+          : intent.category === "seasonal_heating"
+            ? "medium"
+            : intentPriority;
 
       if (!existing) {
         const title = primaryLoc
@@ -276,7 +327,7 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
             primaryLoc ? ` focused on ${primaryLoc}` : ""
           }.`,
           reason: `${intent.reason} Directly contributes to ${targetLabel}.`,
-          priority: intent.leadIntent >= 8 ? "high" : intent.leadIntent >= 6 ? "medium" : "low",
+          priority: cappedPriority,
           effort: "medium",
           expectedImpact: intent.value >= 8 ? "high" : "medium",
           source: "goal",
@@ -286,6 +337,7 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
             linkedLocation: primaryLoc,
             intentScore: intent,
             isExistingPage: false,
+            ...guardMeta,
             goalContribution: `Captures search intent for "${focus}" and routes to the primary CTA.`,
             successMetric:
               "Page live + at least 1 qualified lead per month attributed to this page.",
@@ -304,7 +356,7 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
           description:
             "Existing page found — improve CTA, schema, internal links and proof to convert existing traffic.",
           reason: `${intent.reason} Page already exists; optimization is the fastest path to leads.`,
-          priority: intent.leadIntent >= 8 ? "high" : "medium",
+          priority: cappedPriority,
           effort: "low",
           expectedImpact: intent.leadIntent >= 8 ? "high" : "medium",
           source: "page_intelligence",
@@ -314,6 +366,7 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
             linkedService: focus,
             intentScore: intent,
             isExistingPage: true,
+            ...guardMeta,
             goalContribution: `Lifts conversion on the existing "${focus}" page without extra traffic.`,
             evidence: [
               { source: "Page Intelligence", reason: `existing page found for "${focus}"` },
@@ -366,6 +419,19 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
     for (const loc of inputQuality.specificLocations.slice(0, 6)) {
       const exists = hasLocationPageForArea(loc, ctx.pageIntel);
       if (!exists) {
+        // Primary-city redundancy: if homepage or service pages already mention
+        // this city, a dedicated location page may be duplicative.
+        const isPrimaryCity = locIndex === 0;
+        const locNorm = loc.toLowerCase().split(",")[0]?.trim() ?? loc.toLowerCase();
+        const cityAlreadyCovered =
+          isPrimaryCity &&
+          ctx.pageIntel.some((p) => {
+            const hay = `${p.primaryTopic ?? ""} ${p.targetKeyword ?? ""} ${p.pageUrl ?? ""}`.toLowerCase();
+            return (
+              (p.pageType === "homepage" || p.pageType === "service") &&
+              hay.includes(locNorm)
+            );
+          });
         items.push({
           type: "location_page",
           title: `Build location page: ${loc}`,
@@ -386,6 +452,13 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
             locationIndex: locIndex,
             goalContribution: `Local visibility in ${loc} for service search and Maps.`,
             successMetric: `Page live + GBP link + at least 1 local lead per month from ${loc}.`,
+            ...(cityAlreadyCovered
+              ? {
+                  possibleRedundancy: true,
+                  priorityGuardReason:
+                    "Primary city may already be covered by homepage or service pages. Confirm whether a separate city page is needed.",
+                }
+              : {}),
             evidence: [{ source: "Growth Goal", reason: `locations contains "${loc}"` }],
           },
         });
@@ -595,7 +668,13 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
     );
   }
   if (inputQuality.closeRateQuality === "high") {
-    mainConstraints.push("Close rate is high — validate against real sales data.");
+    const cr = closeRate != null ? Math.round(Number(closeRate) * 100) : null;
+    const isVeryHigh = cr != null && cr > 70;
+    const msg = isVeryHigh
+      ? `Close rate is very high (${cr}%). Confirm this is based on real sales data — local-service close rates above 70% are rare.`
+      : `Close rate is high${cr != null ? ` (${cr}%)` : ""}. Confirm this is based on real sales data.`;
+    mainConstraints.push(msg);
+    missingContext.push(`close_rate_warning: ${msg}`);
   }
 
   // -------------------------------------------------------------------------
@@ -617,6 +696,8 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
       locationIndex:
         typeof md.locationIndex === "number" ? md.locationIndex : undefined,
       needsContext: md.needsContext === true,
+      explicitlyPrioritized: md.explicitlyPrioritized === true,
+      inferredService: md.inferredService === true,
     });
     it.metadata = {
       ...md,
@@ -676,6 +757,43 @@ export function generateMasterplanV1(ctx: GeneratorContext): GenerationResult {
   function penalize(signal: string, delta: number, detail: string) {
     confidence += delta;
     reasons.push({ signal, delta, detail });
+  }
+  function affirm(signal: string, detail: string) {
+    reasons.push({ signal, delta: 0, detail });
+  }
+
+  // Positive signals — operator-facing, explain what IS strong.
+  if (inputQuality.serviceQuality === "specific") {
+    affirm(
+      "service_focus_strong",
+      `Strong service focus: ${inputQuality.specificServices.slice(0, 4).join(", ")}.`,
+    );
+  }
+  if (inputQuality.locationQuality === "specific") {
+    affirm(
+      "locations_strong",
+      `Concrete target locations: ${inputQuality.specificLocations.slice(0, 4).join(", ")}.`,
+    );
+  }
+  if (targetCount != null && closeRate != null) {
+    affirm(
+      "lead_math_complete",
+      `Lead math is complete: ${targetCount} ${ctx.goal.targetType}/month at ${Math.round(Number(closeRate) * 100)}% close rate.`,
+    );
+  }
+  if (ctx.pageIntel.length > 0) {
+    affirm(
+      "page_intel_present",
+      `Page Intelligence available for ${ctx.pageIntel.length} pages — existing pages can be optimized first.`,
+    );
+  }
+  if (inputQuality.closeRateQuality === "high") {
+    affirm(
+      "close_rate_warning",
+      closeRate != null && Number(closeRate) > 0.7
+        ? `Close rate is very high (${Math.round(Number(closeRate) * 100)}%). Confirm with real sales data.`
+        : `Close rate is elevated${closeRate != null ? ` (${Math.round(Number(closeRate) * 100)}%)` : ""}. Confirm with real sales data.`,
+    );
   }
 
   if (targetCount == null) penalize("target_count_missing", -0.1, "Target count is missing.");

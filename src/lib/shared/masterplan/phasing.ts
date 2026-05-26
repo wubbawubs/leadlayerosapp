@@ -35,11 +35,20 @@ export const PHASE_LABEL: Record<MasterplanPhase, string> = {
 // Lead intent scoring for service items (HVAC + general home services).
 // ---------------------------------------------------------------------------
 
+export type ServiceIntentCategory =
+  | "emergency"
+  | "repair"
+  | "install"
+  | "maintenance"
+  | "seasonal"
+  | "seasonal_heating"
+  | "generic";
+
 export interface ServiceIntentScore {
-  leadIntent: number; // 0-10 — how directly people search this when ready to buy/book now
-  urgency: number; // 0-10 — emergency / now / today
-  value: number; // 0-10 — revenue-per-job for the business
-  category: "emergency" | "repair" | "install" | "maintenance" | "seasonal" | "generic";
+  leadIntent: number;
+  urgency: number;
+  value: number;
+  category: ServiceIntentCategory;
   reason: string;
 }
 
@@ -130,19 +139,28 @@ export function scoreServiceIntent(service: string): ServiceIntentScore {
   }
 
   if (hasTerm(s, REPAIR_TERMS)) {
-    // Repair is high-intent. Cooling repair tends to outrank heating outside winter.
     const cooling = hasTerm(s, SEASONAL_COOLING_TERMS);
     const heating = hasTerm(s, SEASONAL_HEATING_TERMS);
+    // Heating-only repair (furnace, boiler, heater) is seasonal — never first-30
+    // unless an operator explicitly elevates it. Score and category reflect that.
+    if (heating && !cooling) {
+      return {
+        leadIntent: 6,
+        urgency: 5,
+        value: 6,
+        category: "seasonal_heating",
+        reason:
+          "Heating repair (furnace/boiler) — seasonal demand; not a first-30-days priority in warm climates unless explicitly prioritized by the operator.",
+      };
+    }
     return {
       leadIntent: 9,
-      urgency: cooling ? 9 : heating ? 7 : 8,
+      urgency: cooling ? 9 : 8,
       value: 6,
       category: "repair",
       reason: cooling
         ? "Repair + cooling — high lead intent, typically year-round demand in warm climates."
-        : heating
-          ? "Repair + heating — seasonal demand; high intent during heating season."
-          : "Repair intent — strong direct lead conversion.",
+        : "Repair intent — strong direct lead conversion.",
     };
   }
 
@@ -208,6 +226,12 @@ export interface PhaseInput {
   intent?: ServiceIntentScore | null;
   locationIndex?: number; // 0-based — used to phase out extra location pages
   needsContext?: boolean;
+  /** True when the underlying service is explicitly in goal.service_focus or
+   *  the BP's highValueOffers — i.e. operator-confirmed priority. */
+  explicitlyPrioritized?: boolean;
+  /** True when the underlying service was inferred (not in goal/BP) and must
+   *  be parked in backlog until an operator confirms it. */
+  inferredService?: boolean;
 }
 
 export interface PhaseResult {
@@ -220,12 +244,33 @@ export interface PhaseResult {
  * + location ordering. Confidence/limits are applied later in a second pass.
  */
 export function assignPhase(input: PhaseInput): PhaseResult {
-  const { type, intent, isExistingPage, locationIndex, needsContext } = input;
+  const {
+    type,
+    intent,
+    isExistingPage,
+    locationIndex,
+    needsContext,
+    explicitlyPrioritized,
+    inferredService,
+  } = input;
 
   if (needsContext) {
     return {
       phase: "first_30_days",
       reason: "Resolves a context gap that blocks downstream execution.",
+    };
+  }
+
+  // Inferred services (not confirmed in goal/BP) are always parked in backlog
+  // pending operator confirmation, regardless of intent score.
+  if (
+    (type === "service_page" || type === "website_fix") &&
+    inferredService === true
+  ) {
+    return {
+      phase: "backlog",
+      reason:
+        "Service not confirmed in growth goal or Business Profile high-value offers — parked in backlog until an operator confirms it.",
     };
   }
 
@@ -249,7 +294,16 @@ export function assignPhase(input: PhaseInput): PhaseResult {
       };
 
     case "service_page": {
-      // High-intent services live in first 30 days when missing.
+      // Seasonal heating (furnace/boiler) is never first-30 — even if confirmed
+      // as a high-value offer it is sequenced after the year-round cooling stack.
+      if (intent && intent.category === "seasonal_heating") {
+        return {
+          phase: explicitlyPrioritized ? "days_61_90" : "backlog",
+          reason: explicitlyPrioritized
+            ? `${intent.reason} Confirmed as a high-value offer — scheduled before heating season, not in the first 30 days.`
+            : `${intent.reason} Not confirmed as a high-value offer — parked in backlog.`,
+        };
+      }
       if (intent && (intent.category === "emergency" || intent.leadIntent >= 9)) {
         return {
           phase: "first_30_days",
@@ -281,6 +335,14 @@ export function assignPhase(input: PhaseInput): PhaseResult {
     }
 
     case "website_fix": {
+      if (intent && intent.category === "seasonal_heating") {
+        return {
+          phase: explicitlyPrioritized ? "days_61_90" : "backlog",
+          reason: explicitlyPrioritized
+            ? `Existing heating page — seasonal; optimize before heating season, not in the first 30 days.`
+            : `Existing heating page — seasonal and not confirmed as a high-value offer; backlog.`,
+        };
+      }
       // Optimizing an existing high-intent page beats building a new lower-intent one.
       if (isExistingPage && intent && intent.leadIntent >= 8) {
         return {

@@ -67,3 +67,45 @@ constraints) is now in English. UI labels stay Dutch.
 - Execution Task Engine
 - Safe Publishing
 - WordPress writes
+
+---
+
+## V2.1 — Priority Guard
+
+Sprint E2.1 layered a priority guard on top of V2:
+
+### Service eligibility guard
+A service item is treated as **explicitly prioritized** only if it appears in
+`growth_goal.service_focus` or `business_profile.offer_profile.highValueOffers`.
+Services found only in `secondaryOffers` are "known" but not prioritized.
+Services not present anywhere are flagged `inferredService: true` /
+`needsConfirmation: true` and parked in `backlog` regardless of intent score.
+
+### Seasonal heating guard
+`scoreServiceIntent` now returns category `seasonal_heating` for heating-only
+repair (furnace, boiler, heater) — distinct from cooling repair. In
+`assignPhase`, `seasonal_heating` is sequenced to `days_61_90` when explicitly
+prioritized (before heating season) and to `backlog` otherwise. It never
+lands in `first_30_days`, even when listed in `highValueOffers`, because in
+warm climates AC + emergency must own the first month.
+
+The effective priority of seasonal-heating and inferred services is also
+capped (max `medium` for seasonal-heating with explicit priority, `low` for
+inferred or seasonal-heating without explicit priority).
+
+### Close-rate warning
+- `close_rate > 0.45` → medium-severity warning (`close_rate_elevated`).
+- `close_rate > 0.7`  → high-severity warning (`close_rate_high`).
+Both warnings appear in `mainConstraints` and `missingContext`, and an
+affirmative confidence reason explains the threshold to operators.
+
+### Primary-city redundancy
+A `location_page` for the primary city (`locationIndex === 0`) is annotated
+with `possibleRedundancy: true` + `priorityGuardReason` when an existing
+homepage or service page already targets that city. The item is kept, not
+blocked — operators decide.
+
+### Confidence reasons UI
+Reasons now include positive signals (`delta: 0`) alongside penalties.
+The masterplan UI renders both groups inline (no longer hidden behind
+`<details>`), so operators see exactly why confidence is what it is.
