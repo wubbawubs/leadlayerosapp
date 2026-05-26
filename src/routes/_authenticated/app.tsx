@@ -354,13 +354,18 @@ function AppHome() {
               <li>✅ Goal Intake V1</li>
               <li>✅ Masterplan V1</li>
               <li>✅ Audit + Proposal V2 + QA core</li>
-              <li className="text-foreground">→ Roadmap + Dashboard Alignment V1</li>
-              <li>⬜ Masterplan → Proposal V2 link</li>
-              <li>⬜ Execution Board</li>
+              <li>✅ Masterplan → Proposal V2 link</li>
+              <li className="text-foreground">→ Execution Board V1</li>
               <li>⬜ Safe Publishing</li>
               <li>⬜ Tracking / Lead Inbox</li>
               <li>⬜ Reporting / Monthly Growth Loop</li>
             </ol>
+            <p className="mt-3 text-xs text-muted-foreground">
+              See <span className="font-mono">docs/ROADMAP_V4.md</span> for the
+              full Modular Architecture Contract.
+            </p>
+          </Card>
+
             <p className="mt-3 text-xs text-muted-foreground">
               See <span className="font-mono">docs/ROADMAP_V4.md</span> for the
               full Modular Architecture Contract.
