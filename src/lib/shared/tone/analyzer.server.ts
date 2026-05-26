@@ -36,6 +36,8 @@ interface ScoredObservation extends PageObservation {
   analysis: Record<string, unknown>;
 }
 
+import { jsonrepair } from "jsonrepair";
+
 function extractJson(text: string): unknown {
   if (!text || !text.trim()) throw new Error("LLM returned empty response");
   let cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
@@ -47,17 +49,20 @@ function extractJson(text: string): unknown {
   const closer = opener === "[" ? "]" : "}";
   const last = cleaned.lastIndexOf(closer);
   if (last === -1 || last < first) {
-    throw new Error(`Truncated JSON in LLM response (got: ${text.slice(0, 200)})`);
+    // Truncated — let jsonrepair try to close it
+    cleaned = cleaned.slice(first);
+  } else {
+    cleaned = cleaned.slice(first, last + 1);
   }
-  cleaned = cleaned.slice(first, last + 1);
   try {
     return JSON.parse(cleaned);
   } catch {
-    const repaired = cleaned
-      .replace(/,\s*}/g, "}")
-      .replace(/,\s*]/g, "]")
-      .replace(/[\x00-\x1F\x7F]/g, " ");
-    return JSON.parse(repaired);
+    // Robust repair: closes braces/brackets, fixes trailing commas, unescaped quotes, etc.
+    try {
+      return JSON.parse(jsonrepair(cleaned));
+    } catch (e) {
+      throw new Error(`JSON repair failed: ${(e as Error).message}`);
+    }
   }
 }
 
