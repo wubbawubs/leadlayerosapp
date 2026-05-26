@@ -27,7 +27,9 @@ function detectForbidden(text: string, words: string[]): string[] {
   return words.filter((w) => {
     const needle = w.trim().toLowerCase();
     if (!needle) return false;
-    const re = new RegExp(`\\b${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Match base form + common plural/comparative variants (expert → experts, fast → fastest)
+    const re = new RegExp(`\\b${escaped}(?:s|es|er|est|ly|ing)?\\b`, "i");
     return re.test(lower);
   });
 }
