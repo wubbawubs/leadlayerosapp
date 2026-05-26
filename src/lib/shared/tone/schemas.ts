@@ -56,10 +56,10 @@ export const TrustStyleSchema = z.object({
 
 export const LocaleToneSchema = z.object({
   locale: z.string().trim().max(16).default("nl-NL"),
-  salesIntensity: z.string().trim().max(40).default("medium"),
+  salesIntensity: z.string().trim().max(200).default("medium"),
   culturalNotes: StrList(20).default([]),
-  spelling: z.string().trim().max(40).default(""),
-  formality: z.string().trim().max(40).default(""),
+  spelling: z.string().trim().max(200).default(""),
+  formality: z.string().trim().max(200).default(""),
 });
 
 export const RewritePatternSchema = z.object({
