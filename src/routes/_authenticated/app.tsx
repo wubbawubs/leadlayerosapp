@@ -14,6 +14,8 @@ import {
   getActiveMasterplan,
   listMasterplanItems,
 } from "@/lib/shared/masterplan/repo.functions";
+import { getExecutionBoard } from "@/lib/shared/execution/board.functions";
+
 
 export const Route = createFileRoute("/_authenticated/app")({
   component: AppHome,
