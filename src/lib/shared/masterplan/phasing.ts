@@ -139,19 +139,28 @@ export function scoreServiceIntent(service: string): ServiceIntentScore {
   }
 
   if (hasTerm(s, REPAIR_TERMS)) {
-    // Repair is high-intent. Cooling repair tends to outrank heating outside winter.
     const cooling = hasTerm(s, SEASONAL_COOLING_TERMS);
     const heating = hasTerm(s, SEASONAL_HEATING_TERMS);
+    // Heating-only repair (furnace, boiler, heater) is seasonal — never first-30
+    // unless an operator explicitly elevates it. Score and category reflect that.
+    if (heating && !cooling) {
+      return {
+        leadIntent: 6,
+        urgency: 5,
+        value: 6,
+        category: "seasonal_heating",
+        reason:
+          "Heating repair (furnace/boiler) — seasonal demand; not a first-30-days priority in warm climates unless explicitly prioritized by the operator.",
+      };
+    }
     return {
       leadIntent: 9,
-      urgency: cooling ? 9 : heating ? 7 : 8,
+      urgency: cooling ? 9 : 8,
       value: 6,
       category: "repair",
       reason: cooling
         ? "Repair + cooling — high lead intent, typically year-round demand in warm climates."
-        : heating
-          ? "Repair + heating — seasonal demand; high intent during heating season."
-          : "Repair intent — strong direct lead conversion.",
+        : "Repair intent — strong direct lead conversion.",
     };
   }
 
