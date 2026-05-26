@@ -366,11 +366,7 @@ function AppHome() {
             </p>
           </Card>
 
-            <p className="mt-3 text-xs text-muted-foreground">
-              See <span className="font-mono">docs/ROADMAP_V4.md</span> for the
-              full Modular Architecture Contract.
-            </p>
-          </Card>
+
         </section>
       </main>
     </div>
