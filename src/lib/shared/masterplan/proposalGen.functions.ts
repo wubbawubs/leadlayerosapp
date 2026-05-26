@@ -50,13 +50,49 @@ function extractJson(text: string): unknown {
   return JSON.parse(cleaned.slice(first, last + 1));
 }
 
+// Recommendation may come back as a string OR as an array of bullets/steps.
+// We accept both and normalize to a string. We also allow long output —
+// truncation happens after normalization so we never lose the recommendation
+// to a strict Zod failure.
+const FlexibleTextSchema = z.union([
+  z.string(),
+  z.array(z.union([z.string(), z.record(z.string(), z.unknown())])),
+  z.record(z.string(), z.unknown()),
+]);
+
+function normalizeText(value: unknown, maxLen: number): string {
+  let text: string;
+  if (typeof value === "string") {
+    text = value;
+  } else if (Array.isArray(value)) {
+    text = value
+      .map((v) => {
+        if (typeof v === "string") return `- ${v}`;
+        if (v && typeof v === "object") {
+          const o = v as Record<string, unknown>;
+          const title = typeof o.title === "string" ? o.title : typeof o.step === "string" ? o.step : "";
+          const body = typeof o.body === "string" ? o.body : typeof o.description === "string" ? o.description : "";
+          return [title && `- ${title}`, body].filter(Boolean).join("\n  ");
+        }
+        return `- ${JSON.stringify(v)}`;
+      })
+      .join("\n");
+  } else if (value && typeof value === "object") {
+    text = JSON.stringify(value, null, 2);
+  } else {
+    text = "";
+  }
+  text = text.trim();
+  return text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text;
+}
+
 const GenOutputSchema = z.object({
-  title: z.string().min(1).max(200),
-  summary: z.string().min(1).max(400),
-  reasoning: z.string().min(1).max(1500),
-  recommendation: z.string().min(1).max(2000),
-  keywordsUsed: z.array(z.string()).max(20).default([]),
-  riskFlags: z.array(z.string()).max(20).default([]),
+  title: FlexibleTextSchema,
+  summary: FlexibleTextSchema,
+  reasoning: FlexibleTextSchema,
+  recommendation: FlexibleTextSchema,
+  keywordsUsed: z.array(z.string()).max(50).default([]).optional(),
+  riskFlags: z.array(z.string()).max(50).default([]).optional(),
 });
 
 function buildPrompt(args: {
@@ -215,13 +251,13 @@ export const generateProposalV2ForMasterplanItem = createServerFn({ method: "POS
         jsonMode: true,
       });
       const parsed = GenOutputSchema.parse(extractJson(result.text));
-      title = parsed.title;
-      summary = parsed.summary;
-      reasoning = parsed.reasoning;
-      recommendation = parsed.recommendation;
+      title = normalizeText(parsed.title, 200) || title;
+      summary = normalizeText(parsed.summary, 400) || summary;
+      reasoning = normalizeText(parsed.reasoning, 1500) || reasoning;
+      recommendation = normalizeText(parsed.recommendation, 4000) || recommendation;
       modelUsed = result.model;
-      riskFlags.push(...parsed.riskFlags);
-      keywordsUsed.push(...parsed.keywordsUsed);
+      if (parsed.riskFlags) riskFlags.push(...parsed.riskFlags);
+      if (parsed.keywordsUsed) keywordsUsed.push(...parsed.keywordsUsed);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[masterplan->proposal] llm fail", msg);
