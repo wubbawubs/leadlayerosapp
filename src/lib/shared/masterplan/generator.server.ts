@@ -97,7 +97,10 @@ export type GenerationResult = {
   items: GeneratedItem[];
   confidence: number;
   generatedFrom: Record<string, unknown>;
+  qualityWarnings: GoalQualityWarning[];
+  inputQuality: GoalQualityReport;
 };
+
 
 function hasServicePageForFocus(focus: string, pages: GeneratorContext["pageIntel"]): boolean {
   const f = focus.toLowerCase();
