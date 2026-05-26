@@ -34,7 +34,17 @@ function LinkedProposalsPage() {
         : Promise.resolve({ proposals: [] }),
     enabled: !!tenantId,
   });
-  const proposals = proposalsQuery.data?.proposals ?? [];
+  const proposals: Array<{
+    id: string;
+    status: string;
+    actionType: string;
+    title: string;
+    summary: string;
+    origin: string;
+    createdAt: string;
+    modelUsed: string;
+    riskFlags: string[];
+  }> = proposalsQuery.data?.proposals ?? [];
 
   return (
     <div className="min-h-screen bg-background bg-blueprint">
