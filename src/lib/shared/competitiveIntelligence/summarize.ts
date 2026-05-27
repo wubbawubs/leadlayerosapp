@@ -68,6 +68,44 @@ function toRow(c: Competitor): CompetitorMatrixRow {
   const competitorTypeReasons = Array.isArray(sb.competitorTypeReasons)
     ? (sb.competitorTypeReasons as string[])
     : [];
+
+  // Phase B fields, stored in score_breakdown to avoid DB migrations.
+  const localPackMatched = sb.localPackMatched === true;
+  const localPackMatchConfidence =
+    typeof sb.localPackMatchConfidence === "number"
+      ? (sb.localPackMatchConfidence as number)
+      : null;
+  const localPackMatchSignals = Array.isArray(sb.localPackMatchSignals)
+    ? (sb.localPackMatchSignals as string[])
+    : [];
+  const pageDepthLimited = sb.pageDepthLimited === true;
+  const pageDepthUnknownReason =
+    typeof sb.pageDepthUnknownReason === "string"
+      ? (sb.pageDepthUnknownReason as string)
+      : null;
+  const servicePageSamples = Array.isArray(sb.servicePageSamples)
+    ? (sb.servicePageSamples as Array<{ url: string; matchedReason: string }>)
+    : [];
+  const locationPageSamples = Array.isArray(sb.locationPageSamples)
+    ? (sb.locationPageSamples as Array<{ url: string; matchedReason: string }>)
+    : [];
+  const existingServicePagesCount =
+    typeof sb.existingServicePagesCount === "number"
+      ? (sb.existingServicePagesCount as number)
+      : null;
+  const existingLocationPagesCount =
+    typeof sb.existingLocationPagesCount === "number"
+      ? (sb.existingLocationPagesCount as number)
+      : null;
+  const plannedServicePagesCount =
+    typeof sb.plannedServicePagesCount === "number"
+      ? (sb.plannedServicePagesCount as number)
+      : null;
+  const plannedLocationPagesCount =
+    typeof sb.plannedLocationPagesCount === "number"
+      ? (sb.plannedLocationPagesCount as number)
+      : null;
+
   return {
     domain: c.domain,
     displayName: c.displayName ?? null,
@@ -92,6 +130,17 @@ function toRow(c: Competitor): CompetitorMatrixRow {
     competitorType,
     competitorTypeConfidence,
     competitorTypeReasons,
+    localPackMatched,
+    localPackMatchConfidence,
+    localPackMatchSignals,
+    pageDepthLimited,
+    pageDepthUnknownReason,
+    servicePageSamples,
+    locationPageSamples,
+    existingServicePagesCount,
+    existingLocationPagesCount,
+    plannedServicePagesCount,
+    plannedLocationPagesCount,
   };
 }
 
@@ -150,11 +199,20 @@ export function buildCompetitorMatrixSummary(
   const selfScore = self?.competitorScore ?? null;
 
   const gaps: CompetitorGap[] = [];
+  let reviewComparisonLimited = false;
   if (self) {
+    const reviewCoverage =
+      gapBaseRows.length > 0
+        ? gapBaseRows.filter((r) => typeof r.gbpReviewCount === "number").length /
+          gapBaseRows.length
+        : 0;
     const compReviewCounts = gapBaseRows
       .map((r) => r.gbpReviewCount)
       .filter((n): n is number => typeof n === "number");
+    // Phase B: only surface "review volume" as a gap when ≥50% of direct
+    // competitors actually have review data — otherwise it's noise.
     if (
+      reviewCoverage >= 0.5 &&
       compReviewCounts.length > 0 &&
       (self.gbpReviewCount ?? 0) < (median(compReviewCounts) ?? 0)
     ) {
@@ -165,6 +223,8 @@ export function buildCompetitorMatrixSummary(
         selfValue: self.gbpReviewCount,
         competitorMedian: median(compReviewCounts),
       });
+    } else if (compReviewCounts.length > 0 && reviewCoverage < 0.5) {
+      reviewComparisonLimited = true;
     }
     const compSvc = gapBaseRows
       .map((r) => r.servicePagesCount)
@@ -213,6 +273,11 @@ export function buildCompetitorMatrixSummary(
   if (scan.partial) {
     warnings.push(
       "Scan completed partially — some clusters or competitors returned errors. Scores reflect available data only.",
+    );
+  }
+  if (reviewComparisonLimited) {
+    warnings.push(
+      "Review comparison limited because local-pack matches were incomplete. Review-volume gap is suppressed until more competitors are matched.",
     );
   }
   if (allRows.length === 0) {

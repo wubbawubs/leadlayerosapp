@@ -963,6 +963,16 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
       });
     }
     const renderRow = (row: typeof cs.rows[number], isIntermediary: boolean) => {
+      const reviewsLabel = row.reviewsUnknown
+        ? row.localPackMatched
+          ? "unknown"
+          : "unknown (no local-pack match)"
+        : `${row.gbpReviewCount ?? 0} @ ${row.gbpRating ?? "—"}`;
+      const pagesLabel = row.pageDepthLimited
+        ? `${row.servicePagesCount ?? "?"}/${row.locationPagesCount ?? "?"} (crawl limited)`
+        : row.pageDepthUnknownReason && row.servicePagesCount == null
+          ? `unknown (${row.pageDepthUnknownReason.toLowerCase()})`
+          : `${row.servicePagesCount ?? "?"}/${row.locationPagesCount ?? "?"}`;
       items.push({
         title: row.displayName ?? row.domain,
         detail: [
@@ -972,13 +982,17 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
               : "—"
           })`,
           `SERP appearances: ${row.serpAppearanceCount}`,
-          `Pages svc/loc: ${row.servicePagesCount ?? "?"}/${row.locationPagesCount ?? "?"}`,
-          `Reviews: ${row.reviewsUnknown ? "unknown" : `${row.gbpReviewCount ?? 0} @ ${row.gbpRating ?? "—"}`}`,
+          `Pages svc/loc: ${pagesLabel}`,
+          `Reviews: ${reviewsLabel}`,
         ].join(" · "),
         meta: {
           domain: row.domain,
           competitorType: row.competitorType,
           isIntermediary,
+          localPackMatched: row.localPackMatched,
+          pageDepthLimited: row.pageDepthLimited,
+          servicePageSamples: row.servicePageSamples,
+          locationPageSamples: row.locationPageSamples,
         },
       });
     };

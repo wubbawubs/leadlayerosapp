@@ -148,6 +148,12 @@ export const competitorTypeSchema = z.enum([
 ]);
 export type CompetitorTypeSchema = z.infer<typeof competitorTypeSchema>;
 
+export const pageSampleSchema = z.object({
+  url: z.string(),
+  matchedReason: z.string(),
+});
+export type PageSample = z.infer<typeof pageSampleSchema>;
+
 // Matrix row used by the Blueprint UI.
 export const competitorMatrixRowSchema = z.object({
   domain: z.string(),
@@ -175,6 +181,19 @@ export const competitorMatrixRowSchema = z.object({
   competitorType: competitorTypeSchema.nullable().default(null),
   competitorTypeConfidence: z.number().nullable().default(null),
   competitorTypeReasons: z.array(z.string()).default([]),
+  // Phase B / Ticket 4c-B — enrichment provenance.
+  localPackMatched: z.boolean().default(false),
+  localPackMatchConfidence: z.number().nullable().default(null),
+  localPackMatchSignals: z.array(z.string()).default([]),
+  pageDepthLimited: z.boolean().default(false),
+  pageDepthUnknownReason: z.string().nullable().default(null),
+  servicePageSamples: z.array(pageSampleSchema).default([]),
+  locationPageSamples: z.array(pageSampleSchema).default([]),
+  // Self-row only: existing (verified) vs planned (from masterplan).
+  existingServicePagesCount: z.number().nullable().default(null),
+  existingLocationPagesCount: z.number().nullable().default(null),
+  plannedServicePagesCount: z.number().nullable().default(null),
+  plannedLocationPagesCount: z.number().nullable().default(null),
 });
 export type CompetitorMatrixRow = z.infer<typeof competitorMatrixRowSchema>;
 
