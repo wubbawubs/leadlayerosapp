@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 
 import { Logo } from "@/components/brand/Logo";
 import { listMyTenants } from "@/lib/shared/db/repos/tenants.functions";
@@ -10,8 +10,12 @@ import {
   getActiveMasterplan,
   listMasterplanItems,
 } from "@/lib/shared/masterplan/repo.functions";
-import { summarizeLatestMarketScan } from "@/lib/marketIntelligence/marketIntelligence.functions";
+import {
+  runDataForSeoMarketScan,
+  summarizeLatestMarketScan,
+} from "@/lib/marketIntelligence/marketIntelligence.functions";
 import { itemPhase } from "@/lib/shared/masterplan/schemas";
+
 import {
   generateLeadEngineBlueprint,
   type GenerateBlueprintInput,
