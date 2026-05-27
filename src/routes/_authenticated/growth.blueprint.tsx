@@ -10,6 +10,7 @@ import {
   getActiveMasterplan,
   listMasterplanItems,
 } from "@/lib/shared/masterplan/repo.functions";
+import { summarizeLatestMarketScan } from "@/lib/marketIntelligence/marketIntelligence.functions";
 import { itemPhase } from "@/lib/shared/masterplan/schemas";
 import {
   generateLeadEngineBlueprint,
