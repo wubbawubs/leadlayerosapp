@@ -1097,11 +1097,17 @@ function PageDiagnostics({ section }: { section: BlueprintSection | undefined })
       <section className="rounded-xl border border-dashed border-border bg-card/40 p-6">
         <SectionHeading title={section.title} subtitle={section.summary} />
         <p className="mt-3 text-xs text-muted-foreground">
-          Run a site audit to populate per-page diagnostics.
+          Open <Link to="/sites" className="text-primary underline">Sites</Link> and run an audit on the connected site to populate per-page diagnostics. Scores will sharpen as soon as page intelligence lands.
         </p>
+        {section.warnings && section.warnings.length > 0 && (
+          <ul className="mt-3 space-y-1 text-[11px] text-amber-500">
+            {section.warnings.map((w, i) => (<li key={i}>⚠ {w}</li>))}
+          </ul>
+        )}
       </section>
     );
   }
+
   return (
     <section className="rounded-xl border border-border bg-card/70 p-6">
       <SectionHeading title={section.title} subtitle={section.summary} />
