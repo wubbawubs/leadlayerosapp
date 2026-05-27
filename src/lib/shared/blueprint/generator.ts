@@ -936,8 +936,10 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
         },
       });
     };
-    for (const row of cs.directRows) renderRow(row, false);
-    for (const row of cs.intermediaryRows) renderRow(row, true);
+    const directRows = cs.directRows ?? cs.rows ?? [];
+    const intermediaryRows = cs.intermediaryRows ?? [];
+    for (const row of directRows) renderRow(row, false);
+    for (const row of intermediaryRows) renderRow(row, true);
 
     const evidence: string[] = [`Source: ${cs.source}`];
     if (cs.scanCompletedAt) evidence.push(`Scan completed: ${cs.scanCompletedAt}`);
