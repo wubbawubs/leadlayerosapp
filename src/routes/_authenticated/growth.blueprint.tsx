@@ -241,8 +241,9 @@ function BlueprintView({ blueprint }: { blueprint: LeadEngineBlueprint }) {
       <MarketIntelligenceBlock
         section={sectionByType.market_intelligence}
         tenantId={blueprint.tenantId ?? null}
-        growthGoalId={blueprint.growthGoal.id ?? null}
+        growthGoalId={blueprint.growthGoalId ?? null}
       />
+
 
       <PlaceholderSection section={sectionByType.competitive_position} />
 
