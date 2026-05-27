@@ -322,6 +322,7 @@ export function buildCompetitorMatrixSummary(
     warnings.push(
       `Page-depth scan included noisy candidates for ${noisyRows.length} competitor${noisyRows.length === 1 ? "" : "s"}; counts need validation.`,
     );
+  }
   if (!self) {
     warnings.push("Self row is missing — tenant domain could not be resolved.");
   } else {
