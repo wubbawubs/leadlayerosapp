@@ -1211,10 +1211,11 @@ function buildAssumptions(input: GenerateBlueprintInput, scores: BlueprintScores
         detail: `Loaded from ${sourceLabel(summary.source)} — must be replaced by a DataForSEO scan (Ticket 3) before claiming verified demand.`,
       });
     } else {
-      a.push({
-        label: "Market data available",
-        detail: `Demand coverage is based on ${summary.totalKeywords} keyword${summary.totalKeywords === 1 ? "" : "s"} across ${summary.clusterCount} cluster${summary.clusterCount === 1 ? "" : "s"} from ${sourceLabel(summary.source)}.`,
-      });
+      const lb = summary.localityBreakdown;
+      const detail = lb
+        ? `Local demand sized from ${summary.topClusters.length} local cluster${summary.topClusters.length === 1 ? "" : "s"} (${lb.localDemandVolume.toLocaleString()} mo). Generic "near me" demand (${lb.genericReferenceDemandVolume.toLocaleString()} mo) is shown as reference only.`
+        : `Demand coverage is based on ${summary.totalKeywords} keyword${summary.totalKeywords === 1 ? "" : "s"} across ${summary.clusterCount} cluster${summary.clusterCount === 1 ? "" : "s"} from ${sourceLabel(summary.source)}.`;
+      a.push({ label: "Market data available", detail });
     }
   } else if (!input.marketData) {
     a.push({
