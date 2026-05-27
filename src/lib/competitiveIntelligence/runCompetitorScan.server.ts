@@ -513,7 +513,41 @@ export async function runCompetitorScan(
 
   // 5. Aggregate competitors.
   const selfDomains = await loadSelfDomains(tenantId);
-  const selfDomainSet = new Set(selfDomains);
+  const brandName = await loadBrandName(tenantId);
+  const primarySelfDomain = selfDomains[0] ?? null;
+  const selfDomainIsTemp = primarySelfDomain
+    ? detectTemporaryOrPlaceholderDomain(primarySelfDomain)
+    : true;
+
+  // Collect SERP rows in a generic shape for entity resolution (organic + local pack).
+  const allSerpRowsForIdentity: SerpRowLike[] = [];
+  for (const run of clusterRuns) {
+    for (const o of run.organic) {
+      allSerpRowsForIdentity.push({
+        domain: o.domain,
+        url: o.url,
+        title: o.title,
+        snippet: o.snippet,
+        isLocalPack: false,
+      });
+    }
+    for (const lp of run.localPack) {
+      allSerpRowsForIdentity.push({
+        domain: lp.domain,
+        url: lp.url,
+        title: lp.name,
+        isLocalPack: true,
+        localPackName: lp.name,
+      });
+    }
+  }
+
+  const selfIdentity: SelfIdentity = buildSelfIdentity({
+    brandName,
+    connectedDomain: primarySelfDomain,
+    knownDomains: selfDomains,
+    serpRows: allSerpRowsForIdentity,
+  });
 
   const aggMap = new Map<string, AggregatedCompetitor>();
   for (const run of clusterRuns) {
@@ -556,9 +590,21 @@ export async function runCompetitorScan(
     void seenInCluster;
   }
 
-  // Build candidate list, excluding self.
+  // Build candidate list. Only exclude self by domain when the connected
+  // domain is NOT temporary and was confidently resolved as self. Temporary
+  // domains rarely appear in SERP, and even if they did we'd treat them as
+  // out-of-scope rather than a legitimate competitor.
+  const excludeDomains = new Set<string>();
+  if (primarySelfDomain && !selfDomainIsTemp) {
+    for (const d of selfDomains) excludeDomains.add(d);
+  }
+  // Also exclude any SERP row that scored as the self entity by brand match,
+  // so brand pages don't get listed as competitors.
+  if (selfIdentity.identityMode === "domain_match" && primarySelfDomain) {
+    excludeDomains.add(primarySelfDomain);
+  }
   const candidates = Array.from(aggMap.values()).filter(
-    (c) => !selfDomainSet.has(c.domain),
+    (c) => !excludeDomains.has(c.domain),
   );
   candidates.sort((a, b) => {
     const ca = a.clusterKeys.size;
@@ -572,19 +618,20 @@ export async function runCompetitorScan(
   });
   const topCompetitors = candidates.slice(0, maxCompetitors);
 
-  // 6. Self row aggregate (use first known self domain; build minimal agg)
-  let selfAgg: AggregatedCompetitor | null = null;
-  if (selfDomains.length > 0) {
-    const selfDomain = selfDomains[0];
-    const matchedSelf = aggMap.get(selfDomain);
-    selfAgg = matchedSelf ?? {
-      domain: selfDomain,
-      serpAppearanceCount: 0,
-      clusterKeys: new Set<string>(),
-      bestRankSum: 0,
-      bestRankCount: 0,
-    };
-  }
+  // 6. Self row aggregate. Always present, even when not in SERP.
+  // Use the resolved self domain (may be temp host or "self" placeholder).
+  const selfRowDomain = selfIdentity.selfRowDomain;
+  const matchedSelfAgg = primarySelfDomain ? aggMap.get(primarySelfDomain) : undefined;
+  const selfAgg: AggregatedCompetitor = matchedSelfAgg ?? {
+    domain: selfRowDomain,
+    serpAppearanceCount: 0,
+    clusterKeys: new Set<string>(),
+    bestRankSum: 0,
+    bestRankCount: 0,
+    displayName: selfIdentity.displayName,
+  };
+  // Always pin the display name to the resolved identity.
+  selfAgg.displayName = selfIdentity.displayName;
 
   // 7. Enrich + score each competitor.
   const firecrawlOk = isFirecrawlConfigured();
