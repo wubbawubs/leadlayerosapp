@@ -141,6 +141,40 @@ async function loadSelfDomains(tenantId: string): Promise<string[]> {
   return Array.from(hosts);
 }
 
+async function loadBrandName(tenantId: string): Promise<string | null> {
+  // business_profiles_v2.business_identity.businessName | brandName (preferred)
+  // Fallback to legacy business_profiles.business_name.
+  try {
+    const { data: v2 } = await supabaseAdmin
+      .from("business_profiles_v2" as never)
+      .select("business_identity")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    const identity = (v2 as { business_identity?: Record<string, unknown> } | null)
+      ?.business_identity;
+    if (identity) {
+      const name =
+        (identity.brandName as string | undefined) ??
+        (identity.businessName as string | undefined);
+      if (name && name.trim()) return name.trim();
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    const { data: legacy } = await supabaseAdmin
+      .from("business_profiles" as never)
+      .select("business_name")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    const name = (legacy as { business_name?: string | null } | null)?.business_name;
+    if (name && name.trim()) return name.trim();
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 interface ClusterRun {
   clusterKey: string;
   keyword: string;
