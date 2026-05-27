@@ -974,22 +974,59 @@ function CompetitiveBlock({
             Local businesses competing for the same service demand. Drives gap scoring.
           </p>
           <ul className="mt-3 space-y-2">
-            {directItems.map((c, i) => (
-              <li
-                key={i}
-                className="rounded-md border border-border/60 bg-background/40 p-3"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-foreground">
-                    {i + 1}. {c.title}
-                  </p>
-                  <CompetitorTypeBadge type={c.meta?.competitorType as string | undefined} />
-                </div>
-                {c.detail && (
-                  <p className="mt-1 text-xs text-muted-foreground">{c.detail}</p>
-                )}
-              </li>
-            ))}
+            {directItems.map((c, i) => {
+              const m = c.meta ?? {};
+              const localMatched = m.localPackMatched === true;
+              const depthLimited = m.pageDepthLimited === true;
+              const svcSamples = typeof m.servicePageSamples === "string" && m.servicePageSamples
+                ? (m.servicePageSamples as string).split(" | ").slice(0, 2)
+                : [];
+              const locSamples = typeof m.locationPageSamples === "string" && m.locationPageSamples
+                ? (m.locationPageSamples as string).split(" | ").slice(0, 2)
+                : [];
+              return (
+                <li
+                  key={i}
+                  className="rounded-md border border-border/60 bg-background/40 p-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground">
+                      {i + 1}. {c.title}
+                    </p>
+                    <CompetitorTypeBadge type={c.meta?.competitorType as string | undefined} />
+                    {!localMatched && (
+                      <span className="rounded-full border border-muted-foreground/30 bg-background/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        No local-pack match
+                      </span>
+                    )}
+                    {depthLimited && (
+                      <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600">
+                        Crawl limited
+                      </span>
+                    )}
+                  </div>
+                  {c.detail && (
+                    <p className="mt-1 text-xs text-muted-foreground">{c.detail}</p>
+                  )}
+                  {(svcSamples.length > 0 || locSamples.length > 0) && (
+                    <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+                      {svcSamples.length > 0 && (
+                        <p className="truncate">
+                          <span className="font-semibold text-foreground/80">Service pages:</span>{" "}
+                          {svcSamples.join(", ")}
+                        </p>
+                      )}
+                      {locSamples.length > 0 && (
+                        <p className="truncate">
+                          <span className="font-semibold text-foreground/80">Location pages:</span>{" "}
+                          {locSamples.join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
