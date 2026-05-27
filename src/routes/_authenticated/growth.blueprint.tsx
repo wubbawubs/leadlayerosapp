@@ -943,6 +943,24 @@ function CompetitiveBlock({
             {selfItem.detail && (
               <p className="mt-1 text-xs text-muted-foreground">{selfItem.detail}</p>
             )}
+            {(() => {
+              const m = selfItem.meta ?? {};
+              const es = m.existingServicePages as number | undefined;
+              const ps = m.plannedServicePages as number | undefined;
+              const el = m.existingLocationPages as number | undefined;
+              const pl = m.plannedLocationPages as number | undefined;
+              if (es == null && ps == null && el == null && pl == null) return null;
+              return (
+                <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-wide">
+                  <span className="rounded-full border border-border/60 bg-background/60 px-2 py-0.5 text-muted-foreground">
+                    Service: {es ?? 0} existing · {ps ?? 0} planned
+                  </span>
+                  <span className="rounded-full border border-border/60 bg-background/60 px-2 py-0.5 text-muted-foreground">
+                    Location: {el ?? 0} existing · {pl ?? 0} planned
+                  </span>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
