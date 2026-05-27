@@ -138,6 +138,16 @@ export type IdentityModeSchema = z.infer<typeof identityModeSchema>;
 export const rankingPresenceSchema = z.enum(["found", "brand_only", "not_found"]);
 export type RankingPresenceSchema = z.infer<typeof rankingPresenceSchema>;
 
+export const competitorTypeSchema = z.enum([
+  "local_business",
+  "directory",
+  "aggregator",
+  "franchise",
+  "content",
+  "unknown",
+]);
+export type CompetitorTypeSchema = z.infer<typeof competitorTypeSchema>;
+
 // Matrix row used by the Blueprint UI.
 export const competitorMatrixRowSchema = z.object({
   domain: z.string(),
@@ -161,6 +171,10 @@ export const competitorMatrixRowSchema = z.object({
   identityWarnings: z.array(z.string()).default([]),
   rankingPresence: rankingPresenceSchema.nullable().default(null),
   temporaryDomain: z.boolean().default(false),
+  // Competitor type classification (Ticket 4b).
+  competitorType: competitorTypeSchema.nullable().default(null),
+  competitorTypeConfidence: z.number().nullable().default(null),
+  competitorTypeReasons: z.array(z.string()).default([]),
 });
 export type CompetitorMatrixRow = z.infer<typeof competitorMatrixRowSchema>;
 
@@ -183,7 +197,13 @@ export const competitorMatrixSummarySchema = z.object({
   competitorCount: z.number().default(0),
   self: competitorMatrixRowSchema.nullable(),
   rows: z.array(competitorMatrixRowSchema).default([]),
+  // Ticket 4b — split direct competitors vs SERP intermediaries.
+  directRows: z.array(competitorMatrixRowSchema).default([]),
+  intermediaryRows: z.array(competitorMatrixRowSchema).default([]),
+  directCompetitorCount: z.number().default(0),
+  intermediaryCount: z.number().default(0),
   medianCompetitorScore: z.number().nullable(),
+  medianDirectCompetitorScore: z.number().nullable().default(null),
   selfScore: z.number().nullable(),
   gaps: z.array(competitorGapSchema).default([]),
   warnings: z.array(z.string()).default([]),

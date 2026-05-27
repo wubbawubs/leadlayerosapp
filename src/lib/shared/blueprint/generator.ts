@@ -465,13 +465,19 @@ function buildDataAvailability(input: GenerateBlueprintInput): DataAvailability 
     (input.marketDemandSummary && input.marketDemandSummary.available) ||
     !!input.marketData;
 
+  const competitorState: DataAvailabilityState = (() => {
+    const cs = input.competitorSummary;
+    if (cs && cs.available) {
+      return cs.partial || cs.status === "partial" ? "partial" : "available";
+    }
+    if (input.competitorData) return "available";
+    if (input.competitorSummary) return "placeholder";
+    return "missing";
+  })();
+
   return {
     marketData: state(hasMarket, !!input.marketDemandSummary || !!input.marketData),
-    competitorData: state(
-      (input.competitorSummary && input.competitorSummary.available) ||
-        !!input.competitorData,
-      !!input.competitorSummary || !!input.competitorData,
-    ),
+    competitorData: competitorState,
     gbpData: state(input.gbpData?.connected === true, !!input.gbpData),
     rankingData: state(
       !!input.rankingData && (input.rankingData.keywordsTracked ?? 0) > 0,
@@ -910,7 +916,7 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
         },
       });
     }
-    for (const row of cs.rows) {
+    const renderRow = (row: typeof cs.rows[number], isIntermediary: boolean) => {
       items.push({
         title: row.displayName ?? row.domain,
         detail: [
@@ -923,14 +929,20 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
           `Pages svc/loc: ${row.servicePagesCount ?? "?"}/${row.locationPagesCount ?? "?"}`,
           `Reviews: ${row.reviewsUnknown ? "unknown" : `${row.gbpReviewCount ?? 0} @ ${row.gbpRating ?? "—"}`}`,
         ].join(" · "),
-        meta: { domain: row.domain },
+        meta: {
+          domain: row.domain,
+          competitorType: row.competitorType,
+          isIntermediary,
+        },
       });
-    }
+    };
+    for (const row of cs.directRows) renderRow(row, false);
+    for (const row of cs.intermediaryRows) renderRow(row, true);
 
     const evidence: string[] = [`Source: ${cs.source}`];
     if (cs.scanCompletedAt) evidence.push(`Scan completed: ${cs.scanCompletedAt}`);
     evidence.push(
-      `Clusters scanned: ${cs.clustersScanned}; SERP results: ${cs.serpResultsCollected}; competitors: ${cs.competitorCount}.`,
+      `Clusters scanned: ${cs.clustersScanned}; SERP results: ${cs.serpResultsCollected}; direct competitors: ${cs.directCompetitorCount}; SERP intermediaries: ${cs.intermediaryCount}.`,
     );
     if (cs.gaps.length > 0) {
       evidence.push(
@@ -951,9 +963,14 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
           ? `Top gap: ${cs.gaps[0].label}. ${cs.gaps[0].detail}`
           : "Competitor scan complete. Self row is comparable across all scored dimensions.",
       metrics: [
-        { label: "Competitors", value: cs.competitorCount },
+        { label: "Direct competitors", value: cs.directCompetitorCount },
+        { label: "SERP intermediaries", value: cs.intermediaryCount },
         { label: "Clusters scanned", value: cs.clustersScanned },
-        { label: "Median competitor score", value: cs.medianCompetitorScore ?? null, unit: "/100" },
+        {
+          label: "Median direct competitor score",
+          value: cs.medianDirectCompetitorScore ?? cs.medianCompetitorScore ?? null,
+          unit: "/100",
+        },
         { label: "Your score", value: cs.selfScore ?? null, unit: "/100" },
       ],
       items,
@@ -961,6 +978,7 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
       warnings: cs.warnings.length ? cs.warnings : undefined,
     };
   }
+
 
   // Legacy / placeholder.
   if (!input.competitorData?.competitors?.length) {
