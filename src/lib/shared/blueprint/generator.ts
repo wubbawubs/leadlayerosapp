@@ -499,19 +499,21 @@ function buildDataAvailability(input: GenerateBlueprintInput): DataAvailability 
 function sectionGoal(input: GenerateBlueprintInput): BlueprintSection {
   const g = input.growthGoal;
   const horizon = g.timeframeMonths ?? 12;
-  const targetCount = g.targetCount ?? null;
+  // Ticket 4c convention: `targetCount` is the MONTHLY target (the form
+  // labels it "Target per maand"; masterplan + reporting treat it the same).
+  // Required leads/month = monthlyTarget / closeRate. No /horizon.
+  const monthlyTarget = g.targetCount ?? null;
   const closeRate = g.closeRate ?? null;
   const currentCount = g.currentCount ?? null;
 
-  const requiredLeads =
-    targetCount != null && closeRate && closeRate > 0
-      ? Math.ceil(targetCount / closeRate)
-      : null;
   const requiredLeadsPerMonth =
-    requiredLeads != null ? Math.ceil(requiredLeads / Math.max(1, horizon)) : null;
+    monthlyTarget != null && closeRate && closeRate > 0
+      ? Math.ceil(monthlyTarget / closeRate)
+      : null;
   const currentLeadsPerMonth =
-    currentCount != null ? round(currentCount / Math.max(1, horizon), 2) : null;
+    currentCount != null ? round(currentCount, 2) : null;
 
+  const targetUnit = g.targetType ?? "new clients";
   const warnings: string[] = [];
   if (closeRate != null && closeRate > 0.5) {
     warnings.push("Close rate above 50% — verify this is sustainable across the timeframe.");
@@ -519,12 +521,12 @@ function sectionGoal(input: GenerateBlueprintInput): BlueprintSection {
   if (closeRate == null) {
     warnings.push("Close rate not provided — lead math uses placeholder defaults.");
   }
-  if (targetCount == null) {
+  if (monthlyTarget == null) {
     warnings.push("Target count not provided — goal math cannot be fully derived.");
   }
 
   const metrics = [
-    { label: "Target", value: targetCount, unit: g.targetType ?? "new clients" },
+    { label: "Target", value: monthlyTarget, unit: `${targetUnit}/month` },
     { label: "Timeframe", value: horizon, unit: "months" },
     {
       label: "Close rate",
@@ -544,13 +546,14 @@ function sectionGoal(input: GenerateBlueprintInput): BlueprintSection {
     type: "goal",
     title: "Goal & Lead Math",
     summary:
-      targetCount != null
-        ? `Target ${targetCount} ${g.targetType ?? "new clients"} in ${horizon} months.`
+      monthlyTarget != null
+        ? `Target ${monthlyTarget} ${targetUnit}/month within ${horizon} months.`
         : "Growth target not fully specified — confirm with client.",
     metrics,
     warnings: warnings.length ? warnings : undefined,
   };
 }
+
 
 function sectionCurrentSituation(input: GenerateBlueprintInput): BlueprintSection {
   const pages = input.pageIntelligence;
