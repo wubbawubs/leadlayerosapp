@@ -35,6 +35,12 @@ import { classifyMapUrls } from "@/lib/shared/competitiveIntelligence/pageDepthC
 import { parseHomepageMarkdown } from "@/lib/shared/competitiveIntelligence/trustExtractor";
 import { buildCompetitorMatrixSummary } from "@/lib/shared/competitiveIntelligence/summarize";
 import {
+  buildSelfIdentity,
+  detectTemporaryOrPlaceholderDomain,
+  type SelfIdentity,
+  type SerpRowLike,
+} from "@/lib/shared/competitiveIntelligence/entityResolution";
+import {
   competitorScanSchema,
   competitorSchema,
   type Competitor,
@@ -133,6 +139,40 @@ async function loadSelfDomains(tenantId: string): Promise<string[]> {
     if (h) hosts.add(h);
   }
   return Array.from(hosts);
+}
+
+async function loadBrandName(tenantId: string): Promise<string | null> {
+  // business_profiles_v2.business_identity.businessName | brandName (preferred)
+  // Fallback to legacy business_profiles.business_name.
+  try {
+    const { data: v2 } = await supabaseAdmin
+      .from("business_profiles_v2" as never)
+      .select("business_identity")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    const identity = (v2 as { business_identity?: Record<string, unknown> } | null)
+      ?.business_identity;
+    if (identity) {
+      const name =
+        (identity.brandName as string | undefined) ??
+        (identity.businessName as string | undefined);
+      if (name && name.trim()) return name.trim();
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    const { data: legacy } = await supabaseAdmin
+      .from("business_profiles" as never)
+      .select("business_name")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    const name = (legacy as { business_name?: string | null } | null)?.business_name;
+    if (name && name.trim()) return name.trim();
+  } catch {
+    // ignore
+  }
+  return null;
 }
 
 interface ClusterRun {
@@ -473,7 +513,41 @@ export async function runCompetitorScan(
 
   // 5. Aggregate competitors.
   const selfDomains = await loadSelfDomains(tenantId);
-  const selfDomainSet = new Set(selfDomains);
+  const brandName = await loadBrandName(tenantId);
+  const primarySelfDomain = selfDomains[0] ?? null;
+  const selfDomainIsTemp = primarySelfDomain
+    ? detectTemporaryOrPlaceholderDomain(primarySelfDomain)
+    : true;
+
+  // Collect SERP rows in a generic shape for entity resolution (organic + local pack).
+  const allSerpRowsForIdentity: SerpRowLike[] = [];
+  for (const run of clusterRuns) {
+    for (const o of run.organic) {
+      allSerpRowsForIdentity.push({
+        domain: o.domain,
+        url: o.url,
+        title: o.title,
+        snippet: o.snippet,
+        isLocalPack: false,
+      });
+    }
+    for (const lp of run.localPack) {
+      allSerpRowsForIdentity.push({
+        domain: lp.domain,
+        url: lp.url,
+        title: lp.name,
+        isLocalPack: true,
+        localPackName: lp.name,
+      });
+    }
+  }
+
+  const selfIdentity: SelfIdentity = buildSelfIdentity({
+    brandName,
+    connectedDomain: primarySelfDomain,
+    knownDomains: selfDomains,
+    serpRows: allSerpRowsForIdentity,
+  });
 
   const aggMap = new Map<string, AggregatedCompetitor>();
   for (const run of clusterRuns) {
@@ -516,9 +590,21 @@ export async function runCompetitorScan(
     void seenInCluster;
   }
 
-  // Build candidate list, excluding self.
+  // Build candidate list. Only exclude self by domain when the connected
+  // domain is NOT temporary and was confidently resolved as self. Temporary
+  // domains rarely appear in SERP, and even if they did we'd treat them as
+  // out-of-scope rather than a legitimate competitor.
+  const excludeDomains = new Set<string>();
+  if (primarySelfDomain && !selfDomainIsTemp) {
+    for (const d of selfDomains) excludeDomains.add(d);
+  }
+  // Also exclude any SERP row that scored as the self entity by brand match,
+  // so brand pages don't get listed as competitors.
+  if (selfIdentity.identityMode === "domain_match" && primarySelfDomain) {
+    excludeDomains.add(primarySelfDomain);
+  }
   const candidates = Array.from(aggMap.values()).filter(
-    (c) => !selfDomainSet.has(c.domain),
+    (c) => !excludeDomains.has(c.domain),
   );
   candidates.sort((a, b) => {
     const ca = a.clusterKeys.size;
@@ -532,19 +618,20 @@ export async function runCompetitorScan(
   });
   const topCompetitors = candidates.slice(0, maxCompetitors);
 
-  // 6. Self row aggregate (use first known self domain; build minimal agg)
-  let selfAgg: AggregatedCompetitor | null = null;
-  if (selfDomains.length > 0) {
-    const selfDomain = selfDomains[0];
-    const matchedSelf = aggMap.get(selfDomain);
-    selfAgg = matchedSelf ?? {
-      domain: selfDomain,
-      serpAppearanceCount: 0,
-      clusterKeys: new Set<string>(),
-      bestRankSum: 0,
-      bestRankCount: 0,
-    };
-  }
+  // 6. Self row aggregate. Always present, even when not in SERP.
+  // Use the resolved self domain (may be temp host or "self" placeholder).
+  const selfRowDomain = selfIdentity.selfRowDomain;
+  const matchedSelfAgg = primarySelfDomain ? aggMap.get(primarySelfDomain) : undefined;
+  const selfAgg: AggregatedCompetitor = matchedSelfAgg ?? {
+    domain: selfRowDomain,
+    serpAppearanceCount: 0,
+    clusterKeys: new Set<string>(),
+    bestRankSum: 0,
+    bestRankCount: 0,
+    displayName: selfIdentity.displayName,
+  };
+  // Always pin the display name to the resolved identity.
+  selfAgg.displayName = selfIdentity.displayName;
 
   // 7. Enrich + score each competitor.
   const firecrawlOk = isFirecrawlConfigured();
@@ -580,7 +667,14 @@ export async function runCompetitorScan(
     let rawHomepage: Record<string, unknown> = {};
     const errors: string[] = [];
 
-    if (firecrawlOk) {
+    // Skip Firecrawl for the synthetic "self" host or known temp domains.
+    // Temp hosts like wordpress.com/lovable.app rarely return useful page
+    // intelligence for THIS tenant; we shouldn't pollute the map with all
+    // wordpress.com URLs or scrape the platform marketing homepage.
+    const skipFirecrawl =
+      agg.domain === "self" ||
+      (isSelf && detectTemporaryOrPlaceholderDomain(agg.domain));
+    if (firecrawlOk && !skipFirecrawl) {
       try {
         const m = await mapDomain(agg.domain, { limit: 200 });
         if (m.ok) {
@@ -610,6 +704,8 @@ export async function runCompetitorScan(
           `scrape: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
+    } else if (skipFirecrawl) {
+      errors.push("firecrawl_skipped_temporary_or_synthetic_domain");
     } else {
       errors.push("firecrawl_not_configured");
     }
@@ -644,6 +740,20 @@ export async function runCompetitorScan(
       pageCountsAvailable: pageDepth != null,
     });
 
+    // Enrich score_breakdown with self-identity fields so the matrix summary
+    // and Blueprint UI can render baseline mode, confidence, and warnings.
+    const breakdown: Record<string, unknown> = {
+      ...(score.breakdown as unknown as Record<string, unknown>),
+    };
+    if (isSelf) {
+      breakdown.identityMode = selfIdentity.identityMode;
+      breakdown.identityConfidence = selfIdentity.identityConfidence;
+      breakdown.identityWarnings = selfIdentity.identityWarnings;
+      breakdown.rankingPresence = selfIdentity.rankingPresence;
+      breakdown.temporaryDomain = selfIdentity.temporaryDomain;
+      breakdown.matchedSignals = selfIdentity.matchedSignals;
+    }
+
     return {
       tenant_id: tenantId,
       competitor_scan_id: scanId,
@@ -662,7 +772,7 @@ export async function runCompetitorScan(
       location_pages_sample: (pageDepth?.locationPagesSample ?? []) as never,
       trust_signals: trustSignals as never,
       competitor_score: score.total,
-      score_breakdown: score.breakdown as never,
+      score_breakdown: breakdown as never,
       score_confidence: confidence,
       data_completeness: completeness,
       error_message: errors.length ? errors.join("; ").slice(0, 500) : null,
@@ -674,9 +784,8 @@ export async function runCompetitorScan(
   for (const c of topCompetitors) {
     competitorRows.push(await enrichOne(c, false));
   }
-  if (selfAgg) {
-    competitorRows.push(await enrichOne(selfAgg, true));
-  }
+  // Self row is ALWAYS persisted now — even when no domain/SERP match.
+  competitorRows.push(await enrichOne(selfAgg, true));
 
   let insertedCompetitors: Competitor[] = [];
   let firecrawlFailures = 0;

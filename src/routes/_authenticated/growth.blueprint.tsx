@@ -907,17 +907,43 @@ function CompetitiveBlock({
         </div>
       )}
 
-      {selfItem && (
-        <div className="mt-6 rounded-md border border-primary/40 bg-background/40 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
-            Your site
-          </p>
-          <p className="mt-1 text-sm font-semibold text-foreground">{selfItem.title}</p>
-          {selfItem.detail && (
-            <p className="mt-1 text-xs text-muted-foreground">{selfItem.detail}</p>
-          )}
-        </div>
-      )}
+      {selfItem && (() => {
+        const mode = selfItem.meta?.identityMode as string | undefined;
+        const isBaseline =
+          mode === "profile_baseline" ||
+          mode === "unknown_baseline" ||
+          mode === "connected_site";
+        const notFound = selfItem.meta?.rankingPresence === "not_found";
+        const isTemp = selfItem.meta?.temporaryDomain === true;
+        return (
+          <div className="mt-6 rounded-md border border-primary/40 bg-background/40 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                Your site
+              </p>
+              {isBaseline && (
+                <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600">
+                  Baseline
+                </span>
+              )}
+              {notFound && (
+                <span className="rounded-full border border-muted-foreground/30 bg-background/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Not found in SERP
+                </span>
+              )}
+              {isTemp && (
+                <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600">
+                  Temporary domain
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-sm font-semibold text-foreground">{selfItem.title}</p>
+            {selfItem.detail && (
+              <p className="mt-1 text-xs text-muted-foreground">{selfItem.detail}</p>
+            )}
+          </div>
+        );
+      })()}
 
       {competitorItems.length > 0 && (
         <div className="mt-6">

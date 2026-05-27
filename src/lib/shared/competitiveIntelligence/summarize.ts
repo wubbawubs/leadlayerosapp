@@ -25,8 +25,22 @@ function median(nums: number[]): number | null {
 }
 
 function toRow(c: Competitor): CompetitorMatrixRow {
-  const reviewsUnknown =
-    (c.scoreBreakdown as Record<string, unknown>)?.reviewsUnknown === true;
+  const sb = (c.scoreBreakdown as Record<string, unknown>) ?? {};
+  const reviewsUnknown = sb.reviewsUnknown === true;
+  const identityMode =
+    typeof sb.identityMode === "string"
+      ? (sb.identityMode as CompetitorMatrixRow["identityMode"])
+      : null;
+  const identityConfidence =
+    typeof sb.identityConfidence === "number" ? (sb.identityConfidence as number) : null;
+  const identityWarnings = Array.isArray(sb.identityWarnings)
+    ? (sb.identityWarnings as string[])
+    : [];
+  const rankingPresence =
+    typeof sb.rankingPresence === "string"
+      ? (sb.rankingPresence as CompetitorMatrixRow["rankingPresence"])
+      : null;
+  const temporaryDomain = sb.temporaryDomain === true;
   return {
     domain: c.domain,
     displayName: c.displayName ?? null,
@@ -43,6 +57,11 @@ function toRow(c: Competitor): CompetitorMatrixRow {
     scoreConfidence: c.scoreConfidence ?? null,
     dataCompleteness: c.dataCompleteness ?? null,
     reviewsUnknown,
+    identityMode,
+    identityConfidence,
+    identityWarnings,
+    rankingPresence,
+    temporaryDomain,
   };
 }
 
@@ -160,6 +179,24 @@ export function buildCompetitorMatrixSummary(
   }
   if (!self) {
     warnings.push("Self row is missing — tenant domain could not be resolved.");
+  } else {
+    if (self.identityMode === "profile_baseline" || self.identityMode === "unknown_baseline") {
+      warnings.push(
+        "Client site was not found in scanned SERPs. Gaps are based on connected site / profile baseline vs observed competitors.",
+      );
+    } else if (self.identityMode === "connected_site") {
+      warnings.push(
+        "Connected domain was not visible in scanned SERPs. Self-row uses connected-site baseline.",
+      );
+    }
+    if (self.temporaryDomain) {
+      warnings.push(
+        "Connected domain appears temporary. Competitive comparison uses profile/site baseline.",
+      );
+    }
+    for (const w of self.identityWarnings ?? []) {
+      if (!warnings.includes(w)) warnings.push(w);
+    }
   }
 
   return {

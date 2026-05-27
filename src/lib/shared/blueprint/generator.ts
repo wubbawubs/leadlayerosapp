@@ -860,6 +860,32 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
   if (cs && cs.available) {
     const items: BlueprintSectionItem[] = [];
     if (cs.self) {
+      const modeLabel =
+        cs.self.identityMode === "domain_match"
+          ? "domain match"
+          : cs.self.identityMode === "brand_match"
+            ? "brand match"
+            : cs.self.identityMode === "connected_site"
+              ? "connected site baseline"
+              : cs.self.identityMode === "profile_baseline"
+                ? "profile baseline"
+                : cs.self.identityMode === "unknown_baseline"
+                  ? "unknown baseline"
+                  : null;
+      const rankingLabel =
+        cs.self.rankingPresence === "found"
+          ? "found in SERP"
+          : cs.self.rankingPresence === "brand_only"
+            ? "brand only in SERP"
+            : cs.self.rankingPresence === "not_found"
+              ? "not found in SERP"
+              : null;
+      const identityBits: string[] = [];
+      if (modeLabel) identityBits.push(`Identity: ${modeLabel}`);
+      if (cs.self.identityConfidence != null) {
+        identityBits.push(`identity confidence ${Math.round(cs.self.identityConfidence * 100)}%`);
+      }
+      if (rankingLabel) identityBits.push(rankingLabel);
       items.push({
         title: `Your site — ${cs.self.displayName ?? cs.self.domain}`,
         detail: [
@@ -868,11 +894,20 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
               ? Math.round(cs.self.scoreConfidence * 100) + "%"
               : "—"
           })`,
+          identityBits.length ? identityBits.join(" · ") : null,
           `SERP appearances: ${cs.self.serpAppearanceCount}`,
           `Service pages: ${cs.self.servicePagesCount ?? "unknown"}, location pages: ${cs.self.locationPagesCount ?? "unknown"}`,
           `Reviews: ${cs.self.reviewsUnknown ? "unknown" : `${cs.self.gbpReviewCount ?? 0} @ ${cs.self.gbpRating ?? "—"}`}`,
-        ].join(" · "),
-        meta: { isSelf: true },
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        meta: {
+          isSelf: true,
+          identityMode: cs.self.identityMode,
+          identityConfidence: cs.self.identityConfidence,
+          rankingPresence: cs.self.rankingPresence,
+          temporaryDomain: cs.self.temporaryDomain,
+        },
       });
     }
     for (const row of cs.rows) {

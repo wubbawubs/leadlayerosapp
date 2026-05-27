@@ -126,6 +126,18 @@ export const competitorSerpResultSchema = z.object({
 });
 export type CompetitorSerpResult = z.infer<typeof competitorSerpResultSchema>;
 
+export const identityModeSchema = z.enum([
+  "domain_match",
+  "brand_match",
+  "connected_site",
+  "profile_baseline",
+  "unknown_baseline",
+]);
+export type IdentityModeSchema = z.infer<typeof identityModeSchema>;
+
+export const rankingPresenceSchema = z.enum(["found", "brand_only", "not_found"]);
+export type RankingPresenceSchema = z.infer<typeof rankingPresenceSchema>;
+
 // Matrix row used by the Blueprint UI.
 export const competitorMatrixRowSchema = z.object({
   domain: z.string(),
@@ -143,6 +155,12 @@ export const competitorMatrixRowSchema = z.object({
   scoreConfidence: z.number().nullable(),
   dataCompleteness: z.number().nullable(),
   reviewsUnknown: z.boolean().default(false),
+  // Self-row identity fields (null/defaults for competitor rows).
+  identityMode: identityModeSchema.nullable().default(null),
+  identityConfidence: z.number().nullable().default(null),
+  identityWarnings: z.array(z.string()).default([]),
+  rankingPresence: rankingPresenceSchema.nullable().default(null),
+  temporaryDomain: z.boolean().default(false),
 });
 export type CompetitorMatrixRow = z.infer<typeof competitorMatrixRowSchema>;
 
