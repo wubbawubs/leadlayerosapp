@@ -167,7 +167,7 @@ export const createMarketScan = createServerFn({ method: "POST" })
     const scan = mapScanRow(scanRow);
 
     if (data.keywords.length === 0) {
-      return { scan, keywords: [], clusters: [] };
+      return { scan, summary: summarizeMarketScan(scan, [], []), keywords: [], clusters: [] };
     }
 
     // Insert keywords (with normalization + intent inference if missing)
