@@ -59,6 +59,7 @@ function BlueprintPage() {
   const fetchGoal = useServerFn(getActiveGrowthGoal);
   const fetchPlan = useServerFn(getActiveMasterplan);
   const fetchItems = useServerFn(listMasterplanItems);
+  const fetchMarketSummary = useServerFn(summarizeLatestMarketScan);
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
