@@ -49,6 +49,7 @@ import type {
   MarketDemandSummary,
   MarketScanSource,
 } from "@/lib/shared/marketIntelligence/schemas";
+import type { CompetitorMatrixSummary } from "@/lib/shared/competitiveIntelligence/schemas";
 
 // ---------------------------------------------------------------------------
 // Input contract (intentionally loose / structural)
@@ -178,6 +179,12 @@ export interface GenerateBlueprintInput {
    */
   marketDemandSummary?: MarketDemandSummary;
   competitorData?: GeneratorCompetitorData;
+  /**
+   * Preferred input as of Ticket 4: a CompetitorMatrixSummary from
+   * summarizeLatestCompetitorScan(). When present + available, takes
+   * precedence over the legacy GeneratorCompetitorData shape.
+   */
+  competitorSummary?: CompetitorMatrixSummary;
   gbpData?: GeneratorGbpData;
   rankingData?: GeneratorRankingData;
   trackingData?: GeneratorTrackingData;
@@ -460,7 +467,11 @@ function buildDataAvailability(input: GenerateBlueprintInput): DataAvailability 
 
   return {
     marketData: state(hasMarket, !!input.marketDemandSummary || !!input.marketData),
-    competitorData: state(!!input.competitorData, true),
+    competitorData: state(
+      (input.competitorSummary && input.competitorSummary.available) ||
+        !!input.competitorData,
+      !!input.competitorSummary || !!input.competitorData,
+    ),
     gbpData: state(input.gbpData?.connected === true, !!input.gbpData),
     rankingData: state(
       !!input.rankingData && (input.rankingData.keywordsTracked ?? 0) > 0,
