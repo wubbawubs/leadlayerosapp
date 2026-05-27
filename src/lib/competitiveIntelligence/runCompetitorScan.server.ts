@@ -409,7 +409,7 @@ export async function runCompetitorScan(
       const chunk = allSerpRowsToInsert.slice(i, i + chunkSize);
       const { error: insertSerpErr } = await supabaseAdmin
         .from("competitor_serp_results")
-        .insert(chunk);
+        .insert(chunk as never);
       if (insertSerpErr) throw insertSerpErr;
     }
   }
@@ -626,7 +626,7 @@ export async function runCompetitorScan(
   if (competitorRows.length > 0) {
     const { data: compRows, error: compErr } = await supabaseAdmin
       .from("competitors")
-      .insert(competitorRows)
+      .insert(competitorRows as never)
       .select("*");
     if (compErr) throw compErr;
     insertedCompetitors = (compRows ?? []).map((r) =>
