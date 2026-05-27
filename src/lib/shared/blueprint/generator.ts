@@ -282,12 +282,15 @@ function toScoringInputs(input: GenerateBlueprintInput): ScoringInputs {
 function resolveMarketDataForScoring(input: GenerateBlueprintInput) {
   const summary = input.marketDemandSummary;
   if (summary && summary.available) {
-    // "Clusters covered" is unknown without ranking data (Ticket 6) — treat as 0
-    // so the scoring framework rewards demand sizing without inventing rank.
+    // Score on LOCAL demand only — generic "near me" volume is reference data,
+    // not addressable local demand for this client. Falls back to legacy total
+    // when locality breakdown is not present (older summaries).
+    const localVolume =
+      summary.localityBreakdown?.localDemandVolume ?? summary.totalAddressableVolume;
     return {
-      totalAddressableVolume: summary.totalAddressableVolume,
+      totalAddressableVolume: localVolume,
       capturedVolume: null,
-      clusterCount: summary.clusterCount,
+      clusterCount: summary.topClusters.length || summary.clusterCount,
       clustersCovered: 0,
     };
   }
