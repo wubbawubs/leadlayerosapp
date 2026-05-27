@@ -11,7 +11,7 @@
  *  - Store raw response on each row for traceability.
  */
 
-import { dataForSeoBasicAuthHeader } from "./dataForSeoAuth.server";
+import { dataForSeoBasicAuthHeader } from "@/lib/marketIntelligence/dataForSeoAuth.server";
 
 const ENDPOINT =
   "https://api.dataforseo.com/v3/serp/google/organic/live/advanced";
