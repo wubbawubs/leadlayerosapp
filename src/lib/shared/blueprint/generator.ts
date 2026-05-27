@@ -316,7 +316,7 @@ function resolveMarketDataForScoring(input: GenerateBlueprintInput) {
 // Scores → Blueprint scores
 // ---------------------------------------------------------------------------
 
-function buildScores(scoring: ScoringInputs): BlueprintScores {
+function buildScores(scoring: ScoringInputs, input?: GenerateBlueprintInput): BlueprintScores {
   const engine = calculateLeadEngineScore(scoring);
   const conv = calculateConversionReadinessScore(scoring);
   const demand = calculateDemandCoverageIndex(scoring);
@@ -324,6 +324,26 @@ function buildScores(scoring: ScoringInputs): BlueprintScores {
   const fin = calculateFinancialImpactScenarios(scoring);
 
   const missing = (cond: boolean, msg: string): string[] => (cond ? [msg] : []);
+
+  // Ticket 4c: append explicit module-status info reasons so "weak foundation"
+  // is explained by which intelligence modules are present, partial, or
+  // missing — not asserted in the abstract.
+  if (input) {
+    const marketAvailable =
+      (input.marketDemandSummary && input.marketDemandSummary.available) || !!input.marketData;
+    const cs = input.competitorSummary;
+    const competitorState: "available" | "partial" | "missing" = cs && cs.available
+      ? (cs.partial || cs.status === "partial" ? "partial" : "available")
+      : "missing";
+    const pageIntel = input.pageIntelligence.length > 0;
+    const gbpConnected = input.gbpData?.connected === true;
+    const trackingOk = input.trackingData?.hasAnalytics === true;
+    const auditOk = input.auditSummary?.overallScore != null;
+    engine.reasoning.push({
+      kind: "info",
+      message: `Module status — market: ${marketAvailable ? "available" : "missing"}; competitors: ${competitorState}; audit: ${auditOk ? "available" : "missing"}; page intelligence: ${pageIntel ? "available" : "missing"}; GBP: ${gbpConnected ? "available" : "missing"}; tracking: ${trackingOk ? "available" : "missing"}.`,
+    });
+  }
 
   const engineScore: BlueprintScore = {
     value: engine.score,
@@ -336,6 +356,7 @@ function buildScores(scoring: ScoringInputs): BlueprintScores {
     ],
     confidence: engine.confidence,
   };
+
 
   const convScore: BlueprintScore = {
     value: conv.score,
