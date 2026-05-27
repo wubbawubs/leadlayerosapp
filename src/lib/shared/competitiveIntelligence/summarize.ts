@@ -1,8 +1,13 @@
 /**
- * Competitive Intelligence — Summary builder (Ticket 4).
+ * Competitive Intelligence — Summary builder (Ticket 4 + 4b).
  *
  * Pure. Builds the CompetitorMatrixSummary that the Blueprint consumes.
  * No DB, no API.
+ *
+ * Ticket 4b: splits competitors into direct local businesses vs SERP
+ * intermediaries (directories, aggregators, content/listicles) so the
+ * Blueprint can present them differently and so directories don't
+ * dominate the median competitor score.
  */
 
 import type {
@@ -12,6 +17,7 @@ import type {
   CompetitorMatrixSummary,
   CompetitorScan,
   CompetitorSerpResult,
+  CompetitorTypeSchema,
 } from "./schemas";
 
 function median(nums: number[]): number | null {
@@ -22,6 +28,16 @@ function median(nums: number[]): number | null {
   return sorted.length % 2 === 0
     ? Math.round(((sorted[mid - 1] + sorted[mid]) / 2) * 10) / 10
     : sorted[mid];
+}
+
+const INTERMEDIARY_TYPES: ReadonlySet<CompetitorTypeSchema> = new Set([
+  "directory",
+  "aggregator",
+  "content",
+]);
+
+function isIntermediaryType(t: CompetitorTypeSchema | null | undefined): boolean {
+  return !!t && INTERMEDIARY_TYPES.has(t);
 }
 
 function toRow(c: Competitor): CompetitorMatrixRow {
@@ -41,6 +57,17 @@ function toRow(c: Competitor): CompetitorMatrixRow {
       ? (sb.rankingPresence as CompetitorMatrixRow["rankingPresence"])
       : null;
   const temporaryDomain = sb.temporaryDomain === true;
+  const competitorType =
+    typeof sb.competitorType === "string"
+      ? (sb.competitorType as CompetitorTypeSchema)
+      : null;
+  const competitorTypeConfidence =
+    typeof sb.competitorTypeConfidence === "number"
+      ? (sb.competitorTypeConfidence as number)
+      : null;
+  const competitorTypeReasons = Array.isArray(sb.competitorTypeReasons)
+    ? (sb.competitorTypeReasons as string[])
+    : [];
   return {
     domain: c.domain,
     displayName: c.displayName ?? null,
@@ -62,6 +89,9 @@ function toRow(c: Competitor): CompetitorMatrixRow {
     identityWarnings,
     rankingPresence,
     temporaryDomain,
+    competitorType,
+    competitorTypeConfidence,
+    competitorTypeReasons,
   };
 }
 
@@ -82,7 +112,12 @@ export function buildCompetitorMatrixSummary(
       competitorCount: 0,
       self: null,
       rows: [],
+      directRows: [],
+      intermediaryRows: [],
+      directCompetitorCount: 0,
+      intermediaryCount: 0,
       medianCompetitorScore: null,
+      medianDirectCompetitorScore: null,
       selfScore: null,
       gaps: [],
       warnings: [],
@@ -93,22 +128,31 @@ export function buildCompetitorMatrixSummary(
   const selfComp = competitors.find((c) => c.isSelf) ?? null;
   const others = competitors.filter((c) => !c.isSelf);
 
-  const rows = [...others]
+  const allRows = [...others]
     .sort((a, b) => (b.competitorScore ?? -1) - (a.competitorScore ?? -1))
     .map(toRow);
   const self = selfComp ? toRow(selfComp) : null;
 
-  const competitorScores = others
-    .map((c) => c.competitorScore)
+  const directRows = allRows.filter((r) => !isIntermediaryType(r.competitorType));
+  const intermediaryRows = allRows.filter((r) => isIntermediaryType(r.competitorType));
+
+  // Use direct competitors for median + gap computation when available.
+  const gapBaseRows = directRows.length >= 2 ? directRows : allRows;
+
+  const allScores = allRows
+    .map((r) => r.competitorScore)
     .filter((s): s is number => typeof s === "number");
-  const medianCompetitorScore = median(competitorScores);
+  const directScores = directRows
+    .map((r) => r.competitorScore)
+    .filter((s): s is number => typeof s === "number");
+  const medianCompetitorScore = median(allScores);
+  const medianDirectCompetitorScore = median(directScores);
   const selfScore = self?.competitorScore ?? null;
 
   const gaps: CompetitorGap[] = [];
   if (self) {
-    // Reviews gap
-    const compReviewCounts = others
-      .map((c) => c.gbpReviewCount)
+    const compReviewCounts = gapBaseRows
+      .map((r) => r.gbpReviewCount)
       .filter((n): n is number => typeof n === "number");
     if (
       compReviewCounts.length > 0 &&
@@ -122,9 +166,8 @@ export function buildCompetitorMatrixSummary(
         competitorMedian: median(compReviewCounts),
       });
     }
-    // Service page depth
-    const compSvc = others
-      .map((c) => c.servicePagesCount)
+    const compSvc = gapBaseRows
+      .map((r) => r.servicePagesCount)
       .filter((n): n is number => typeof n === "number");
     if (
       compSvc.length > 0 &&
@@ -138,9 +181,8 @@ export function buildCompetitorMatrixSummary(
         competitorMedian: median(compSvc),
       });
     }
-    // Location page depth
-    const compLoc = others
-      .map((c) => c.locationPagesCount)
+    const compLoc = gapBaseRows
+      .map((r) => r.locationPagesCount)
       .filter((n): n is number => typeof n === "number");
     if (
       compLoc.length > 0 &&
@@ -154,8 +196,7 @@ export function buildCompetitorMatrixSummary(
         competitorMedian: median(compLoc),
       });
     }
-    // SERP appearances
-    const compSerp = others.map((c) => c.serpAppearanceCount);
+    const compSerp = gapBaseRows.map((r) => r.serpAppearanceCount);
     const selfSerp = self.serpAppearanceCount;
     if (compSerp.length > 0 && selfSerp < (median(compSerp) ?? 0)) {
       gaps.push({
@@ -174,8 +215,18 @@ export function buildCompetitorMatrixSummary(
       "Scan completed partially — some clusters or competitors returned errors. Scores reflect available data only.",
     );
   }
-  if (others.length === 0) {
+  if (allRows.length === 0) {
     warnings.push("No external competitors were captured in this scan.");
+  }
+  if (intermediaryRows.length > 0) {
+    warnings.push(
+      `${intermediaryRows.length} SERP result${intermediaryRows.length === 1 ? "" : "s"} appear to be directories or listicles. They are shown separately as SERP intermediaries and excluded from direct competitor scoring.`,
+    );
+  }
+  if (directRows.length > 0 && directRows.length < 2) {
+    warnings.push(
+      "Only one direct local-business competitor was captured. Gap analysis falls back to all captured rows.",
+    );
   }
   if (!self) {
     warnings.push("Self row is missing — tenant domain could not be resolved.");
@@ -207,10 +258,15 @@ export function buildCompetitorMatrixSummary(
     partial: scan.partial,
     clustersScanned: scan.clustersScanned ?? 0,
     serpResultsCollected: scan.serpResultsCollected ?? 0,
-    competitorCount: others.length,
+    competitorCount: allRows.length,
     self,
-    rows,
+    rows: allRows,
+    directRows,
+    intermediaryRows,
+    directCompetitorCount: directRows.length,
+    intermediaryCount: intermediaryRows.length,
     medianCompetitorScore,
+    medianDirectCompetitorScore,
     selfScore,
     gaps: gaps.slice(0, 3),
     warnings,
