@@ -48,6 +48,12 @@ export interface PageIntelligenceSummary {
   thinPages?: number;
   /** Pages with structured trust signals (reviews, certs, proof). */
   pagesWithTrust?: number;
+  /** Average per-page conversion readiness (already capped per page). */
+  avgConversionReadiness?: number;
+  /** Weighted average across commercial / service / emergency pages. */
+  weightedConversionReadiness?: number;
+  /** Whether GBP / review presence has been confirmed. */
+  gbpConfirmed?: boolean;
 }
 
 export interface MasterplanSummary {
