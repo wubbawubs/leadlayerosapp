@@ -465,13 +465,19 @@ function buildDataAvailability(input: GenerateBlueprintInput): DataAvailability 
     (input.marketDemandSummary && input.marketDemandSummary.available) ||
     !!input.marketData;
 
+  const competitorState: DataAvailabilityState = (() => {
+    const cs = input.competitorSummary;
+    if (cs && cs.available) {
+      return cs.partial || cs.status === "partial" ? "partial" : "available";
+    }
+    if (input.competitorData) return "available";
+    if (input.competitorSummary) return "placeholder";
+    return "missing";
+  })();
+
   return {
     marketData: state(hasMarket, !!input.marketDemandSummary || !!input.marketData),
-    competitorData: state(
-      (input.competitorSummary && input.competitorSummary.available) ||
-        !!input.competitorData,
-      !!input.competitorSummary || !!input.competitorData,
-    ),
+    competitorData: competitorState,
     gbpData: state(input.gbpData?.connected === true, !!input.gbpData),
     rankingData: state(
       !!input.rankingData && (input.rankingData.keywordsTracked ?? 0) > 0,
