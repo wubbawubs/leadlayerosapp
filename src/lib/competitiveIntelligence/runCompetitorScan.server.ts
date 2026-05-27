@@ -591,7 +591,7 @@ export async function runCompetitorScan(
       if (!cur.bestUrl && o.url) cur.bestUrl = o.url;
       aggMap.set(d, cur);
     }
-    // Local-pack enrichment
+    // Local-pack enrichment by domain (fast path).
     for (const lp of run.localPack) {
       const d = lp.domain ? normalizeCompetitorDomain(lp.domain) : null;
       if (!d) continue;
@@ -604,6 +604,59 @@ export async function runCompetitorScan(
       if (!cur.gbpCategory && lp.category) cur.gbpCategory = lp.category;
     }
     void seenInCluster;
+  }
+
+  // Phase B: also attempt fuzzy local-pack ↔ competitor matching for rows
+  // that didn't get a domain-based match, so we can still capture reviews
+  // when DataForSEO's local pack omits the website.
+  const localPackMatchByDomain = new Map<
+    string,
+    { confidence: number; signals: string[] }
+  >();
+  for (const agg of aggMap.values()) {
+    if (agg.gbpReviewCount != null && agg.gbpRating != null) continue;
+    const allLocalPack: LocalPackItem[] = [];
+    for (const run of clusterRuns) {
+      for (const lp of run.localPack) {
+        allLocalPack.push({
+          name: lp.name,
+          domain: lp.domain,
+          url: lp.url,
+          rating: lp.rating,
+          reviewCount: lp.reviewCount,
+          category: lp.category,
+          address: lp.address,
+        });
+      }
+    }
+    if (allLocalPack.length === 0) continue;
+    const m = matchLocalPackToCompetitor({
+      competitor: {
+        domain: agg.domain,
+        title: agg.bestTitle ?? agg.displayName ?? null,
+        snippet: agg.bestSnippet ?? null,
+        url: agg.bestUrl ?? null,
+      },
+      localPackItems: allLocalPack,
+      services: Array.isArray(marketScan.services) ? (marketScan.services as string[]) : [],
+      locations: scanLocations,
+    });
+    if (m.matched) {
+      agg.gbpName = agg.gbpName ?? m.gbpName ?? null;
+      if (agg.gbpRating == null && m.rating != null) agg.gbpRating = m.rating;
+      if (agg.gbpReviewCount == null && m.reviewCount != null)
+        agg.gbpReviewCount = m.reviewCount;
+      if (!agg.gbpCategory && m.category) agg.gbpCategory = m.category;
+      localPackMatchByDomain.set(agg.domain, {
+        confidence: m.matchConfidence,
+        signals: m.matchedSignals,
+      });
+    } else if (m.matchConfidence > 0) {
+      localPackMatchByDomain.set(agg.domain, {
+        confidence: m.matchConfidence,
+        signals: m.matchedSignals,
+      });
+    }
   }
 
   // Build candidate list. Only exclude self by domain when the connected
