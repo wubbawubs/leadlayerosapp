@@ -623,15 +623,21 @@ export function calculateFinancialImpactScenarios(
   const goal = inputs.goal;
   const closeRate = numericOrNull(goal?.closeRate);
   const leadValue = numericOrNull(goal?.leadValue);
-  const horizon = clampInt(goal?.timeframeMonths ?? 12, 1, 24);
 
+  // Goal math convention (Ticket 4c):
+  //   `targetCount` represents the MONTHLY target. The growth-goal form labels
+  //   it "Target per maand"; masterplan and reporting both treat it that way.
+  //   Required leads/month = monthlyTarget / closeRate.
+  //   `currentCount` is current MONTHLY volume (leads or clients depending on
+  //   targetType; we treat it as monthly volume of the same unit).
+  const monthlyTarget = numericOrNull(goal?.targetCount);
   const targetLeadsPerMonth =
-    numericOrNull(goal?.targetCount) != null && closeRate && closeRate > 0
-      ? Math.ceil((goal!.targetCount as number) / closeRate / horizon)
+    monthlyTarget != null && closeRate && closeRate > 0
+      ? Math.ceil(monthlyTarget / closeRate)
       : null;
   const currentLeadsPerMonth =
     numericOrNull(goal?.currentCount) != null
-      ? Math.max(0, round((goal!.currentCount as number) / horizon, 2))
+      ? Math.max(0, round(goal!.currentCount as number, 2))
       : null;
 
   if (closeRate == null) {
@@ -656,25 +662,37 @@ export function calculateFinancialImpactScenarios(
       message: `Using lead value of ${round(leadValue)}.`,
     });
   }
+  if (currentLeadsPerMonth == null) {
+    reasoning.push({
+      kind: "info",
+      message:
+        "Current monthly lead baseline is unknown — scenarios model progress toward the full target gap.",
+    });
+  }
 
   const effectiveCloseRate = closeRate ?? 0.2;
   const effectiveLeadValue = leadValue ?? 0;
 
-  // Gap = how many extra leads/month we need to hit target.
+  // Gap = how many extra leads/month we need to hit target. When baseline is
+  // unknown, treat the entire target as the gap so scenarios remain
+  // target-aligned instead of starting cold from 0/1.
+  const baselineForGap = currentLeadsPerMonth ?? 0;
   const gap =
-    targetLeadsPerMonth != null && currentLeadsPerMonth != null
-      ? Math.max(0, targetLeadsPerMonth - currentLeadsPerMonth)
+    targetLeadsPerMonth != null
+      ? Math.max(0, targetLeadsPerMonth - baselineForGap)
       : null;
 
+  // Closure rates were 30/60/90 historically. Phase A keeps them but renames
+  // semantically to conservative / expected / aggressive in the Blueprint.
   const closureRates: Array<{ label: FinancialScenario["label"]; rate: number }> = [
-    { label: "low", rate: 0.3 },
+    { label: "low", rate: 0.25 },
     { label: "mid", rate: 0.6 },
-    { label: "high", rate: 0.9 },
+    { label: "high", rate: 1.0 },
   ];
 
   const scenarios: FinancialScenario[] = closureRates.map(({ label, rate }) => {
     const incrementalLeads = gap != null ? gap * rate : 0;
-    const monthlyLeads = (currentLeadsPerMonth ?? 0) + incrementalLeads;
+    const monthlyLeads = baselineForGap + incrementalLeads;
     const monthlyClients = monthlyLeads * effectiveCloseRate;
     const monthlyRevenue = monthlyClients * effectiveLeadValue;
     return {
@@ -707,6 +725,7 @@ export function calculateFinancialImpactScenarios(
     },
   };
 }
+
 
 // ---------------------------------------------------------------------------
 // Shared utilities
