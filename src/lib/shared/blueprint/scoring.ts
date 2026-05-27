@@ -402,32 +402,56 @@ export function calculateConversionReadinessScore(
     };
   }
 
-  const ctaShare = pct(pagesWithCta, totalPages);
-  const trustShare = pct(pagesWithTrust, totalPages);
-  const thinShare = pct(thinPages, totalPages);
-
-  // Weighted: CTA 50%, trust 35%, thin pages penalty 15%
-  const raw = ctaShare * 0.5 + trustShare * 0.35 - thinShare * 0.15;
-  const score = round(clamp(raw));
-
-  reasoning.push({
-    kind: ctaShare >= 70 ? "affirmative" : "penalty",
-    message: `${round(ctaShare)}% of pages have a clear primary CTA.`,
-    delta: ctaShare >= 70 ? undefined : -(70 - ctaShare) * 0.5,
-  });
-  reasoning.push({
-    kind: trustShare >= 50 ? "affirmative" : "penalty",
-    message: `${round(trustShare)}% of pages carry structured trust signals.`,
-    delta: trustShare >= 50 ? undefined : -(50 - trustShare) * 0.35,
-  });
-  if (thinShare > 0) {
+  // Prefer the average of per-page (already-capped) scores when available.
+  const weighted = pi?.weightedConversionReadiness;
+  const avg = pi?.avgConversionReadiness;
+  let raw: number;
+  if (typeof weighted === "number") {
+    raw = weighted;
     reasoning.push({
-      kind: "penalty",
-      message: `${round(thinShare)}% of pages are thin / low-intent.`,
-      delta: -thinShare * 0.15,
+      kind: weighted >= 70 ? "affirmative" : "penalty",
+      message: `Weighted average of per-page readiness across ${totalPages} pages: ${round(weighted)}/100.`,
     });
+  } else if (typeof avg === "number") {
+    raw = avg;
+    reasoning.push({
+      kind: avg >= 70 ? "affirmative" : "penalty",
+      message: `Average per-page readiness across ${totalPages} pages: ${round(avg)}/100.`,
+    });
+  } else {
+    const ctaShare = pct(pagesWithCta, totalPages);
+    const trustShare = pct(pagesWithTrust, totalPages);
+    const thinShare = pct(thinPages, totalPages);
+    raw = ctaShare * 0.5 + trustShare * 0.35 - thinShare * 0.15;
+    reasoning.push({
+      kind: ctaShare >= 70 ? "affirmative" : "penalty",
+      message: `${round(ctaShare)}% of pages have a clear primary CTA.`,
+    });
+    reasoning.push({
+      kind: trustShare >= 50 ? "affirmative" : "penalty",
+      message: `${round(trustShare)}% of pages carry structured trust signals.`,
+    });
+    if (thinShare > 0) {
+      reasoning.push({
+        kind: "penalty",
+        message: `${round(thinShare)}% of pages are thin / low-intent.`,
+      });
+    }
   }
-  // Goal-level CTA hint
+
+  let score = round(clamp(raw));
+
+  // Systemic caps — honesty caps on top of per-page averages.
+  const applyCap = (limit: number, why: string) => {
+    if (score > limit) {
+      score = limit;
+      reasoning.push({ kind: "penalty", message: `Cap applied: ${why} (max ${limit}).` });
+    }
+  };
+  if (!inputs.goal?.hasTracking) applyCap(85, "tracking not verified");
+  if (!inputs.businessProfile?.hasProofPoints) applyCap(80, "proof / trust unverified");
+  if (!pi?.gbpConfirmed) applyCap(82, "GBP / reviews not confirmed");
+
   if (inputs.businessProfile?.hasPrimaryCta) {
     reasoning.push({
       kind: "affirmative",
@@ -437,7 +461,6 @@ export function calculateConversionReadinessScore(
     reasoning.push({
       kind: "penalty",
       message: "No primary CTA declared in business profile — page CTAs may be inconsistent.",
-      delta: -5,
     });
   }
 
