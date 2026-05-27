@@ -46,6 +46,10 @@ import {
   type SerpRowLike,
 } from "@/lib/shared/competitiveIntelligence/entityResolution";
 import {
+  matchLocalPackToCompetitor,
+  type LocalPackItem,
+} from "@/lib/shared/competitiveIntelligence/localPackMatcher";
+import {
   competitorScanSchema,
   competitorSchema,
   type Competitor,
