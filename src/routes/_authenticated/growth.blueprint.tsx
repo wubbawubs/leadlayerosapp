@@ -14,6 +14,10 @@ import {
   runDataForSeoMarketScan,
   summarizeLatestMarketScan,
 } from "@/lib/marketIntelligence/marketIntelligence.functions";
+import {
+  runCompetitorScanFn,
+  summarizeLatestCompetitorScan,
+} from "@/lib/competitiveIntelligence/competitiveIntelligence.functions";
 import { itemPhase } from "@/lib/shared/masterplan/schemas";
 
 import {
@@ -103,10 +107,28 @@ function BlueprintPage() {
     enabled: !!tenantId,
   });
 
+  const fetchCompetitorSummary = useServerFn(summarizeLatestCompetitorScan);
+  const competitorQuery = useQuery({
+    queryKey: ["competitor-summary", tenantId, goalId],
+    queryFn: async () => {
+      if (!tenantId)
+        return {
+          summary: null as Awaited<ReturnType<typeof fetchCompetitorSummary>>["summary"] | null,
+          config: { dataForSeo: false, firecrawl: false },
+        };
+      return await fetchCompetitorSummary({
+        data: { tenantId, growthGoalId: goalId },
+      });
+    },
+    enabled: !!tenantId,
+  });
+
   const goal = goalQuery.data?.goal ?? null;
   const plan = planQuery.data?.plan ?? null;
   const items = itemsQuery.data?.items ?? [];
   const marketSummary = marketQuery.data?.summary ?? null;
+  const competitorSummary = competitorQuery.data?.summary ?? null;
+  const competitorConfig = competitorQuery.data?.config ?? { dataForSeo: false, firecrawl: false };
 
   const blueprint: LeadEngineBlueprint | null = useMemo(() => {
     if (!goal || !plan) return null;
