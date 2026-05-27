@@ -667,7 +667,14 @@ export async function runCompetitorScan(
     let rawHomepage: Record<string, unknown> = {};
     const errors: string[] = [];
 
-    if (firecrawlOk) {
+    // Skip Firecrawl for the synthetic "self" host or known temp domains.
+    // Temp hosts like wordpress.com/lovable.app rarely return useful page
+    // intelligence for THIS tenant; we shouldn't pollute the map with all
+    // wordpress.com URLs or scrape the platform marketing homepage.
+    const skipFirecrawl =
+      agg.domain === "self" ||
+      (isSelf && detectTemporaryOrPlaceholderDomain(agg.domain));
+    if (firecrawlOk && !skipFirecrawl) {
       try {
         const m = await mapDomain(agg.domain, { limit: 200 });
         if (m.ok) {
@@ -697,6 +704,8 @@ export async function runCompetitorScan(
           `scrape: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
+    } else if (skipFirecrawl) {
+      errors.push("firecrawl_skipped_temporary_or_synthetic_domain");
     } else {
       errors.push("firecrawl_not_configured");
     }
