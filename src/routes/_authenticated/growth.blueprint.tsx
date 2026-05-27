@@ -124,6 +124,16 @@ function BlueprintPage() {
     enabled: !!tenantId,
   });
 
+  const fetchPageDiagnostics = useServerFn(fetchBlueprintPageDiagnostics);
+  const pageDiagnosticsQuery = useQuery({
+    queryKey: ["blueprint-page-diagnostics", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return { pages: [], auditId: null as string | null };
+      return await fetchPageDiagnostics({ data: { tenantId } });
+    },
+    enabled: !!tenantId,
+  });
+
   const goal = goalQuery.data?.goal ?? null;
   const plan = planQuery.data?.plan ?? null;
   const items = itemsQuery.data?.items ?? [];
