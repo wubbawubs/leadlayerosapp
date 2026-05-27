@@ -740,6 +740,20 @@ export async function runCompetitorScan(
       pageCountsAvailable: pageDepth != null,
     });
 
+    // Enrich score_breakdown with self-identity fields so the matrix summary
+    // and Blueprint UI can render baseline mode, confidence, and warnings.
+    const breakdown: Record<string, unknown> = {
+      ...(score.breakdown as Record<string, unknown>),
+    };
+    if (isSelf) {
+      breakdown.identityMode = selfIdentity.identityMode;
+      breakdown.identityConfidence = selfIdentity.identityConfidence;
+      breakdown.identityWarnings = selfIdentity.identityWarnings;
+      breakdown.rankingPresence = selfIdentity.rankingPresence;
+      breakdown.temporaryDomain = selfIdentity.temporaryDomain;
+      breakdown.matchedSignals = selfIdentity.matchedSignals;
+    }
+
     return {
       tenant_id: tenantId,
       competitor_scan_id: scanId,
@@ -758,7 +772,7 @@ export async function runCompetitorScan(
       location_pages_sample: (pageDepth?.locationPagesSample ?? []) as never,
       trust_signals: trustSignals as never,
       competitor_score: score.total,
-      score_breakdown: score.breakdown as never,
+      score_breakdown: breakdown as never,
       score_confidence: confidence,
       data_completeness: completeness,
       error_message: errors.length ? errors.join("; ").slice(0, 500) : null,
@@ -770,9 +784,8 @@ export async function runCompetitorScan(
   for (const c of topCompetitors) {
     competitorRows.push(await enrichOne(c, false));
   }
-  if (selfAgg) {
-    competitorRows.push(await enrichOne(selfAgg, true));
-  }
+  // Self row is ALWAYS persisted now — even when no domain/SERP match.
+  competitorRows.push(await enrichOne(selfAgg, true));
 
   let insertedCompetitors: Competitor[] = [];
   let firecrawlFailures = 0;
