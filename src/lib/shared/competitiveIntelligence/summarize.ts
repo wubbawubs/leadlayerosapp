@@ -314,6 +314,14 @@ export function buildCompetitorMatrixSummary(
       "Only one direct local-business competitor was captured. Gap analysis falls back to all captured rows.",
     );
   }
+  const noisyRows = directRows.filter((r) =>
+    (r.classifierWarnings ?? []).includes("classifier_noise_detected") ||
+    (r.classifierWarnings ?? []).includes("location_count_needs_validation"),
+  );
+  if (noisyRows.length > 0) {
+    warnings.push(
+      `Page-depth scan included noisy candidates for ${noisyRows.length} competitor${noisyRows.length === 1 ? "" : "s"}; counts need validation.`,
+    );
   if (!self) {
     warnings.push("Self row is missing — tenant domain could not be resolved.");
   } else {
