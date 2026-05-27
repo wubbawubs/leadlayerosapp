@@ -991,8 +991,8 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
           isIntermediary,
           localPackMatched: row.localPackMatched,
           pageDepthLimited: row.pageDepthLimited,
-          servicePageSamples: row.servicePageSamples,
-          locationPageSamples: row.locationPageSamples,
+          servicePageSamples: (row.servicePageSamples ?? []).map((s) => s.url).join(" | ") || null,
+          locationPageSamples: (row.locationPageSamples ?? []).map((s) => s.url).join(" | ") || null,
         },
       });
     };
