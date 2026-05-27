@@ -1001,11 +1001,13 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
       });
     }
     const renderRow = (row: typeof cs.rows[number], isIntermediary: boolean) => {
-      const reviewsLabel = row.reviewsUnknown
-        ? row.localPackMatched
-          ? "unknown"
-          : "unknown (no local-pack match)"
-        : `${row.gbpReviewCount ?? 0} @ ${row.gbpRating ?? "—"}`;
+      const hasReviewData =
+        !row.reviewsUnknown ||
+        typeof row.gbpReviewCount === "number" ||
+        typeof row.gbpRating === "number";
+      const reviewsLabel = hasReviewData
+        ? `${row.gbpReviewCount ?? 0} @ ${row.gbpRating ?? "—"}`
+        : "unknown";
       const pagesLabel = row.pageDepthLimited
         ? `${row.servicePagesCount ?? "?"}/${row.locationPagesCount ?? "?"} (crawl limited)`
         : row.pageDepthUnknownReason && row.servicePagesCount == null
@@ -1028,7 +1030,13 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
           competitorType: row.competitorType,
           isIntermediary,
           localPackMatched: row.localPackMatched,
+          localPackMatchConfidence: row.localPackMatchConfidence,
+          hasReviewData,
           pageDepthLimited: row.pageDepthLimited,
+          servicePagesConfidence: row.servicePagesConfidence,
+          locationPagesConfidence: row.locationPagesConfidence,
+          classifierNoise: (row.classifierWarnings ?? []).includes("classifier_noise_detected"),
+          locationCountNeedsValidation: (row.classifierWarnings ?? []).includes("location_count_needs_validation"),
           servicePageSamples: (row.servicePageSamples ?? []).map((s) => s.url).join(" | ") || null,
           locationPageSamples: (row.locationPageSamples ?? []).map((s) => s.url).join(" | ") || null,
         },

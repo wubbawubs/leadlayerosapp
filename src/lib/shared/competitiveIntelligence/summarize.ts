@@ -89,6 +89,21 @@ function toRow(c: Competitor): CompetitorMatrixRow {
   const locationPageSamples = Array.isArray(sb.locationPageSamples)
     ? (sb.locationPageSamples as Array<{ url: string; matchedReason: string }>)
     : [];
+  const servicePagesConfidence =
+    sb.servicePagesConfidence === "high" || sb.servicePagesConfidence === "medium" || sb.servicePagesConfidence === "low"
+      ? (sb.servicePagesConfidence as "high" | "medium" | "low")
+      : null;
+  const locationPagesConfidence =
+    sb.locationPagesConfidence === "high" || sb.locationPagesConfidence === "medium" || sb.locationPagesConfidence === "low"
+      ? (sb.locationPagesConfidence as "high" | "medium" | "low")
+      : null;
+  const contentPagesCount =
+    typeof sb.contentPagesCount === "number" ? (sb.contentPagesCount as number) : null;
+  const excludedCandidateCount =
+    typeof sb.excludedCandidateCount === "number" ? (sb.excludedCandidateCount as number) : null;
+  const classifierWarnings = Array.isArray(sb.classifierWarnings)
+    ? (sb.classifierWarnings as string[])
+    : [];
   const existingServicePagesCount =
     typeof sb.existingServicePagesCount === "number"
       ? (sb.existingServicePagesCount as number)
@@ -137,6 +152,11 @@ function toRow(c: Competitor): CompetitorMatrixRow {
     pageDepthUnknownReason,
     servicePageSamples,
     locationPageSamples,
+    servicePagesConfidence,
+    locationPagesConfidence,
+    contentPagesCount,
+    excludedCandidateCount,
+    classifierWarnings,
     existingServicePagesCount,
     existingLocationPagesCount,
     plannedServicePagesCount,
@@ -216,10 +236,11 @@ export function buildCompetitorMatrixSummary(
       compReviewCounts.length > 0 &&
       (self.gbpReviewCount ?? 0) < (median(compReviewCounts) ?? 0)
     ) {
+      const matchedCount = gapBaseRows.filter((r) => typeof r.gbpReviewCount === "number").length;
       gaps.push({
         label: "Review volume",
         detail:
-          "Top competitors have a larger reviewed footprint on Google. Closing this gap is the single highest-leverage trust move.",
+          `Top competitors have a larger reviewed footprint on Google. Closing this gap is the single highest-leverage trust move. Based on matched review data for ${matchedCount}/${gapBaseRows.length} direct competitors.`,
         selfValue: self.gbpReviewCount,
         competitorMedian: median(compReviewCounts),
       });
@@ -291,6 +312,15 @@ export function buildCompetitorMatrixSummary(
   if (directRows.length > 0 && directRows.length < 2) {
     warnings.push(
       "Only one direct local-business competitor was captured. Gap analysis falls back to all captured rows.",
+    );
+  }
+  const noisyRows = directRows.filter((r) =>
+    (r.classifierWarnings ?? []).includes("classifier_noise_detected") ||
+    (r.classifierWarnings ?? []).includes("location_count_needs_validation"),
+  );
+  if (noisyRows.length > 0) {
+    warnings.push(
+      `Page-depth scan included noisy candidates for ${noisyRows.length} competitor${noisyRows.length === 1 ? "" : "s"}; counts need validation.`,
     );
   }
   if (!self) {

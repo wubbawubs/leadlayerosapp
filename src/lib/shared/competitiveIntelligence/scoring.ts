@@ -18,6 +18,8 @@ export function normalizeCompetitorDomain(urlOrDomain: string): string {
   return s;
 }
 
+export type PageDepthConfidence = "high" | "medium" | "low";
+
 export interface CompetitorScoreInput {
   clustersAppearedIn: number;
   clustersScanned: number;
@@ -30,6 +32,9 @@ export interface CompetitorScoreInput {
   servicesCount: number;
   locationsCount: number;
   trustSignals: TrustSignals;
+  /** Phase B2 — discount page-depth credit when classifier was noisy. */
+  servicePagesConfidence?: PageDepthConfidence;
+  locationPagesConfidence?: PageDepthConfidence;
 }
 
 export interface CompetitorScoreBreakdown {
@@ -45,6 +50,12 @@ export interface CompetitorScoreBreakdown {
 export interface CompetitorScoreResult {
   total: number;
   breakdown: CompetitorScoreBreakdown;
+}
+
+function confidenceWeight(c: PageDepthConfidence | undefined): number {
+  if (c === "low") return 0.25;
+  if (c === "medium") return 0.6;
+  return 1; // high (or undefined for backwards compat)
 }
 
 /**
@@ -105,7 +116,9 @@ export function computeCompetitorScore(
       input.locationsCount > 0
         ? Math.min(1, (input.locationPagesCount ?? 0) / input.locationsCount)
         : 0;
-    pageDepthComponent = Math.round(15 * serviceRatio + 10 * locationRatio);
+    const svcW = confidenceWeight(input.servicePagesConfidence);
+    const locW = confidenceWeight(input.locationPagesConfidence);
+    pageDepthComponent = Math.round(15 * serviceRatio * svcW + 10 * locationRatio * locW);
   }
 
   // D. trust

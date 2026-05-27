@@ -977,13 +977,41 @@ function CompetitiveBlock({
             {directItems.map((c, i) => {
               const m = c.meta ?? {};
               const localMatched = m.localPackMatched === true;
+              const hasReviewData = m.hasReviewData === true;
+              const lpConf = typeof m.localPackMatchConfidence === "number"
+                ? (m.localPackMatchConfidence as number)
+                : null;
               const depthLimited = m.pageDepthLimited === true;
+              const classifierNoise = m.classifierNoise === true || m.locationCountNeedsValidation === true;
+              const svcConf = typeof m.servicePagesConfidence === "string"
+                ? (m.servicePagesConfidence as "high" | "medium" | "low")
+                : null;
+              const locConf = typeof m.locationPagesConfidence === "string"
+                ? (m.locationPagesConfidence as "high" | "medium" | "low")
+                : null;
+              const lowDepth = svcConf === "low" || locConf === "low";
               const svcSamples = typeof m.servicePageSamples === "string" && m.servicePageSamples
                 ? (m.servicePageSamples as string).split(" | ").slice(0, 2)
                 : [];
               const locSamples = typeof m.locationPageSamples === "string" && m.locationPageSamples
                 ? (m.locationPageSamples as string).split(" | ").slice(0, 2)
                 : [];
+              // Match label logic (Phase B2):
+              // - If review data exists → "Review data matched"
+              // - Else if local-pack confirmed but weak → "Weak local-pack match"
+              // - Else if local-pack confirmed → "Local-pack matched"
+              // - Else → "No local-pack match"
+              let matchBadge: { label: string; tone: "ok" | "weak" | "none" } = {
+                label: "No local-pack match",
+                tone: "none",
+              };
+              if (hasReviewData) {
+                matchBadge = { label: "Review data matched", tone: "ok" };
+              } else if (localMatched && lpConf != null && lpConf < 0.6) {
+                matchBadge = { label: "Weak local-pack match", tone: "weak" };
+              } else if (localMatched) {
+                matchBadge = { label: "Local-pack matched", tone: "ok" };
+              }
               return (
                 <li
                   key={i}
@@ -994,14 +1022,25 @@ function CompetitiveBlock({
                       {i + 1}. {c.title}
                     </p>
                     <CompetitorTypeBadge type={c.meta?.competitorType as string | undefined} />
-                    {!localMatched && (
-                      <span className="rounded-full border border-muted-foreground/30 bg-background/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        No local-pack match
-                      </span>
-                    )}
+                    <span
+                      className={
+                        matchBadge.tone === "ok"
+                          ? "rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600"
+                          : matchBadge.tone === "weak"
+                            ? "rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600"
+                            : "rounded-full border border-muted-foreground/30 bg-background/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+                      }
+                    >
+                      {matchBadge.label}
+                    </span>
                     {depthLimited && (
                       <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600">
                         Crawl limited
+                      </span>
+                    )}
+                    {(classifierNoise || lowDepth) && (
+                      <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600">
+                        Page-depth noisy
                       </span>
                     )}
                   </div>
