@@ -199,11 +199,20 @@ export function buildCompetitorMatrixSummary(
   const selfScore = self?.competitorScore ?? null;
 
   const gaps: CompetitorGap[] = [];
+  let reviewComparisonLimited = false;
   if (self) {
+    const reviewCoverage =
+      gapBaseRows.length > 0
+        ? gapBaseRows.filter((r) => typeof r.gbpReviewCount === "number").length /
+          gapBaseRows.length
+        : 0;
     const compReviewCounts = gapBaseRows
       .map((r) => r.gbpReviewCount)
       .filter((n): n is number => typeof n === "number");
+    // Phase B: only surface "review volume" as a gap when ≥50% of direct
+    // competitors actually have review data — otherwise it's noise.
     if (
+      reviewCoverage >= 0.5 &&
       compReviewCounts.length > 0 &&
       (self.gbpReviewCount ?? 0) < (median(compReviewCounts) ?? 0)
     ) {
@@ -214,6 +223,8 @@ export function buildCompetitorMatrixSummary(
         selfValue: self.gbpReviewCount,
         competitorMedian: median(compReviewCounts),
       });
+    } else if (compReviewCounts.length > 0 && reviewCoverage < 0.5) {
+      reviewComparisonLimited = true;
     }
     const compSvc = gapBaseRows
       .map((r) => r.servicePagesCount)
