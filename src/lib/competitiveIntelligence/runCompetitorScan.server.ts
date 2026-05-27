@@ -196,6 +196,10 @@ interface AggregatedCompetitor {
   bestRankSum: number; // for sort tiebreak
   bestRankCount: number;
   displayName?: string | null;
+  // Representative SERP context for classification:
+  bestTitle?: string | null;
+  bestSnippet?: string | null;
+  bestUrl?: string | null;
   // From any local-pack hit:
   gbpName?: string | null;
   gbpRating?: number | null;
