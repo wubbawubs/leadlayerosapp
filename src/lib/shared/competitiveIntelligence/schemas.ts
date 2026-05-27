@@ -189,6 +189,12 @@ export const competitorMatrixRowSchema = z.object({
   pageDepthUnknownReason: z.string().nullable().default(null),
   servicePageSamples: z.array(pageSampleSchema).default([]),
   locationPageSamples: z.array(pageSampleSchema).default([]),
+  // Phase B2 — classifier precision.
+  servicePagesConfidence: z.enum(["high", "medium", "low"]).nullable().default(null),
+  locationPagesConfidence: z.enum(["high", "medium", "low"]).nullable().default(null),
+  contentPagesCount: z.number().nullable().default(null),
+  excludedCandidateCount: z.number().nullable().default(null),
+  classifierWarnings: z.array(z.string()).default([]),
   // Self-row only: existing (verified) vs planned (from masterplan).
   existingServicePagesCount: z.number().nullable().default(null),
   existingLocationPagesCount: z.number().nullable().default(null),
