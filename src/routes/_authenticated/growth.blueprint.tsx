@@ -787,6 +787,182 @@ function MarketIntelligenceBlock({
   );
 }
 
+function CompetitiveBlock({
+  section,
+  tenantId,
+  growthGoalId,
+}: {
+  section: BlueprintSection | undefined;
+  tenantId: string | null;
+  growthGoalId: string | null;
+}) {
+  const queryClient = useQueryClient();
+  const runScan = useServerFn(runCompetitorScanFn);
+  const fetchSummary = useServerFn(summarizeLatestCompetitorScan);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  const configQuery = useQuery({
+    queryKey: ["competitor-summary", tenantId, growthGoalId],
+    queryFn: async () => {
+      if (!tenantId)
+        return { summary: null, config: { dataForSeo: false, firecrawl: false } };
+      return await fetchSummary({ data: { tenantId, growthGoalId: growthGoalId ?? null } });
+    },
+    enabled: !!tenantId,
+  });
+  const config = configQuery.data?.config ?? { dataForSeo: false, firecrawl: false };
+  const configReady = config.dataForSeo && config.firecrawl;
+
+  const scanMutation = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error("No active tenant");
+      return await runScan({
+        data: { tenantId, growthGoalId: growthGoalId ?? null },
+      });
+    },
+    onSuccess: () => {
+      setScanError(null);
+      queryClient.invalidateQueries({ queryKey: ["competitor-summary"] });
+    },
+    onError: (err: unknown) => {
+      setScanError(err instanceof Error ? err.message : "Scan failed");
+    },
+  });
+
+  const ScanButton = (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={() => scanMutation.mutate()}
+        disabled={!tenantId || !configReady || scanMutation.isPending}
+        className="rounded-md border border-primary/40 bg-primary px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+        title={
+          !configReady
+            ? "Requires DataForSEO and Firecrawl API keys"
+            : "Run a SERP + scrape competitor scan"
+        }
+      >
+        {scanMutation.isPending ? "Running competitor scan…" : "Run competitor scan"}
+      </button>
+      {!configReady && (
+        <p className="max-w-xs text-right text-[11px] text-muted-foreground">
+          Missing keys: {!config.dataForSeo && "DataForSEO"}
+          {!config.dataForSeo && !config.firecrawl && " · "}
+          {!config.firecrawl && "Firecrawl"}
+        </p>
+      )}
+      {scanError && (
+        <p className="max-w-xs text-right text-[11px] text-amber-500">⚠ {scanError}</p>
+      )}
+    </div>
+  );
+
+  if (!section) return null;
+
+  if (section.placeholder) {
+    return (
+      <section className="rounded-xl border border-dashed border-border bg-card/40 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <SectionHeading title={section.title} subtitle={section.summary} />
+          {ScanButton}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          No competitor scan yet. Run a scan to compare your domain against the
+          local SERP winners on reviews, page depth, trust signals, and SERP
+          presence.
+        </p>
+        {section.warnings && section.warnings.length > 0 && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            {section.warnings.join(" · ")}
+          </p>
+        )}
+      </section>
+    );
+  }
+
+  const items = section.items ?? [];
+  const selfItem = items.find((i) => i.meta?.isSelf);
+  const competitorItems = items.filter((i) => !i.meta?.isSelf);
+
+  return (
+    <section className="rounded-xl border border-primary/30 bg-primary/5 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <SectionHeading title={section.title} subtitle={section.summary} />
+        {ScanButton}
+      </div>
+
+      {section.metrics && section.metrics.length > 0 && (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {section.metrics.map((m, i) => (
+            <div key={i} className="rounded-md border border-border bg-background/40 p-3">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                {m.label}
+              </p>
+              <p className="font-display text-lg text-foreground">
+                {m.value == null || m.value === "" ? "—" : String(m.value)}
+                {m.unit ? <span className="ml-1 text-xs text-muted-foreground">{m.unit}</span> : null}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {selfItem && (
+        <div className="mt-6 rounded-md border border-primary/40 bg-background/40 p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+            Your site
+          </p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{selfItem.title}</p>
+          {selfItem.detail && (
+            <p className="mt-1 text-xs text-muted-foreground">{selfItem.detail}</p>
+          )}
+        </div>
+      )}
+
+      {competitorItems.length > 0 && (
+        <div className="mt-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+            Competitors capturing local demand
+          </p>
+          <ul className="mt-3 space-y-2">
+            {competitorItems.map((c, i) => (
+              <li
+                key={i}
+                className="rounded-md border border-border/60 bg-background/40 p-3"
+              >
+                <p className="text-sm font-semibold text-foreground">
+                  {i + 1}. {c.title}
+                </p>
+                {c.detail && (
+                  <p className="mt-1 text-xs text-muted-foreground">{c.detail}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {section.evidence && section.evidence.length > 0 && (
+        <ul className="mt-5 space-y-1 text-[11px] text-muted-foreground">
+          {section.evidence.map((e, i) => (
+            <li key={i}>· {e}</li>
+          ))}
+        </ul>
+      )}
+
+      {section.warnings && section.warnings.length > 0 && (
+        <ul className="mt-5 space-y-1 text-xs text-amber-500">
+          {section.warnings.map((w, i) => (
+            <li key={i}>⚠ {w}</li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+
+
 function PivotList({
   title,
   items,
