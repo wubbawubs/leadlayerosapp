@@ -45,6 +45,10 @@ import {
   type LeadEngineNode,
   type NextAction,
 } from "./schemas";
+import type {
+  MarketDemandSummary,
+  MarketScanSource,
+} from "@/lib/shared/marketIntelligence/schemas";
 
 // ---------------------------------------------------------------------------
 // Input contract (intentionally loose / structural)
