@@ -679,13 +679,30 @@ export async function runCompetitorScan(
     let rawHomepage: Record<string, unknown> = {};
     const errors: string[] = [];
 
-    // Skip Firecrawl for the synthetic "self" host or known temp domains.
-    // Temp hosts like wordpress.com/lovable.app rarely return useful page
-    // intelligence for THIS tenant; we shouldn't pollute the map with all
-    // wordpress.com URLs or scrape the platform marketing homepage.
+    // Pre-classify using only SERP-derived signals so we know whether to
+    // spend Firecrawl credits on this row at all. Directories / aggregators
+    // / listicles don't get scraped — they're SERP intermediaries, not
+    // direct competitors, and scraping them just pollutes trust signals.
+    const preClass = isSelf
+      ? { type: "local_business" as CompetitorType, confidence: 1, reasons: ["self row"] }
+      : classifyCompetitorType({
+          domain: agg.domain,
+          url: agg.bestUrl ?? null,
+          title: agg.bestTitle ?? agg.displayName ?? null,
+          snippet: agg.bestSnippet ?? null,
+          localPackName: agg.gbpName ?? null,
+        });
+    const isIntermediary =
+      preClass.type === "directory" ||
+      preClass.type === "aggregator" ||
+      preClass.type === "content";
+
+    // Skip Firecrawl for the synthetic "self" host, known temp domains, or
+    // SERP intermediaries (directories / aggregators / listicles).
     const skipFirecrawl =
       agg.domain === "self" ||
-      (isSelf && detectTemporaryOrPlaceholderDomain(agg.domain));
+      (isSelf && detectTemporaryOrPlaceholderDomain(agg.domain)) ||
+      isIntermediary;
     if (firecrawlOk && !skipFirecrawl) {
       try {
         const m = await mapDomain(agg.domain, { limit: 200 });
@@ -716,11 +733,31 @@ export async function runCompetitorScan(
           `scrape: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
+    } else if (isIntermediary) {
+      errors.push(`firecrawl_skipped_intermediary_${preClass.type}`);
     } else if (skipFirecrawl) {
       errors.push("firecrawl_skipped_temporary_or_synthetic_domain");
     } else {
       errors.push("firecrawl_not_configured");
     }
+
+    // Refine classification once trust signals are known (may upgrade an
+    // "unknown" pre-classification to "local_business").
+    const finalClass = isSelf
+      ? preClass
+      : classifyCompetitorType({
+          domain: agg.domain,
+          url: agg.bestUrl ?? null,
+          title: agg.bestTitle ?? agg.displayName ?? null,
+          snippet: agg.bestSnippet ?? null,
+          localPackName: agg.gbpName ?? null,
+          hasTrustSignals: {
+            phone: trustSignals.phone,
+            address: trustSignals.address,
+            emergency: trustSignals.emergency,
+            licensing: trustSignals.licensing,
+          },
+        });
 
     const reviewKnown = agg.gbpReviewCount != null && agg.gbpRating != null;
     const score = computeCompetitorScore({
@@ -752,10 +789,14 @@ export async function runCompetitorScan(
       pageCountsAvailable: pageDepth != null,
     });
 
-    // Enrich score_breakdown with self-identity fields so the matrix summary
-    // and Blueprint UI can render baseline mode, confidence, and warnings.
+    // Enrich score_breakdown with self-identity + classifier fields so the
+    // matrix summary and Blueprint UI can render baseline mode, confidence,
+    // warnings, and the direct/intermediary split.
     const breakdown: Record<string, unknown> = {
       ...(score.breakdown as unknown as Record<string, unknown>),
+      competitorType: finalClass.type,
+      competitorTypeConfidence: finalClass.confidence,
+      competitorTypeReasons: finalClass.reasons,
     };
     if (isSelf) {
       breakdown.identityMode = selfIdentity.identityMode;
@@ -766,11 +807,20 @@ export async function runCompetitorScan(
       breakdown.matchedSignals = selfIdentity.matchedSignals;
     }
 
+    const cleanedDisplay = isSelf
+      ? (agg.displayName ?? agg.gbpName ?? null)
+      : cleanCompetitorDisplayName({
+          title: agg.bestTitle ?? agg.displayName ?? null,
+          domain: agg.domain,
+          localPackName: agg.gbpName ?? null,
+          type: finalClass.type,
+        });
+
     return {
       tenant_id: tenantId,
       competitor_scan_id: scanId,
       domain: agg.domain,
-      display_name: agg.displayName ?? agg.gbpName ?? null,
+      display_name: cleanedDisplay,
       is_self: isSelf,
       serp_appearance_count: agg.serpAppearanceCount,
       clusters_appeared_in: Array.from(agg.clusterKeys) as never,
