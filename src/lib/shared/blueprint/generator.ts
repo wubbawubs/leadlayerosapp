@@ -123,6 +123,10 @@ export interface GeneratorPage {
   intent?: string | null;
   commercialPriority?: string | null;
   conversionReadiness?: number | null;
+  scoreLabel?: string | null;
+  positives?: string[];
+  negatives?: string[];
+  appliedCaps?: string[];
   gaps?: string[];
   nextAction?: string | null;
   isLocalRelevant?: boolean | null;
