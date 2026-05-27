@@ -883,6 +883,8 @@ function CompetitiveBlock({
   const items = section.items ?? [];
   const selfItem = items.find((i) => i.meta?.isSelf);
   const competitorItems = items.filter((i) => !i.meta?.isSelf);
+  const directItems = competitorItems.filter((i) => i.meta?.isIntermediary !== true);
+  const intermediaryItems = competitorItems.filter((i) => i.meta?.isIntermediary === true);
 
   return (
     <section className="rounded-xl border border-primary/30 bg-primary/5 p-6">
@@ -892,7 +894,7 @@ function CompetitiveBlock({
       </div>
 
       {section.metrics && section.metrics.length > 0 && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {section.metrics.map((m, i) => (
             <div key={i} className="rounded-md border border-border bg-background/40 p-3">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -945,22 +947,58 @@ function CompetitiveBlock({
         );
       })()}
 
-      {competitorItems.length > 0 && (
+      {directItems.length > 0 && (
         <div className="mt-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            Competitors capturing local demand
+            Direct competitors
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Local businesses competing for the same service demand. Drives gap scoring.
           </p>
           <ul className="mt-3 space-y-2">
-            {competitorItems.map((c, i) => (
+            {directItems.map((c, i) => (
               <li
                 key={i}
                 className="rounded-md border border-border/60 bg-background/40 p-3"
               >
-                <p className="text-sm font-semibold text-foreground">
-                  {i + 1}. {c.title}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-foreground">
+                    {i + 1}. {c.title}
+                  </p>
+                  <CompetitorTypeBadge type={c.meta?.competitorType as string | undefined} />
+                </div>
                 {c.detail && (
                   <p className="mt-1 text-xs text-muted-foreground">{c.detail}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {intermediaryItems.length > 0 && (
+        <div className="mt-6 rounded-md border border-dashed border-border/60 bg-background/30 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            SERP intermediaries
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Directories, aggregators, and listicles that capture search demand. Not
+            direct service providers — excluded from direct competitor scoring.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {intermediaryItems.map((c, i) => (
+              <li
+                key={i}
+                className="rounded-md border border-border/40 bg-background/40 p-3"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-medium text-foreground/90">
+                    {c.title}
+                  </p>
+                  <CompetitorTypeBadge type={c.meta?.competitorType as string | undefined} />
+                </div>
+                {c.detail && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">{c.detail}</p>
                 )}
               </li>
             ))}
@@ -984,6 +1022,39 @@ function CompetitiveBlock({
         </ul>
       )}
     </section>
+  );
+}
+
+function CompetitorTypeBadge({ type }: { type: string | undefined }) {
+  if (!type) return null;
+  const label =
+    type === "local_business"
+      ? "Local business"
+      : type === "franchise"
+        ? "Franchise"
+        : type === "directory"
+          ? "Directory"
+          : type === "aggregator"
+            ? "Aggregator"
+            : type === "content"
+              ? "Content"
+              : "Unknown";
+  const cls =
+    type === "local_business"
+      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
+      : type === "franchise"
+        ? "border-primary/40 bg-primary/10 text-primary"
+        : type === "directory" || type === "aggregator"
+          ? "border-amber-500/40 bg-amber-500/10 text-amber-600"
+          : type === "content"
+            ? "border-blue-500/40 bg-blue-500/10 text-blue-600"
+            : "border-muted-foreground/30 bg-background/40 text-muted-foreground";
+  return (
+    <span
+      className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${cls}`}
+    >
+      {label}
+    </span>
   );
 }
 
