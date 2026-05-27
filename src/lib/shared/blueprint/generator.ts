@@ -1155,7 +1155,20 @@ function buildAssumptions(input: GenerateBlueprintInput, scores: BlueprintScores
       detail: "Without verified reviews / licensing, content cannot make strong credibility claims.",
     });
   }
-  if (!input.marketData) {
+  const summary = input.marketDemandSummary;
+  if (summary && summary.available) {
+    if (summary.source === "synthetic_fixture" || summary.source === "manual") {
+      a.push({
+        label: "Market data is manual/synthetic",
+        detail: `Loaded from ${sourceLabel(summary.source)} — must be replaced by a DataForSEO scan (Ticket 3) before claiming verified demand.`,
+      });
+    } else {
+      a.push({
+        label: "Market data available",
+        detail: `Demand coverage is based on ${summary.totalKeywords} keyword${summary.totalKeywords === 1 ? "" : "s"} across ${summary.clusterCount} cluster${summary.clusterCount === 1 ? "" : "s"} from ${sourceLabel(summary.source)}.`,
+      });
+    }
+  } else if (!input.marketData) {
     a.push({
       label: "Market data pending",
       detail: "Demand sizing will be replaced by real data once Ticket 3 (DataForSEO) is live.",
