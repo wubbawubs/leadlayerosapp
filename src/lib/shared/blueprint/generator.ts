@@ -1306,7 +1306,13 @@ function buildAssumptions(input: GenerateBlueprintInput, scores: BlueprintScores
       detail: "Demand sizing will be replaced by real data once Ticket 3 (DataForSEO) is live.",
     });
   }
-  if (!input.competitorData) {
+  if (input.competitorSummary && input.competitorSummary.available) {
+    const cs = input.competitorSummary;
+    a.push({
+      label: "Competitor data available",
+      detail: `Scanned ${cs.competitorCount} competitors across ${cs.clustersScanned} local clusters via ${cs.source}. Median competitor score ${cs.medianCompetitorScore ?? "—"}; your score ${cs.selfScore ?? "—"}.`,
+    });
+  } else if (!input.competitorData) {
     a.push({
       label: "Competitor data pending",
       detail: "Comparative scoring will sharpen once Ticket 4 (Competitive Intelligence) is live.",
