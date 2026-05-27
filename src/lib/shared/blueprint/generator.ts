@@ -118,6 +118,14 @@ export interface GeneratorPage {
   isThin?: boolean | null;
   issues?: string[];
   recommendation?: string | null;
+  // Page Diagnostics V1 (optional — populated when page intelligence exists).
+  pageType?: string | null;
+  intent?: string | null;
+  commercialPriority?: string | null;
+  conversionReadiness?: number | null;
+  gaps?: string[];
+  nextAction?: string | null;
+  isLocalRelevant?: boolean | null;
 }
 
 export interface GeneratorAuditSummary {
@@ -1137,25 +1145,63 @@ function sectionPageDiagnostics(input: GenerateBlueprintInput, scores: Blueprint
     };
   }
 
-  // Prioritise pages with most gaps.
+  // Prioritise by explicit commercial priority when available, then by
+  // worst conversion readiness, then by raw gap count (legacy fallback).
+  const priorityRank = (p: GeneratorPage) => {
+    const map: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+    return map[(p.commercialPriority ?? "").toLowerCase()] ?? 0;
+  };
+  const legacyGapScore = (p: GeneratorPage) =>
+    (p.hasCta ? 0 : 2) + (p.hasTrustSignals ? 0 : 1) + (p.isThin ? 2 : 0);
   const ranked = [...pages].sort((a, b) => {
-    const score = (p: GeneratorPage) =>
-      (p.hasCta ? 0 : 2) + (p.hasTrustSignals ? 0 : 1) + (p.isThin ? 2 : 0);
-    return score(b) - score(a);
+    const pa = priorityRank(a);
+    const pb = priorityRank(b);
+    if (pb !== pa) return pb - pa;
+    const ra = a.conversionReadiness ?? -1;
+    const rb = b.conversionReadiness ?? -1;
+    if (ra !== rb) return ra - rb; // worst first
+    return legacyGapScore(b) - legacyGapScore(a);
   });
   const items: BlueprintSectionItem[] = ranked.slice(0, 8).map((p) => {
-    const gaps: string[] = [];
-    if (!p.hasCta) gaps.push("missing primary CTA");
-    if (!p.hasTrustSignals) gaps.push("missing trust signals");
-    if (p.isThin) gaps.push("thin content");
-    nonEmpty(p.issues).forEach((i) => gaps.push(i));
+    const gaps = p.gaps && p.gaps.length > 0
+      ? p.gaps
+      : [
+          ...(!p.hasCta ? ["missing primary CTA"] : []),
+          ...(!p.hasTrustSignals ? ["missing trust signals"] : []),
+          ...(p.isThin ? ["thin content"] : []),
+          ...nonEmpty(p.issues),
+        ];
+    const readinessLabel =
+      typeof p.conversionReadiness === "number"
+        ? `Conversion readiness: ${p.conversionReadiness}/100`
+        : null;
+    const roleBits = [
+      p.role,
+      p.pageType && p.pageType !== p.role ? p.pageType : null,
+      p.intent ? `intent: ${p.intent}` : null,
+      p.commercialPriority ? `priority: ${p.commercialPriority}` : null,
+    ].filter(Boolean) as string[];
+    const detail = [
+      readinessLabel,
+      roleBits.length ? roleBits.join(" · ") : null,
+      gaps.length ? `Gaps: ${gaps.slice(0, 4).join("; ")}` : "Healthy — keep monitoring.",
+      p.nextAction ? `Next: ${p.nextAction}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
     return {
       title: p.title || p.url || "Untitled page",
-      detail: gaps.length ? gaps.join(", ") : "Healthy — keep monitoring.",
+      detail,
       meta: {
         url: p.url ?? null,
         role: p.role ?? null,
-        nextAction: p.recommendation ?? null,
+        pageType: p.pageType ?? null,
+        intent: p.intent ?? null,
+        commercialPriority: p.commercialPriority ?? null,
+        conversionReadiness: p.conversionReadiness ?? null,
+        nextAction: p.nextAction ?? null,
+        gapCount: gaps.length,
+        isLocalRelevant: p.isLocalRelevant ?? null,
       },
     };
   });
