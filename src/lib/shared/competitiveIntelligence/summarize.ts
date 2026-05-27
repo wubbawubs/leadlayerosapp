@@ -68,6 +68,44 @@ function toRow(c: Competitor): CompetitorMatrixRow {
   const competitorTypeReasons = Array.isArray(sb.competitorTypeReasons)
     ? (sb.competitorTypeReasons as string[])
     : [];
+
+  // Phase B fields, stored in score_breakdown to avoid DB migrations.
+  const localPackMatched = sb.localPackMatched === true;
+  const localPackMatchConfidence =
+    typeof sb.localPackMatchConfidence === "number"
+      ? (sb.localPackMatchConfidence as number)
+      : null;
+  const localPackMatchSignals = Array.isArray(sb.localPackMatchSignals)
+    ? (sb.localPackMatchSignals as string[])
+    : [];
+  const pageDepthLimited = sb.pageDepthLimited === true;
+  const pageDepthUnknownReason =
+    typeof sb.pageDepthUnknownReason === "string"
+      ? (sb.pageDepthUnknownReason as string)
+      : null;
+  const servicePageSamples = Array.isArray(sb.servicePageSamples)
+    ? (sb.servicePageSamples as Array<{ url: string; matchedReason: string }>)
+    : [];
+  const locationPageSamples = Array.isArray(sb.locationPageSamples)
+    ? (sb.locationPageSamples as Array<{ url: string; matchedReason: string }>)
+    : [];
+  const existingServicePagesCount =
+    typeof sb.existingServicePagesCount === "number"
+      ? (sb.existingServicePagesCount as number)
+      : null;
+  const existingLocationPagesCount =
+    typeof sb.existingLocationPagesCount === "number"
+      ? (sb.existingLocationPagesCount as number)
+      : null;
+  const plannedServicePagesCount =
+    typeof sb.plannedServicePagesCount === "number"
+      ? (sb.plannedServicePagesCount as number)
+      : null;
+  const plannedLocationPagesCount =
+    typeof sb.plannedLocationPagesCount === "number"
+      ? (sb.plannedLocationPagesCount as number)
+      : null;
+
   return {
     domain: c.domain,
     displayName: c.displayName ?? null,
@@ -92,6 +130,17 @@ function toRow(c: Competitor): CompetitorMatrixRow {
     competitorType,
     competitorTypeConfidence,
     competitorTypeReasons,
+    localPackMatched,
+    localPackMatchConfidence,
+    localPackMatchSignals,
+    pageDepthLimited,
+    pageDepthUnknownReason,
+    servicePageSamples,
+    locationPageSamples,
+    existingServicePagesCount,
+    existingLocationPagesCount,
+    plannedServicePagesCount,
+    plannedLocationPagesCount,
   };
 }
 
