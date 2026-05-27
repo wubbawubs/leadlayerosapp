@@ -188,6 +188,10 @@ function BlueprintPage() {
         intent: p.intent,
         commercialPriority: p.commercialPriority,
         conversionReadiness: p.conversionReadiness,
+        scoreLabel: p.scoreLabel,
+        positives: p.positives,
+        negatives: p.negatives,
+        appliedCaps: p.appliedCaps,
         gaps: p.gaps,
         nextAction: p.nextAction,
         isLocalRelevant: p.isLocalRelevant,
@@ -1240,13 +1244,15 @@ function PageDiagnostics({ section }: { section: BlueprintSection | undefined })
           const score = typeof meta.conversionReadiness === "number"
             ? (meta.conversionReadiness as number)
             : null;
+          const scoreLabel = (meta.scoreLabel as string | null) ?? null;
           const role = (meta.role as string | null) ?? null;
           const pageType = (meta.pageType as string | null) ?? null;
           const intent = (meta.intent as string | null) ?? null;
           const priority = (meta.commercialPriority as string | null) ?? null;
           const nextAction = (meta.nextAction as string | null) ?? null;
           const isLocal = meta.isLocalRelevant === true;
-          // Reconstruct gap list from detail string (generator builds "Gaps: a; b; c").
+          const positives = Array.isArray(meta.positives) ? (meta.positives as string[]) : [];
+          const appliedCaps = Array.isArray(meta.appliedCaps) ? (meta.appliedCaps as string[]) : [];
           const detail = item.detail ?? "";
           const gapsMatch = detail.match(/Gaps:\s*([^·]+?)(?:\s·\s|$)/);
           const gapList = gapsMatch
@@ -1274,7 +1280,9 @@ function PageDiagnostics({ section }: { section: BlueprintSection | undefined })
                 {score != null && (
                   <div className="text-right">
                     <p className={`text-lg font-bold leading-none ${scoreTone}`}>{score}</p>
-                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">/100</p>
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">
+                      /100{scoreLabel ? ` · ${scoreLabel}` : ""}
+                    </p>
                   </div>
                 )}
               </div>
@@ -1305,10 +1313,24 @@ function PageDiagnostics({ section }: { section: BlueprintSection | undefined })
                   </span>
                 )}
               </div>
+              {positives.length > 0 && (
+                <ul className="mt-3 space-y-1 text-[11px] text-emerald-600/90">
+                  {positives.slice(0, 3).map((p, pi) => (
+                    <li key={pi}>+ {p}</li>
+                  ))}
+                </ul>
+              )}
               {gapList.length > 0 && (
-                <ul className="mt-3 space-y-1 text-[11px] text-muted-foreground">
+                <ul className="mt-2 space-y-1 text-[11px] text-muted-foreground">
                   {gapList.map((g, gi) => (
                     <li key={gi}>· {g}</li>
+                  ))}
+                </ul>
+              )}
+              {appliedCaps.length > 0 && (
+                <ul className="mt-2 space-y-1 text-[11px] text-amber-600/90">
+                  {appliedCaps.slice(0, 3).map((c, ci) => (
+                    <li key={ci}>⚠ {c}</li>
                   ))}
                 </ul>
               )}
