@@ -871,6 +871,11 @@ export async function runCompetitorScan(
       pageDepthUnknownReason,
       servicePageSamples: pageDepth?.servicePageDetails ?? [],
       locationPageSamples: pageDepth?.locationPageDetails ?? [],
+      servicePagesConfidence: pageDepth?.servicePagesConfidence ?? null,
+      locationPagesConfidence: pageDepth?.locationPagesConfidence ?? null,
+      contentPagesCount: pageDepth?.contentPagesCount ?? null,
+      excludedCandidateCount: pageDepth?.excludedCandidateCount ?? null,
+      classifierWarnings: pageDepth?.classifierWarnings ?? [],
     };
     if (isSelf) {
       breakdown.identityMode = selfIdentity.identityMode;
