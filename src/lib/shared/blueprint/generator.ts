@@ -647,37 +647,148 @@ function sectionGrowthGap(input: GenerateBlueprintInput, scores: BlueprintScores
   };
 }
 
+function sourceLabel(source: MarketScanSource | null | undefined): string {
+  switch (source) {
+    case "dataforseo":
+      return "DataForSEO";
+    case "import":
+      return "Imported dataset";
+    case "manual":
+      return "Manual entry";
+    case "synthetic_fixture":
+      return "Synthetic fixture";
+    default:
+      return "Unknown source";
+  }
+}
+
 function sectionMarketIntelligence(input: GenerateBlueprintInput): BlueprintSection {
-  if (!input.marketData) {
-    const services = input.growthGoal.serviceFocus ?? [];
-    const locations = input.growthGoal.locations ?? [];
-    const intended = services.flatMap((s) =>
-      locations.length ? locations.map((l) => `${s} — ${l}`) : [s],
+  const summary = input.marketDemandSummary;
+
+  // Rich rendering when summary exists and has any keywords.
+  if (summary && summary.available) {
+    const items: BlueprintSectionItem[] = summary.topClusters.map((c) => ({
+      title: c.clusterName,
+      detail: c.representativeKeywords.length
+        ? `Representative keywords: ${c.representativeKeywords.slice(0, 5).join(", ")}`
+        : undefined,
+      meta: {
+        kind: "cluster",
+        service: c.service,
+        location: c.location,
+        intent: c.intent,
+        totalVolume: c.totalVolume,
+        opportunityScore: c.opportunityScore,
+        priority: c.priority,
+        representativeKeywords: c.representativeKeywords.join(", "),
+      },
+    }));
+
+    // Append top services / locations as compact items for the View to pivot on.
+    for (const s of summary.topServices.slice(0, 5)) {
+      items.push({
+        title: s.name,
+        detail: `Total volume ${s.totalVolume ?? "—"} across ${s.keywordCount} keywords.`,
+        meta: {
+          kind: "top_service",
+          totalVolume: s.totalVolume,
+          keywordCount: s.keywordCount,
+          opportunityScore: s.opportunityScore,
+        },
+      });
+    }
+    for (const l of summary.topLocations.slice(0, 5)) {
+      items.push({
+        title: l.name,
+        detail: `Total volume ${l.totalVolume ?? "—"} across ${l.keywordCount} keywords.`,
+        meta: {
+          kind: "top_location",
+          totalVolume: l.totalVolume,
+          keywordCount: l.keywordCount,
+          opportunityScore: l.opportunityScore,
+        },
+      });
+    }
+
+    const intentEntries = Object.entries(summary.intentDistribution).filter(
+      ([, count]) => (count ?? 0) > 0,
     );
+    for (const [intent, count] of intentEntries) {
+      items.push({
+        title: `${intent} intent`,
+        detail: `${count} keyword${count === 1 ? "" : "s"}`,
+        meta: { kind: "intent_breakdown", intent, count },
+      });
+    }
+
+    const topService = summary.topServices[0]?.name ?? null;
+    const topLocation = summary.topLocations[0]?.name ?? null;
+
+    const warnings = [...summary.warnings];
+    if (summary.source === "synthetic_fixture" || summary.source === "manual") {
+      warnings.push(
+        "Market data is currently manual/synthetic and should be replaced by a DataForSEO scan (Ticket 3).",
+      );
+    }
+
     return {
       type: "market_intelligence",
       title: "Market Intelligence",
-      summary: "Market scan pending. Intended demand areas based on declared services × locations.",
-      items: intended.slice(0, 12).map((label) => ({ title: label })),
-      placeholder: true,
-      pendingDataFrom: "Ticket 3 — DataForSEO Market Scan",
-      warnings: [
-        "No search volume or difficulty data shown until a real scan runs — placeholders only.",
+      summary: `Demand landscape from latest ${sourceLabel(summary.source)} scan — ${summary.totalKeywords} keywords across ${summary.clusterCount} cluster${summary.clusterCount === 1 ? "" : "s"}.`,
+      items,
+      metrics: [
+        { label: "Keywords", value: summary.totalKeywords },
+        { label: "Clusters", value: summary.clusterCount },
+        { label: "Total demand (mo)", value: summary.totalAddressableVolume },
+        { label: "Top service", value: topService },
+        { label: "Top location", value: topLocation },
+        { label: "Source", value: sourceLabel(summary.source) },
+        {
+          label: "Confidence",
+          value: `${Math.round(summary.confidence * 100)}%`,
+        },
       ],
+      evidence: [
+        `Source: ${sourceLabel(summary.source)}`,
+        summary.scanCompletedAt ? `Scan completed: ${summary.scanCompletedAt}` : null,
+      ].filter((s): s is string => !!s),
+      warnings: warnings.length ? warnings : undefined,
     };
   }
-  const md = input.marketData;
+
+  // Legacy aggregate input (pre-Ticket 2).
+  if (input.marketData) {
+    const md = input.marketData;
+    return {
+      type: "market_intelligence",
+      title: "Market Intelligence",
+      summary: "Demand landscape from latest market scan.",
+      metrics: [
+        { label: "Addressable monthly volume", value: md.totalAddressableVolume ?? null },
+        { label: "Captured volume", value: md.capturedVolume ?? null },
+        { label: "Clusters", value: md.clusterCount ?? 0 },
+        { label: "Clusters covered", value: md.clustersCovered ?? 0 },
+      ],
+      evidence: md.source ? [`Source: ${md.source}`] : undefined,
+    };
+  }
+
+  // Placeholder: no market data at all.
+  const services = input.growthGoal.serviceFocus ?? [];
+  const locations = input.growthGoal.locations ?? [];
+  const intended = services.flatMap((s) =>
+    locations.length ? locations.map((l) => `${s} — ${l}`) : [s],
+  );
   return {
     type: "market_intelligence",
     title: "Market Intelligence",
-    summary: "Demand landscape from latest market scan.",
-    metrics: [
-      { label: "Addressable monthly volume", value: md.totalAddressableVolume ?? null },
-      { label: "Captured volume", value: md.capturedVolume ?? null },
-      { label: "Clusters", value: md.clusterCount ?? 0 },
-      { label: "Clusters covered", value: md.clustersCovered ?? 0 },
+    summary: "Market scan pending. Intended demand areas based on declared services × locations.",
+    items: intended.slice(0, 12).map((label) => ({ title: label })),
+    placeholder: true,
+    pendingDataFrom: "Ticket 3 — DataForSEO Market Scan",
+    warnings: [
+      "No search volume or difficulty data shown until a real scan runs — placeholders only.",
     ],
-    evidence: md.source ? [`Source: ${md.source}`] : undefined,
   };
 }
 
