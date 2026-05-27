@@ -451,8 +451,12 @@ function buildDataAvailability(input: GenerateBlueprintInput): DataAvailability 
     return "missing";
   };
 
+  const hasMarket =
+    (input.marketDemandSummary && input.marketDemandSummary.available) ||
+    !!input.marketData;
+
   return {
-    marketData: state(!!input.marketData, true),
+    marketData: state(hasMarket, !!input.marketDemandSummary || !!input.marketData),
     competitorData: state(!!input.competitorData, true),
     gbpData: state(input.gbpData?.connected === true, !!input.gbpData),
     rankingData: state(
