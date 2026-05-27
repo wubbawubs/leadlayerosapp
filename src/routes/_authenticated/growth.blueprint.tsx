@@ -1234,41 +1234,92 @@ function PageDiagnostics({ section }: { section: BlueprintSection | undefined })
   return (
     <section className="rounded-xl border border-border bg-card/70 p-6">
       <SectionHeading title={section.title} subtitle={section.summary} />
-      <div className="mt-4 overflow-hidden rounded-md border border-border">
-        <table className="w-full text-sm">
-          <thead className="bg-background/40 text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 text-left">Page</th>
-              <th className="px-3 py-2 text-left">Role</th>
-              <th className="px-3 py-2 text-left">Main gaps</th>
-              <th className="px-3 py-2 text-left">Next action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {section.items.map((item, i) => {
-              const meta = (item.meta ?? {}) as Record<string, unknown>;
-              return (
-                <tr key={i} className="border-t border-border/60">
-                  <td className="px-3 py-2 align-top text-foreground">
-                    {item.title}
-                    {typeof meta.url === "string" && (
-                      <p className="text-[10px] text-muted-foreground">{meta.url}</p>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 align-top text-xs text-muted-foreground">
-                    {(meta.role as string | null) ?? "—"}
-                  </td>
-                  <td className="px-3 py-2 align-top text-xs text-muted-foreground">
-                    {item.detail ?? "—"}
-                  </td>
-                  <td className="px-3 py-2 align-top text-xs text-muted-foreground">
-                    {(meta.nextAction as string | null) ?? "—"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {section.items.map((item, i) => {
+          const meta = (item.meta ?? {}) as Record<string, unknown>;
+          const score = typeof meta.conversionReadiness === "number"
+            ? (meta.conversionReadiness as number)
+            : null;
+          const role = (meta.role as string | null) ?? null;
+          const pageType = (meta.pageType as string | null) ?? null;
+          const intent = (meta.intent as string | null) ?? null;
+          const priority = (meta.commercialPriority as string | null) ?? null;
+          const nextAction = (meta.nextAction as string | null) ?? null;
+          const isLocal = meta.isLocalRelevant === true;
+          // Reconstruct gap list from detail string (generator builds "Gaps: a; b; c").
+          const detail = item.detail ?? "";
+          const gapsMatch = detail.match(/Gaps:\s*([^·]+?)(?:\s·\s|$)/);
+          const gapList = gapsMatch
+            ? gapsMatch[1].split(";").map((g) => g.trim()).filter(Boolean).slice(0, 4)
+            : [];
+          const scoreTone = score == null
+            ? "text-muted-foreground"
+            : score >= 70
+              ? "text-emerald-500"
+              : score >= 50
+                ? "text-amber-500"
+                : "text-rose-500";
+          return (
+            <div
+              key={i}
+              className="flex flex-col rounded-lg border border-border bg-background/40 p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">{item.title}</p>
+                  {typeof meta.url === "string" && (
+                    <p className="truncate text-[10px] text-muted-foreground">{meta.url}</p>
+                  )}
+                </div>
+                {score != null && (
+                  <div className="text-right">
+                    <p className={`text-lg font-bold leading-none ${scoreTone}`}>{score}</p>
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">/100</p>
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {role && (
+                  <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    {role}
+                  </span>
+                )}
+                {pageType && pageType !== role && (
+                  <span className="rounded-full border border-border bg-background/60 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {pageType}
+                  </span>
+                )}
+                {intent && (
+                  <span className="rounded-full border border-border bg-background/60 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {intent}
+                  </span>
+                )}
+                {priority && (
+                  <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600">
+                    {priority}
+                  </span>
+                )}
+                {isLocal && (
+                  <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
+                    local
+                  </span>
+                )}
+              </div>
+              {gapList.length > 0 && (
+                <ul className="mt-3 space-y-1 text-[11px] text-muted-foreground">
+                  {gapList.map((g, gi) => (
+                    <li key={gi}>· {g}</li>
+                  ))}
+                </ul>
+              )}
+              {nextAction && (
+                <p className="mt-3 text-xs text-foreground/80">
+                  <span className="font-semibold">Next:</span> {nextAction}
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
