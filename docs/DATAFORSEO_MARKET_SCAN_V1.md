@@ -127,3 +127,20 @@ Expected after clicking **Run market scan**:
 - Blueprint Market Intelligence section shows the **DataForSEO** badge
   (no synthetic warning) and renders top clusters / services / locations.
 - Placeholder branch remains untouched for tenants without a scan.
+
+## Ticket 3b — Locality polish
+
+`summarizeMarketScan` now classifies clusters as `local`, `generic_reference`,
+or `mixed` (using scan locations as the city-token source). The
+`MarketDemandSummary` exposes:
+
+- `topClusters` — local + mixed clusters only (drives roadmap/priority).
+- `genericReferenceClusters` — `near me` / national clusters, shown as reference.
+- `localityBreakdown` — `localDemandVolume`, `genericReferenceDemandVolume`,
+  `totalScannedDemandVolume`, keyword counts, and `volumeCoveragePercent`.
+
+The Blueprint scoring uses `localDemandVolume` (not total scanned volume) so
+generic "near me" demand can no longer inflate the Demand Coverage Index.
+The Blueprint View renders two cluster sections — "Top local opportunity
+clusters" and "Generic demand reference" — plus a volume-coverage metric and
+an explicit low-coverage warning when <60% of keywords return volume.

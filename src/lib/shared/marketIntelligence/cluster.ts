@@ -13,12 +13,15 @@
  */
 
 import type {
+  ClusterLocalityType,
   ClusterPriority,
   KeywordIntent,
+  LocalityBreakdown,
   MarketDemandCluster,
   MarketDemandSummary,
   MarketKeyword,
   MarketScan,
+  SummaryCluster,
   TopEntityVolume,
 } from "./schemas";
 
@@ -301,6 +304,55 @@ export function clusterMarketKeywords(keywords: ClusterableKeyword[]): DraftClus
 }
 
 // ---------------------------------------------------------------------------
+// Locality classification (Ticket 3b)
+// ---------------------------------------------------------------------------
+
+/**
+ * Extracts comparable city tokens from scan locations like "Dallas, TX" → "dallas".
+ * Returns lowercased single-word tokens used to detect local keywords.
+ */
+export function extractLocationTokens(locations: string[]): string[] {
+  const tokens = new Set<string>();
+  for (const loc of locations ?? []) {
+    if (!loc) continue;
+    const cityPart = loc.split(",")[0] ?? loc;
+    const norm = normalizeKeyword(cityPart);
+    if (norm) tokens.add(norm);
+  }
+  return Array.from(tokens);
+}
+
+/**
+ * Classify a cluster as local / generic_reference / mixed.
+ * Rules (per Ticket 3b):
+ *  - location field present → local (overrides everything).
+ *  - else inspect representative keywords:
+ *      • contains a known city token → local signal.
+ *      • contains "near me" or bare service term (no city) → generic signal.
+ *  - both signals → mixed.
+ *  - neither → generic_reference (default for location-less buckets).
+ */
+export function classifyClusterLocality(
+  cluster: { location?: string | null; representativeKeywords?: string[] },
+  locationTokens: string[],
+): ClusterLocalityType {
+  if (cluster.location && cluster.location.trim().length > 0) return "local";
+
+  const reps = cluster.representativeKeywords ?? [];
+  let hasLocal = false;
+  let hasGeneric = false;
+  for (const kw of reps) {
+    const norm = ` ${normalizeKeyword(kw)} `;
+    const matchedLoc = locationTokens.some((t) => t && norm.includes(` ${t} `));
+    if (matchedLoc) hasLocal = true;
+    if (norm.includes(" near me ")) hasGeneric = true;
+  }
+  if (hasLocal && hasGeneric) return "mixed";
+  if (hasLocal) return "local";
+  return "generic_reference";
+}
+
+// ---------------------------------------------------------------------------
 // Summary (feeds Blueprint)
 // ---------------------------------------------------------------------------
 
@@ -330,6 +382,23 @@ function topByVolume(
     }))
     .sort((a, b) => (b.totalVolume ?? -1) - (a.totalVolume ?? -1) || a.name.localeCompare(b.name))
     .slice(0, limit);
+}
+
+function toSummaryCluster(
+  c: MarketDemandCluster,
+  localityType: ClusterLocalityType,
+): SummaryCluster {
+  return {
+    clusterName: c.clusterName,
+    service: c.service ?? null,
+    location: c.location ?? null,
+    intent: (c.intent ?? null) as KeywordIntent | null,
+    totalVolume: c.totalVolume ?? null,
+    opportunityScore: c.opportunityScore ?? null,
+    priority: (c.priority ?? null) as ClusterPriority | null,
+    representativeKeywords: c.representativeKeywords ?? [],
+    localityType,
+  };
 }
 
 export function summarizeMarketScan(
@@ -367,28 +436,80 @@ export function summarizeMarketScan(
     intentDistribution[intent] = (intentDistribution[intent] ?? 0) + 1;
   }
 
-  const topClusters = [...clusters]
-    .sort(
-      (a, b) =>
-        (b.opportunityScore ?? -1) - (a.opportunityScore ?? -1) ||
-        (b.totalVolume ?? -1) - (a.totalVolume ?? -1),
-    )
-    .slice(0, 8)
-    .map((c) => ({
-      clusterName: c.clusterName,
-      service: c.service ?? null,
-      location: c.location ?? null,
-      intent: (c.intent ?? null) as KeywordIntent | null,
-      totalVolume: c.totalVolume ?? null,
-      opportunityScore: c.opportunityScore ?? null,
-      priority: (c.priority ?? null) as ClusterPriority | null,
-      representativeKeywords: c.representativeKeywords ?? [],
-    }));
+  // Locality classification — uses scan.locations for the city token set.
+  const locationTokens = extractLocationTokens(scan.locations ?? []);
+  const classified = clusters.map((c) => ({
+    cluster: c,
+    locality: classifyClusterLocality(c, locationTokens),
+  }));
+
+  const localClusters = classified.filter((x) => x.locality !== "generic_reference");
+  const genericClusters = classified.filter((x) => x.locality === "generic_reference");
+
+  const sortClusters = (
+    arr: typeof classified,
+  ): SummaryCluster[] =>
+    [...arr]
+      .sort(
+        (a, b) =>
+          (b.cluster.opportunityScore ?? -1) - (a.cluster.opportunityScore ?? -1) ||
+          (b.cluster.totalVolume ?? -1) - (a.cluster.totalVolume ?? -1),
+      )
+      .map((x) => toSummaryCluster(x.cluster, x.locality));
+
+  const topClusters = sortClusters(localClusters).slice(0, 8);
+  const genericReferenceClusters = sortClusters(genericClusters).slice(0, 5);
+
+  const sumVolume = (xs: typeof classified): number =>
+    xs.reduce((sum, x) => sum + (x.cluster.totalVolume ?? 0), 0);
+  const localDemandVolume = sumVolume(localClusters);
+  const genericReferenceDemandVolume = sumVolume(genericClusters);
+
+  const localKeywordCount = localClusters.reduce(
+    (n, x) => n + (x.cluster.keywordCount ?? 0),
+    0,
+  );
+  const genericReferenceKeywordCount = genericClusters.reduce(
+    (n, x) => n + (x.cluster.keywordCount ?? 0),
+    0,
+  );
+
+  const volumeCoveragePercent = keywords.length
+    ? Math.round((keywordsWithVolume / keywords.length) * 100)
+    : 0;
+
+  const localityBreakdown: LocalityBreakdown = {
+    localDemandVolume,
+    genericReferenceDemandVolume,
+    totalScannedDemandVolume: localDemandVolume + genericReferenceDemandVolume,
+    localKeywordCount,
+    genericReferenceKeywordCount,
+    keywordsWithVolumeCount: keywordsWithVolume,
+    totalKeywordCount: keywords.length,
+    volumeCoveragePercent,
+  };
 
   const warnings: string[] = [];
   if (keywords.length === 0) warnings.push("Scan has no keywords yet.");
   if (keywordsWithVolume === 0 && keywords.length > 0) {
     warnings.push("No keyword has volume data — opportunity scores use fallbacks.");
+  }
+  if (
+    keywords.length > 0 &&
+    keywordsWithVolume > 0 &&
+    volumeCoveragePercent < 60
+  ) {
+    warnings.push(
+      `Confidence is limited because only ${keywordsWithVolume}/${keywords.length} keywords returned volume data.`,
+    );
+  }
+  if (
+    localClusters.length === 0 &&
+    genericClusters.length > 0
+  ) {
+    warnings.push(
+      "Only generic 'near me' demand was detected — no city-specific clusters were found in this scan.",
+    );
   }
   if (scan.source === "synthetic_fixture" || scan.source === "manual") {
     warnings.push(`Source is "${scan.source}" — not a live market scan.`);
@@ -412,6 +533,8 @@ export function summarizeMarketScan(
     averageDifficulty: avgDifficulty,
     clusterCount: clusters.length,
     topClusters,
+    genericReferenceClusters,
+    localityBreakdown,
     topServices: topByVolume(clusters, (c) => c.service ?? null),
     topLocations: topByVolume(clusters, (c) => c.location ?? null),
     intentDistribution,
@@ -433,6 +556,7 @@ export function emptySummary(): MarketDemandSummary {
     averageDifficulty: null,
     clusterCount: 0,
     topClusters: [],
+    genericReferenceClusters: [],
     topServices: [],
     topLocations: [],
     intentDistribution: {

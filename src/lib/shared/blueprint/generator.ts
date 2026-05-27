@@ -282,12 +282,15 @@ function toScoringInputs(input: GenerateBlueprintInput): ScoringInputs {
 function resolveMarketDataForScoring(input: GenerateBlueprintInput) {
   const summary = input.marketDemandSummary;
   if (summary && summary.available) {
-    // "Clusters covered" is unknown without ranking data (Ticket 6) — treat as 0
-    // so the scoring framework rewards demand sizing without inventing rank.
+    // Score on LOCAL demand only — generic "near me" volume is reference data,
+    // not addressable local demand for this client. Falls back to legacy total
+    // when locality breakdown is not present (older summaries).
+    const localVolume =
+      summary.localityBreakdown?.localDemandVolume ?? summary.totalAddressableVolume;
     return {
-      totalAddressableVolume: summary.totalAddressableVolume,
+      totalAddressableVolume: localVolume,
       capturedVolume: null,
-      clusterCount: summary.clusterCount,
+      clusterCount: summary.topClusters.length || summary.clusterCount,
       clustersCovered: 0,
     };
   }
@@ -671,24 +674,50 @@ function sectionMarketIntelligence(input: GenerateBlueprintInput): BlueprintSect
 
   // Rich rendering when summary exists and has any keywords.
   if (summary && summary.available) {
-    const items: BlueprintSectionItem[] = summary.topClusters.map((c) => ({
-      title: c.clusterName,
-      detail: c.representativeKeywords.length
-        ? `Representative keywords: ${c.representativeKeywords.slice(0, 5).join(", ")}`
-        : undefined,
-      meta: {
-        kind: "cluster",
-        service: c.service,
-        location: c.location,
-        intent: c.intent,
-        totalVolume: c.totalVolume,
-        opportunityScore: c.opportunityScore,
-        priority: c.priority,
-        representativeKeywords: c.representativeKeywords.join(", "),
-      },
-    }));
+    const items: BlueprintSectionItem[] = [];
 
-    // Append top services / locations as compact items for the View to pivot on.
+    // Local opportunity clusters (top section).
+    for (const c of summary.topClusters) {
+      items.push({
+        title: c.clusterName,
+        detail: c.representativeKeywords.length
+          ? `Representative keywords: ${c.representativeKeywords.slice(0, 5).join(", ")}`
+          : undefined,
+        meta: {
+          kind: "cluster",
+          localityType: c.localityType,
+          service: c.service,
+          location: c.location,
+          intent: c.intent,
+          totalVolume: c.totalVolume,
+          opportunityScore: c.opportunityScore,
+          priority: c.priority,
+          representativeKeywords: c.representativeKeywords.join(", "),
+        },
+      });
+    }
+
+    // Generic "near me" demand — separate kind, rendered below local list.
+    for (const c of summary.genericReferenceClusters) {
+      items.push({
+        title: c.clusterName,
+        detail: c.representativeKeywords.length
+          ? `Representative keywords: ${c.representativeKeywords.slice(0, 5).join(", ")}`
+          : undefined,
+        meta: {
+          kind: "generic_cluster",
+          localityType: c.localityType,
+          service: c.service,
+          location: null,
+          intent: c.intent,
+          totalVolume: c.totalVolume,
+          opportunityScore: c.opportunityScore,
+          priority: c.priority,
+          representativeKeywords: c.representativeKeywords.join(", "),
+        },
+      });
+    }
+
     for (const s of summary.topServices.slice(0, 5)) {
       items.push({
         title: s.name,
@@ -735,26 +764,45 @@ function sectionMarketIntelligence(input: GenerateBlueprintInput): BlueprintSect
       );
     }
 
+    const lb = summary.localityBreakdown;
+    const metrics = [
+      { label: "Keywords", value: summary.totalKeywords },
+      { label: "Local clusters", value: summary.topClusters.length },
+      {
+        label: "Local demand (mo)",
+        value: lb ? lb.localDemandVolume : summary.totalAddressableVolume,
+      },
+      {
+        label: "Generic ref. demand (mo)",
+        value: lb ? lb.genericReferenceDemandVolume : null,
+      },
+      {
+        label: "Volume coverage",
+        value: lb
+          ? `${lb.keywordsWithVolumeCount}/${lb.totalKeywordCount}`
+          : `${summary.keywordsWithVolume}/${summary.totalKeywords}`,
+      },
+      { label: "Top service", value: topService },
+      { label: "Top location", value: topLocation },
+      { label: "Source", value: sourceLabel(summary.source) },
+      {
+        label: "Confidence",
+        value: `${Math.round(summary.confidence * 100)}%`,
+      },
+    ];
+
     return {
       type: "market_intelligence",
       title: "Market Intelligence",
-      summary: `Demand landscape from latest ${sourceLabel(summary.source)} scan — ${summary.totalKeywords} keywords across ${summary.clusterCount} cluster${summary.clusterCount === 1 ? "" : "s"}.`,
+      summary: `Local demand landscape from latest ${sourceLabel(summary.source)} scan — ${summary.topClusters.length} local + ${summary.genericReferenceClusters.length} generic reference cluster${summary.genericReferenceClusters.length === 1 ? "" : "s"} across ${summary.totalKeywords} keywords.`,
       items,
-      metrics: [
-        { label: "Keywords", value: summary.totalKeywords },
-        { label: "Clusters", value: summary.clusterCount },
-        { label: "Total demand (mo)", value: summary.totalAddressableVolume },
-        { label: "Top service", value: topService },
-        { label: "Top location", value: topLocation },
-        { label: "Source", value: sourceLabel(summary.source) },
-        {
-          label: "Confidence",
-          value: `${Math.round(summary.confidence * 100)}%`,
-        },
-      ],
+      metrics,
       evidence: [
         `Source: ${sourceLabel(summary.source)}`,
         summary.scanCompletedAt ? `Scan completed: ${summary.scanCompletedAt}` : null,
+        lb
+          ? `Local demand ${lb.localDemandVolume.toLocaleString()} vs generic reference ${lb.genericReferenceDemandVolume.toLocaleString()} (mo).`
+          : null,
       ].filter((s): s is string => !!s),
       warnings: warnings.length ? warnings : undefined,
     };
@@ -1163,10 +1211,11 @@ function buildAssumptions(input: GenerateBlueprintInput, scores: BlueprintScores
         detail: `Loaded from ${sourceLabel(summary.source)} — must be replaced by a DataForSEO scan (Ticket 3) before claiming verified demand.`,
       });
     } else {
-      a.push({
-        label: "Market data available",
-        detail: `Demand coverage is based on ${summary.totalKeywords} keyword${summary.totalKeywords === 1 ? "" : "s"} across ${summary.clusterCount} cluster${summary.clusterCount === 1 ? "" : "s"} from ${sourceLabel(summary.source)}.`,
-      });
+      const lb = summary.localityBreakdown;
+      const detail = lb
+        ? `Local demand sized from ${summary.topClusters.length} local cluster${summary.topClusters.length === 1 ? "" : "s"} (${lb.localDemandVolume.toLocaleString()} mo). Generic "near me" demand (${lb.genericReferenceDemandVolume.toLocaleString()} mo) is shown as reference only.`
+        : `Demand coverage is based on ${summary.totalKeywords} keyword${summary.totalKeywords === 1 ? "" : "s"} across ${summary.clusterCount} cluster${summary.clusterCount === 1 ? "" : "s"} from ${sourceLabel(summary.source)}.`;
+      a.push({ label: "Market data available", detail });
     }
   } else if (!input.marketData) {
     a.push({

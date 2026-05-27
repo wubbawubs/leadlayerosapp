@@ -591,6 +591,7 @@ function MarketIntelligenceBlock({
 
   const items = section.items ?? [];
   const clusters = items.filter((i) => (i.meta?.kind ?? "") === "cluster");
+  const genericClusters = items.filter((i) => (i.meta?.kind ?? "") === "generic_cluster");
   const topServices = items.filter((i) => (i.meta?.kind ?? "") === "top_service");
 
   const topLocations = items.filter((i) => (i.meta?.kind ?? "") === "top_location");
@@ -600,6 +601,62 @@ function MarketIntelligenceBlock({
   const isSyntheticOrManual =
     typeof sourceMetric?.value === "string" &&
     (sourceMetric.value === "Synthetic fixture" || sourceMetric.value === "Manual entry");
+
+  type ClusterItem = NonNullable<BlueprintSection["items"]>[number];
+  const renderClusterCard = (
+    c: ClusterItem,
+    i: number,
+    opts: { dimmed?: boolean } = {},
+  ) => {
+    const meta = c.meta ?? {};
+    const intent = meta.intent ? String(meta.intent) : null;
+    const priority = meta.priority ? String(meta.priority) : null;
+    const opp =
+      typeof meta.opportunityScore === "number" ? meta.opportunityScore : null;
+    const volume =
+      typeof meta.totalVolume === "number" ? meta.totalVolume : null;
+    const localityType = meta.localityType ? String(meta.localityType) : null;
+    const keywords =
+      typeof meta.representativeKeywords === "string"
+        ? meta.representativeKeywords
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
+    return (
+      <li
+        key={i}
+        className={`rounded-md border p-3 ${
+          opts.dimmed
+            ? "border-border/40 bg-background/20"
+            : "border-border/60 bg-background/40"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-semibold text-foreground">
+            {i + 1}. {c.title}
+          </p>
+          {opp != null && (
+            <Badge variant={opp >= 65 ? "success" : opp >= 45 ? "primary" : "muted"}>
+              Opp {Math.round(opp)}
+            </Badge>
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+          {intent && <Badge variant="muted">Intent: {intent}</Badge>}
+          {priority && <Badge variant="muted">{priority}</Badge>}
+          {volume != null && <Badge variant="muted">{volume.toLocaleString()} vol/mo</Badge>}
+          {localityType === "mixed" && <Badge variant="warning">Mixed</Badge>}
+        </div>
+        {keywords.length > 0 && (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            <span className="font-semibold text-foreground">Keywords:</span>{" "}
+            {keywords.join(", ")}
+          </p>
+        )}
+      </li>
+    );
+  };
 
   return (
     <section className="rounded-xl border border-primary/30 bg-primary/5 p-6">
@@ -617,7 +674,7 @@ function MarketIntelligenceBlock({
 
 
       {section.metrics && section.metrics.length > 0 && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
           {section.metrics.map((m, i) => (
             <div
               key={i}
@@ -637,56 +694,33 @@ function MarketIntelligenceBlock({
       {clusters.length > 0 && (
         <div className="mt-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            Top demand clusters
+            Top local opportunity clusters
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Local demand for the client's declared service area. Roadmap and
+            page priorities are driven from this list.
           </p>
           <ol className="mt-3 grid gap-3 md:grid-cols-2">
-            {clusters.map((c, i) => {
-              const meta = c.meta ?? {};
-              const intent = meta.intent ? String(meta.intent) : null;
-              const priority = meta.priority ? String(meta.priority) : null;
-              const opp =
-                typeof meta.opportunityScore === "number" ? meta.opportunityScore : null;
-              const volume =
-                typeof meta.totalVolume === "number" ? meta.totalVolume : null;
-              const keywords =
-                typeof meta.representativeKeywords === "string"
-                  ? meta.representativeKeywords
-                      .split(",")
-                      .map((s) => s.trim())
-                      .filter(Boolean)
-                  : [];
-              return (
-                <li
-                  key={i}
-                  className="rounded-md border border-border/60 bg-background/40 p-3"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-foreground">
-                      {i + 1}. {c.title}
-                    </p>
-                    {opp != null && (
-                      <Badge variant={opp >= 65 ? "success" : opp >= 45 ? "primary" : "muted"}>
-                        Opp {Math.round(opp)}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {intent && <Badge variant="muted">Intent: {intent}</Badge>}
-                    {priority && <Badge variant="muted">{priority}</Badge>}
-                    {volume != null && <Badge variant="muted">{volume} vol/mo</Badge>}
-                  </div>
-                  {keywords.length > 0 && (
-                    <p className="mt-2 text-[11px] text-muted-foreground">
-                      <span className="font-semibold text-foreground">Keywords:</span>{" "}
-                      {keywords.join(", ")}
-                    </p>
-                  )}
-                </li>
-              );
-            })}
+            {clusters.map((c, i) => renderClusterCard(c, i))}
           </ol>
         </div>
       )}
+
+      {genericClusters.length > 0 && (
+        <div className="mt-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Generic demand reference
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Useful as a category-demand signal, but not treated as local
+            opportunity — these keywords have no city intent.
+          </p>
+          <ol className="mt-3 grid gap-3 md:grid-cols-2">
+            {genericClusters.map((c, i) => renderClusterCard(c, i, { dimmed: true }))}
+          </ol>
+        </div>
+      )}
+
 
       {(topServices.length > 0 || topLocations.length > 0) && (
         <div className="mt-6 grid gap-4 md:grid-cols-2">
