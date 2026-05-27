@@ -13,12 +13,15 @@
  */
 
 import type {
+  ClusterLocalityType,
   ClusterPriority,
   KeywordIntent,
+  LocalityBreakdown,
   MarketDemandCluster,
   MarketDemandSummary,
   MarketKeyword,
   MarketScan,
+  SummaryCluster,
   TopEntityVolume,
 } from "./schemas";
 
