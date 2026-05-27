@@ -115,11 +115,16 @@ function computeReadiness(p: {
   else negatives.push(`Thin / shallow content (${wc} words)`);
 
   // D. Trust / proof — 15
+  // V1 limitation: we cannot verify reviews / licensing / structured proof
+  // from page audit alone. Cap the trust subtotal at 8 unless explicit
+  // verified-proof signals exist (none in V1).
   let trustPts = 0;
-  if (p.hasTrustSignals) trustPts += 8;
-  if (p.missingContext.length === 0) trustPts += 4;
-  if (p.riskFlags.length === 0) trustPts += 3;
-  if (trustPts >= 11) positives.push("Trust / proof signals present");
+  if (p.hasTrustSignals) trustPts += 6;
+  if (p.missingContext.length === 0) trustPts += 1;
+  if (p.riskFlags.length === 0) trustPts += 1;
+  trustPts = Math.min(8, trustPts);
+  if (trustPts >= 6)
+    positives.push("Basic trust structure detected (verified proof unconfirmed)");
   else negatives.push("Proof / trust unverified");
 
   // E. Local / service relevance — 10
@@ -137,6 +142,11 @@ function computeReadiness(p: {
   if (p.criticalIssueCount === 0) techPts += 2;
   if (techPts >= 8) positives.push("Technical basics in place");
   else negatives.push("Technical / accessibility gaps");
+  if ((p.imagesWithoutAlt ?? 0) > 0) {
+    negatives.push(
+      `${p.imagesWithoutAlt} image(s) without alt text — accessibility penalty applied`,
+    );
+  }
 
   // G. Measurement readiness — 10 (unverified at page level — always 0 in V1)
   const measurePts = 0;
@@ -153,22 +163,29 @@ function computeReadiness(p: {
   };
   // Tracking always unverified at page level in V1.
   cap(85, "Tracking not verified (max 85)");
-  if (!p.hasTrustSignals || p.missingContext.length > 0) cap(80, "Proof / trust unverified (max 80)");
-  if ((p.imagesWithoutAlt ?? 0) > 0) cap(90, "Missing image alt text (max 90)");
+  // V1: no source of verified proof at page level — always cap trust ceiling.
+  cap(80, "Verified proof / reviews / licensing not confirmed (max 80)");
+  if ((p.imagesWithoutAlt ?? 0) > 0) cap(85, "Missing image alt text — technical penalty (max 85)");
   if (p.isThin) cap(70, "Thin content (max 70)");
   if (!p.hasAuditDetail) cap(60, "No page-level audit detail (max 60)");
   if (isServiceLike && !p.isLocalRelevant) cap(75, "Service page lacks local relevance (max 75)");
+  // Commercial / service pages cannot exceed 80 in V1 until tracking, primary
+  // CTA, verified proof, and GBP/reviews are all confirmed (none verified yet).
+  if (isServiceLike || p.intent === "commercial" || p.intent === "transactional") {
+    cap(80, "Commercial page ceiling: tracking, CTA, proof, and GBP unverified (max 80)");
+  }
   const emergencyHint =
     EMERGENCY_HINT.test(p.title ?? "") || EMERGENCY_HINT.test(p.url ?? "");
   if (emergencyHint && p.missingContext.some((m) => /availab|hours|24/i.test(m))) {
     cap(75, "Emergency availability unconfirmed (max 75)");
   }
   if (p.hasCta && !(p.recommendedCta && p.recommendedCta.trim().length >= 3)) {
-    cap(80, "Generic CTA only (max 80)");
+    cap(80, "Generic CTA only — primary CTA not declared (max 80)");
   }
 
   return { score, positives, negatives, appliedCaps };
 }
+
 
 function summarizeGaps(p: BlueprintPageDiagnostic): string[] {
   const gaps: string[] = [];
