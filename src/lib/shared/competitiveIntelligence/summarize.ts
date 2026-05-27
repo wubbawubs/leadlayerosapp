@@ -236,10 +236,11 @@ export function buildCompetitorMatrixSummary(
       compReviewCounts.length > 0 &&
       (self.gbpReviewCount ?? 0) < (median(compReviewCounts) ?? 0)
     ) {
+      const matchedCount = gapBaseRows.filter((r) => typeof r.gbpReviewCount === "number").length;
       gaps.push({
         label: "Review volume",
         detail:
-          "Top competitors have a larger reviewed footprint on Google. Closing this gap is the single highest-leverage trust move.",
+          `Top competitors have a larger reviewed footprint on Google. Closing this gap is the single highest-leverage trust move. Based on matched review data for ${matchedCount}/${gapBaseRows.length} direct competitors.`,
         selfValue: self.gbpReviewCount,
         competitorMedian: median(compReviewCounts),
       });
