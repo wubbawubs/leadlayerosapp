@@ -165,10 +165,12 @@ function BlueprintPage() {
       pageIntelligence: [],
       marketDemandSummary:
         marketSummary && marketSummary.available ? marketSummary : undefined,
+      competitorSummary:
+        competitorSummary && competitorSummary.available ? competitorSummary : undefined,
       now: new Date(),
     };
     return generateLeadEngineBlueprint(input);
-  }, [goal, plan, items, tenantId, marketSummary]);
+  }, [goal, plan, items, tenantId, marketSummary, competitorSummary]);
 
   return (
     <div className="min-h-screen bg-background bg-blueprint">
