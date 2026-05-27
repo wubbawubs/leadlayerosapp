@@ -305,21 +305,34 @@ export const fetchBlueprintPageDiagnostics = createServerFn({ method: "POST" })
         !!h1 && !!meta && (meta?.length ?? 0) >= 80 && riskFlags.length === 0;
       const isThin = (wordCount ?? 0) > 0 && (wordCount ?? 0) < 250;
 
-      const base = {
+      const isLocalRelevant = !!localRel?.isLocal;
+      const role = seoRole ?? pageType ?? null;
+      const outcome = computeReadiness({
         hasCta,
         hasTrustSignals,
         isThin,
         hasH1: !!h1,
         hasMeta: !!meta,
         criticalIssueCount,
-      };
-      const conversionReadiness = computeReadiness(base);
+        recommendedCta,
+        pageType,
+        intent,
+        role,
+        isLocalRelevant,
+        wordCount,
+        imagesWithoutAlt,
+        riskFlags,
+        missingContext,
+        hasAuditDetail: !!ap,
+        title,
+        url,
+      });
 
       const draft: BlueprintPageDiagnostic = {
         id: pi.id as string,
         url,
         title,
-        role: seoRole ?? pageType ?? null,
+        role,
         pageType,
         intent,
         commercialPriority,
@@ -334,10 +347,14 @@ export const fetchBlueprintPageDiagnostics = createServerFn({ method: "POST" })
         issues: issueMessages,
         riskFlags,
         missingContext,
-        conversionReadiness,
+        conversionReadiness: outcome.score,
+        scoreLabel: scoreLabelFor(outcome.score),
+        positives: outcome.positives,
+        negatives: outcome.negatives,
+        appliedCaps: outcome.appliedCaps,
         gaps: [],
         nextAction: null,
-        isLocalRelevant: !!localRel?.isLocal,
+        isLocalRelevant,
         confidence: typeof pi.confidence === "number" ? (pi.confidence as number) : 0,
       };
       draft.gaps = summarizeGaps(draft);
