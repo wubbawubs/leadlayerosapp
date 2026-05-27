@@ -238,7 +238,12 @@ function BlueprintView({ blueprint }: { blueprint: LeadEngineBlueprint }) {
       <Section section={sectionByType.current_situation} />
       <Section section={sectionByType.growth_gap} accent="warning" />
 
-      <MarketIntelligenceBlock section={sectionByType.market_intelligence} />
+      <MarketIntelligenceBlock
+        section={sectionByType.market_intelligence}
+        tenantId={blueprint.tenantId ?? null}
+        growthGoalId={blueprint.growthGoal.id ?? null}
+      />
+
       <PlaceholderSection section={sectionByType.competitive_position} />
 
       <PageDiagnostics section={sectionByType.page_diagnostics} />
