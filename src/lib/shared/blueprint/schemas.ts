@@ -96,7 +96,18 @@ export type BlueprintSectionType = z.infer<typeof blueprintSectionTypeSchema>;
 export const blueprintSectionItemSchema = z.object({
   title: z.string(),
   detail: z.string().optional(),
-  meta: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+  meta: z
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.string()),
+      ]),
+    )
+    .optional(),
 });
 export type BlueprintSectionItem = z.infer<typeof blueprintSectionItemSchema>;
 
