@@ -605,12 +605,16 @@ function MarketIntelligenceBlock({
     <section className="rounded-xl border border-primary/30 bg-primary/5 p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <SectionHeading title={section.title} subtitle={section.summary} />
-        {sourceMetric && (
-          <Badge variant={isSyntheticOrManual ? "warning" : "success"}>
-            {String(sourceMetric.value)}
-          </Badge>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {sourceMetric && (
+            <Badge variant={isSyntheticOrManual ? "warning" : "success"}>
+              {String(sourceMetric.value)}
+            </Badge>
+          )}
+          {ScanButton}
+        </div>
       </div>
+
 
       {section.metrics && section.metrics.length > 0 && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
