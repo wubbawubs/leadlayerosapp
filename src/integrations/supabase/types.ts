@@ -994,6 +994,231 @@ export type Database = {
           },
         ]
       }
+      market_demand_clusters: {
+        Row: {
+          average_competition: number | null
+          average_difficulty: number | null
+          cluster_name: string
+          created_at: string
+          id: string
+          intent: string | null
+          keyword_count: number | null
+          location: string | null
+          market_scan_id: string
+          opportunity_score: number | null
+          priority: string | null
+          reasoning: Json
+          representative_keywords: Json
+          service: string | null
+          tenant_id: string
+          total_volume: number | null
+        }
+        Insert: {
+          average_competition?: number | null
+          average_difficulty?: number | null
+          cluster_name: string
+          created_at?: string
+          id?: string
+          intent?: string | null
+          keyword_count?: number | null
+          location?: string | null
+          market_scan_id: string
+          opportunity_score?: number | null
+          priority?: string | null
+          reasoning?: Json
+          representative_keywords?: Json
+          service?: string | null
+          tenant_id: string
+          total_volume?: number | null
+        }
+        Update: {
+          average_competition?: number | null
+          average_difficulty?: number | null
+          cluster_name?: string
+          created_at?: string
+          id?: string
+          intent?: string | null
+          keyword_count?: number | null
+          location?: string | null
+          market_scan_id?: string
+          opportunity_score?: number | null
+          priority?: string | null
+          reasoning?: Json
+          representative_keywords?: Json
+          service?: string | null
+          tenant_id?: string
+          total_volume?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_demand_clusters_market_scan_id_fkey"
+            columns: ["market_scan_id"]
+            isOneToOne: false
+            referencedRelation: "market_scans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_demand_clusters_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_keywords: {
+        Row: {
+          competition: number | null
+          confidence: number | null
+          cpc: number | null
+          created_at: string
+          difficulty: number | null
+          id: string
+          intent: string | null
+          keyword: string
+          location: string | null
+          market_scan_id: string
+          normalized_keyword: string | null
+          raw: Json
+          service: string | null
+          source: string
+          tenant_id: string
+          volume: number | null
+        }
+        Insert: {
+          competition?: number | null
+          confidence?: number | null
+          cpc?: number | null
+          created_at?: string
+          difficulty?: number | null
+          id?: string
+          intent?: string | null
+          keyword: string
+          location?: string | null
+          market_scan_id: string
+          normalized_keyword?: string | null
+          raw?: Json
+          service?: string | null
+          source?: string
+          tenant_id: string
+          volume?: number | null
+        }
+        Update: {
+          competition?: number | null
+          confidence?: number | null
+          cpc?: number | null
+          created_at?: string
+          difficulty?: number | null
+          id?: string
+          intent?: string | null
+          keyword?: string
+          location?: string | null
+          market_scan_id?: string
+          normalized_keyword?: string | null
+          raw?: Json
+          service?: string | null
+          source?: string
+          tenant_id?: string
+          volume?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_keywords_market_scan_id_fkey"
+            columns: ["market_scan_id"]
+            isOneToOne: false
+            referencedRelation: "market_scans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_keywords_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_scans: {
+        Row: {
+          confidence: number | null
+          country: string | null
+          created_at: string
+          error_message: string | null
+          growth_goal_id: string | null
+          id: string
+          language: string | null
+          locations: Json
+          region: string | null
+          scan_completed_at: string | null
+          scan_started_at: string | null
+          services: Json
+          site_id: string | null
+          source: string
+          status: string
+          summary: Json
+          tenant_id: string
+          updated_at: string
+          vertical: string | null
+        }
+        Insert: {
+          confidence?: number | null
+          country?: string | null
+          created_at?: string
+          error_message?: string | null
+          growth_goal_id?: string | null
+          id?: string
+          language?: string | null
+          locations?: Json
+          region?: string | null
+          scan_completed_at?: string | null
+          scan_started_at?: string | null
+          services?: Json
+          site_id?: string | null
+          source?: string
+          status?: string
+          summary?: Json
+          tenant_id: string
+          updated_at?: string
+          vertical?: string | null
+        }
+        Update: {
+          confidence?: number | null
+          country?: string | null
+          created_at?: string
+          error_message?: string | null
+          growth_goal_id?: string | null
+          id?: string
+          language?: string | null
+          locations?: Json
+          region?: string | null
+          scan_completed_at?: string | null
+          scan_started_at?: string | null
+          services?: Json
+          site_id?: string | null
+          source?: string
+          status?: string
+          summary?: Json
+          tenant_id?: string
+          updated_at?: string
+          vertical?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_scans_growth_goal_id_fkey"
+            columns: ["growth_goal_id"]
+            isOneToOne: false
+            referencedRelation: "growth_goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_scans_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       master_plans: {
         Row: {
           confidence: number | null
