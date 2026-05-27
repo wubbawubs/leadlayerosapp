@@ -118,6 +118,14 @@ export interface GeneratorPage {
   isThin?: boolean | null;
   issues?: string[];
   recommendation?: string | null;
+  // Page Diagnostics V1 (optional — populated when page intelligence exists).
+  pageType?: string | null;
+  intent?: string | null;
+  commercialPriority?: string | null;
+  conversionReadiness?: number | null;
+  gaps?: string[];
+  nextAction?: string | null;
+  isLocalRelevant?: boolean | null;
 }
 
 export interface GeneratorAuditSummary {
