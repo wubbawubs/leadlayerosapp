@@ -89,6 +89,21 @@ function toRow(c: Competitor): CompetitorMatrixRow {
   const locationPageSamples = Array.isArray(sb.locationPageSamples)
     ? (sb.locationPageSamples as Array<{ url: string; matchedReason: string }>)
     : [];
+  const servicePagesConfidence =
+    sb.servicePagesConfidence === "high" || sb.servicePagesConfidence === "medium" || sb.servicePagesConfidence === "low"
+      ? (sb.servicePagesConfidence as "high" | "medium" | "low")
+      : null;
+  const locationPagesConfidence =
+    sb.locationPagesConfidence === "high" || sb.locationPagesConfidence === "medium" || sb.locationPagesConfidence === "low"
+      ? (sb.locationPagesConfidence as "high" | "medium" | "low")
+      : null;
+  const contentPagesCount =
+    typeof sb.contentPagesCount === "number" ? (sb.contentPagesCount as number) : null;
+  const excludedCandidateCount =
+    typeof sb.excludedCandidateCount === "number" ? (sb.excludedCandidateCount as number) : null;
+  const classifierWarnings = Array.isArray(sb.classifierWarnings)
+    ? (sb.classifierWarnings as string[])
+    : [];
   const existingServicePagesCount =
     typeof sb.existingServicePagesCount === "number"
       ? (sb.existingServicePagesCount as number)
