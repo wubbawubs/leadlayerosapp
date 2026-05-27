@@ -831,6 +831,8 @@ export async function runCompetitorScan(
       servicesCount: services.length,
       locationsCount: locations.length,
       trustSignals,
+      servicePagesConfidence: pageDepth?.servicePagesConfidence,
+      locationPagesConfidence: pageDepth?.locationPagesConfidence,
     });
 
     const confidenceInput = {
