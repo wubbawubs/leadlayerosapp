@@ -602,8 +602,9 @@ function MarketIntelligenceBlock({
     typeof sourceMetric?.value === "string" &&
     (sourceMetric.value === "Synthetic fixture" || sourceMetric.value === "Manual entry");
 
+  type ClusterItem = NonNullable<BlueprintSection["items"]>[number];
   const renderClusterCard = (
-    c: BlueprintSection["items"] extends Array<infer T> | undefined ? T : never,
+    c: ClusterItem,
     i: number,
     opts: { dimmed?: boolean } = {},
   ) => {
