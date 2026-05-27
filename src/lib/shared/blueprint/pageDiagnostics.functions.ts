@@ -32,6 +32,10 @@ export interface BlueprintPageDiagnostic {
   riskFlags: string[];
   missingContext: string[];
   conversionReadiness: number;
+  scoreLabel: string;
+  positives: string[];
+  negatives: string[];
+  appliedCaps: string[];
   gaps: string[];
   nextAction: string | null;
   isLocalRelevant: boolean;
@@ -47,6 +51,16 @@ function asStringArray(v: unknown): string[] {
     .filter((s): s is string => !!s && typeof s === "string");
 }
 
+const SERVICE_LIKE_TYPES = new Set(["service", "location", "landing", "homepage", "category"]);
+const EMERGENCY_HINT = /(emergency|24[\s-]?7|same[\s-]?day|urgent)/i;
+
+interface ScoreOutcome {
+  score: number;
+  positives: string[];
+  negatives: string[];
+  appliedCaps: string[];
+}
+
 function computeReadiness(p: {
   hasCta: boolean;
   hasTrustSignals: boolean;
@@ -54,15 +68,106 @@ function computeReadiness(p: {
   hasH1: boolean;
   hasMeta: boolean;
   criticalIssueCount: number;
-}): number {
-  let s = 0;
-  if (p.hasCta) s += 30;
-  if (p.hasTrustSignals) s += 25;
-  if (!p.isThin) s += 15;
-  if (p.hasH1) s += 10;
-  if (p.hasMeta) s += 10;
-  if (p.criticalIssueCount === 0) s += 10;
-  return Math.max(0, Math.min(100, s));
+  recommendedCta: string | null;
+  pageType: string | null;
+  intent: string | null;
+  role: string | null;
+  isLocalRelevant: boolean;
+  wordCount: number | null;
+  imagesWithoutAlt: number | null;
+  riskFlags: string[];
+  missingContext: string[];
+  hasAuditDetail: boolean;
+  title: string | null;
+  url: string | null;
+}): ScoreOutcome {
+  const positives: string[] = [];
+  const negatives: string[] = [];
+  const appliedCaps: string[] = [];
+
+  // A. Intent alignment — 20
+  let intentPts = 0;
+  if (p.role || p.pageType) intentPts += 8;
+  if (p.intent) intentPts += 6;
+  const isServiceLike = SERVICE_LIKE_TYPES.has((p.pageType ?? "").toLowerCase());
+  if (isServiceLike && p.isLocalRelevant) intentPts += 6;
+  else if (isServiceLike) intentPts += 2;
+  intentPts = Math.min(20, intentPts);
+  if (intentPts >= 14) positives.push("Clear page role + intent");
+  else negatives.push("Page role / intent unclear");
+
+  // B. Conversion path — 20
+  let convPts = 0;
+  if (p.hasCta) convPts += 10;
+  if (p.recommendedCta && p.recommendedCta.trim().length >= 3) convPts += 5;
+  if (isServiceLike || (p.pageType ?? "").toLowerCase() === "contact") convPts += 5;
+  convPts = Math.min(20, convPts);
+  if (convPts >= 15) positives.push("Conversion path present");
+  else negatives.push("Weak or generic conversion path");
+
+  // C. Content depth — 15
+  const wc = p.wordCount ?? 0;
+  let depthPts = 0;
+  if (wc >= 600) depthPts = 15;
+  else if (wc >= 400) depthPts = 10;
+  else if (wc >= 250) depthPts = 6;
+  if (depthPts >= 10) positives.push(`Solid content depth (${wc} words)`);
+  else negatives.push(`Thin / shallow content (${wc} words)`);
+
+  // D. Trust / proof — 15
+  let trustPts = 0;
+  if (p.hasTrustSignals) trustPts += 8;
+  if (p.missingContext.length === 0) trustPts += 4;
+  if (p.riskFlags.length === 0) trustPts += 3;
+  if (trustPts >= 11) positives.push("Trust / proof signals present");
+  else negatives.push("Proof / trust unverified");
+
+  // E. Local / service relevance — 10
+  let localPts = 0;
+  if (p.isLocalRelevant) localPts += 6;
+  if (isServiceLike) localPts += 4;
+  localPts = Math.min(10, localPts);
+  if (isServiceLike && !p.isLocalRelevant) negatives.push("Service page lacks local relevance");
+
+  // F. Technical / accessibility — 10
+  let techPts = 0;
+  if (p.hasH1) techPts += 3;
+  if (p.hasMeta) techPts += 3;
+  if ((p.imagesWithoutAlt ?? 0) === 0) techPts += 2;
+  if (p.criticalIssueCount === 0) techPts += 2;
+  if (techPts >= 8) positives.push("Technical basics in place");
+  else negatives.push("Technical / accessibility gaps");
+
+  // G. Measurement readiness — 10 (unverified at page level — always 0 in V1)
+  const measurePts = 0;
+  negatives.push("Page-level tracking not verified");
+
+  let score = intentPts + convPts + depthPts + trustPts + localPts + techPts + measurePts;
+  score = Math.max(0, Math.min(100, score));
+
+  const cap = (limit: number, reason: string) => {
+    if (score > limit) {
+      score = limit;
+      appliedCaps.push(reason);
+    }
+  };
+  // Tracking always unverified at page level in V1.
+  cap(85, "Tracking not verified (max 85)");
+  if (!p.hasTrustSignals || p.missingContext.length > 0) cap(80, "Proof / trust unverified (max 80)");
+  if ((p.imagesWithoutAlt ?? 0) > 0) cap(90, "Missing image alt text (max 90)");
+  if (p.isThin) cap(70, "Thin content (max 70)");
+  if (!p.hasAuditDetail) cap(60, "No page-level audit detail (max 60)");
+  if (isServiceLike && !p.isLocalRelevant) cap(75, "Service page lacks local relevance (max 75)");
+  const emergencyHint =
+    EMERGENCY_HINT.test(p.title ?? "") || EMERGENCY_HINT.test(p.url ?? "");
+  if (emergencyHint && p.missingContext.some((m) => /availab|hours|24/i.test(m))) {
+    cap(75, "Emergency availability unconfirmed (max 75)");
+  }
+  if (p.hasCta && !(p.recommendedCta && p.recommendedCta.trim().length >= 3)) {
+    cap(80, "Generic CTA only (max 80)");
+  }
+
+  return { score, positives, negatives, appliedCaps };
 }
 
 function summarizeGaps(p: BlueprintPageDiagnostic): string[] {
@@ -78,8 +183,16 @@ function summarizeGaps(p: BlueprintPageDiagnostic): string[] {
   return gaps;
 }
 
+function scoreLabelFor(score: number): string {
+  if (score >= 85) return "excellent";
+  if (score >= 70) return "solid";
+  if (score >= 55) return "needs work";
+  if (score >= 40) return "weak";
+  return "critical";
+}
+
 function nextActionFor(p: BlueprintPageDiagnostic): string | null {
-  if (p.conversionReadiness < 40) {
+  if (p.conversionReadiness < 45) {
     return `Rebuild ${p.pageType ?? "page"} for conversion — fix CTA, proof, and copy depth.`;
   }
   if (!p.hasCta) return `Add a primary CTA${p.recommendedCta ? ` ("${p.recommendedCta}")` : ""}.`;
@@ -87,6 +200,7 @@ function nextActionFor(p: BlueprintPageDiagnostic): string | null {
   if (p.isThin) return "Expand page with intent-aligned content and FAQs.";
   if (!p.hasMeta || !p.hasH1) return "Tighten on-page SEO (H1 + meta description).";
   if ((p.imagesWithoutAlt ?? 0) > 0) return "Add alt text to images for accessibility + SEO.";
+  if (p.missingContext.length > 0) return `Confirm: ${p.missingContext[0]}.`;
   return p.recommendedCta ? `Refine CTA: "${p.recommendedCta}".` : null;
 }
 
