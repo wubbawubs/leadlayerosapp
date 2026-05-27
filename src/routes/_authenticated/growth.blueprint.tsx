@@ -10,6 +10,7 @@ import {
   getActiveMasterplan,
   listMasterplanItems,
 } from "@/lib/shared/masterplan/repo.functions";
+import { summarizeLatestMarketScan } from "@/lib/marketIntelligence/marketIntelligence.functions";
 import { itemPhase } from "@/lib/shared/masterplan/schemas";
 import {
   generateLeadEngineBlueprint,
@@ -58,6 +59,7 @@ function BlueprintPage() {
   const fetchGoal = useServerFn(getActiveGrowthGoal);
   const fetchPlan = useServerFn(getActiveMasterplan);
   const fetchItems = useServerFn(listMasterplanItems);
+  const fetchMarketSummary = useServerFn(summarizeLatestMarketScan);
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
@@ -87,9 +89,20 @@ function BlueprintPage() {
     enabled: !!tenantId && !!planId,
   });
 
+  const goalId = goalQuery.data?.goal?.id ?? null;
+  const marketQuery = useQuery({
+    queryKey: ["market-summary", tenantId, goalId],
+    queryFn: async () => {
+      if (!tenantId) return { summary: null as Awaited<ReturnType<typeof fetchMarketSummary>>["summary"] | null };
+      return await fetchMarketSummary({ data: { tenantId, growthGoalId: goalId } });
+    },
+    enabled: !!tenantId,
+  });
+
   const goal = goalQuery.data?.goal ?? null;
   const plan = planQuery.data?.plan ?? null;
   const items = itemsQuery.data?.items ?? [];
+  const marketSummary = marketQuery.data?.summary ?? null;
 
   const blueprint: LeadEngineBlueprint | null = useMemo(() => {
     if (!goal || !plan) return null;
@@ -124,10 +137,12 @@ function BlueprintPage() {
         }),
       ),
       pageIntelligence: [],
+      marketDemandSummary:
+        marketSummary && marketSummary.available ? marketSummary : undefined,
       now: new Date(),
     };
     return generateLeadEngineBlueprint(input);
-  }, [goal, plan, items, tenantId]);
+  }, [goal, plan, items, tenantId, marketSummary]);
 
   return (
     <div className="min-h-screen bg-background bg-blueprint">
@@ -223,7 +238,7 @@ function BlueprintView({ blueprint }: { blueprint: LeadEngineBlueprint }) {
       <Section section={sectionByType.current_situation} />
       <Section section={sectionByType.growth_gap} accent="warning" />
 
-      <PlaceholderSection section={sectionByType.market_intelligence} />
+      <MarketIntelligenceBlock section={sectionByType.market_intelligence} />
       <PlaceholderSection section={sectionByType.competitive_position} />
 
       <PageDiagnostics section={sectionByType.page_diagnostics} />
@@ -496,6 +511,171 @@ function PlaceholderSection({ section }: { section: BlueprintSection | undefined
         <p className="mt-3 text-xs text-muted-foreground">{section.warnings.join(" · ")}</p>
       )}
     </section>
+  );
+}
+
+// ---------- Market Intelligence (rich) ----------
+
+function MarketIntelligenceBlock({ section }: { section: BlueprintSection | undefined }) {
+  if (!section) return null;
+  if (section.placeholder) return <PlaceholderSection section={section} />;
+
+  const items = section.items ?? [];
+  const clusters = items.filter((i) => (i.meta?.kind ?? "") === "cluster");
+  const topServices = items.filter((i) => (i.meta?.kind ?? "") === "top_service");
+  const topLocations = items.filter((i) => (i.meta?.kind ?? "") === "top_location");
+  const intents = items.filter((i) => (i.meta?.kind ?? "") === "intent_breakdown");
+
+  const sourceMetric = section.metrics?.find((m) => m.label === "Source");
+  const isSyntheticOrManual =
+    typeof sourceMetric?.value === "string" &&
+    (sourceMetric.value === "Synthetic fixture" || sourceMetric.value === "Manual entry");
+
+  return (
+    <section className="rounded-xl border border-primary/30 bg-primary/5 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <SectionHeading title={section.title} subtitle={section.summary} />
+        {sourceMetric && (
+          <Badge variant={isSyntheticOrManual ? "warning" : "success"}>
+            {String(sourceMetric.value)}
+          </Badge>
+        )}
+      </div>
+
+      {section.metrics && section.metrics.length > 0 && (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          {section.metrics.map((m, i) => (
+            <div
+              key={i}
+              className="rounded-md border border-border bg-background/40 p-3"
+            >
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                {m.label}
+              </p>
+              <p className="font-display text-lg text-foreground">
+                {m.value == null || m.value === "" ? "—" : String(m.value)}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {clusters.length > 0 && (
+        <div className="mt-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+            Top demand clusters
+          </p>
+          <ol className="mt-3 grid gap-3 md:grid-cols-2">
+            {clusters.map((c, i) => {
+              const meta = c.meta ?? {};
+              const intent = meta.intent ? String(meta.intent) : null;
+              const priority = meta.priority ? String(meta.priority) : null;
+              const opp =
+                typeof meta.opportunityScore === "number" ? meta.opportunityScore : null;
+              const volume =
+                typeof meta.totalVolume === "number" ? meta.totalVolume : null;
+              const keywords =
+                typeof meta.representativeKeywords === "string"
+                  ? meta.representativeKeywords
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  : [];
+              return (
+                <li
+                  key={i}
+                  className="rounded-md border border-border/60 bg-background/40 p-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">
+                      {i + 1}. {c.title}
+                    </p>
+                    {opp != null && (
+                      <Badge variant={opp >= 65 ? "success" : opp >= 45 ? "primary" : "muted"}>
+                        Opp {Math.round(opp)}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {intent && <Badge variant="muted">Intent: {intent}</Badge>}
+                    {priority && <Badge variant="muted">{priority}</Badge>}
+                    {volume != null && <Badge variant="muted">{volume} vol/mo</Badge>}
+                  </div>
+                  {keywords.length > 0 && (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      <span className="font-semibold text-foreground">Keywords:</span>{" "}
+                      {keywords.join(", ")}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+
+      {(topServices.length > 0 || topLocations.length > 0) && (
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          {topServices.length > 0 && (
+            <PivotList title="Top services by demand" items={topServices} />
+          )}
+          {topLocations.length > 0 && (
+            <PivotList title="Top locations by demand" items={topLocations} />
+          )}
+        </div>
+      )}
+
+      {intents.length > 0 && (
+        <div className="mt-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+            Intent breakdown
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {intents.map((i, idx) => (
+              <Badge key={idx} variant="muted">
+                {i.title}: {String(i.meta?.count ?? 0)}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {section.warnings && section.warnings.length > 0 && (
+        <ul className="mt-5 space-y-1 text-xs text-amber-500">
+          {section.warnings.map((w, i) => (
+            <li key={i}>⚠ {w}</li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function PivotList({
+  title,
+  items,
+}: {
+  title: string;
+  items: NonNullable<BlueprintSection["items"]>;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-background/40 p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+        {title}
+      </p>
+      <ul className="mt-3 space-y-2">
+        {items.map((it, i) => (
+          <li key={i} className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-foreground">{it.title}</span>
+            <span className="text-muted-foreground">
+              {typeof it.meta?.totalVolume === "number"
+                ? `${it.meta.totalVolume.toLocaleString()} vol`
+                : "—"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

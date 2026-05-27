@@ -131,3 +131,14 @@ Ticket 3 will add a server-side job that:
 Synthetic Dallas HVAC fixture lives at
 `src/lib/shared/marketIntelligence/fixtures.ts` — used to exercise the
 Blueprint integration before DataForSEO is wired.
+
+## Blueprint integration (Ticket 2b)
+
+- `summarizeLatestMarketScan` is consumed by `/growth/blueprint` and fed
+  into `generateLeadEngineBlueprint({ marketDemandSummary })`.
+- The Market Intelligence section becomes rich (clusters, top
+  services/locations, intent breakdown, representative keywords) when a
+  scan exists; otherwise the placeholder remains.
+- Source is always surfaced. `synthetic_fixture` and `manual` scans are
+  badged amber and carry an explicit warning so they are never presented
+  as verified market data. DataForSEO replacement is Ticket 3.
