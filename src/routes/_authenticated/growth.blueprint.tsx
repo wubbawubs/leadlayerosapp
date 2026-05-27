@@ -92,10 +92,10 @@ function BlueprintPage() {
   const goalId = goalQuery.data?.goal?.id ?? null;
   const marketQuery = useQuery({
     queryKey: ["market-summary", tenantId, goalId],
-    queryFn: () =>
-      tenantId
-        ? fetchMarketSummary({ data: { tenantId, growthGoalId: goalId } })
-        : Promise.resolve({ summary: null }),
+    queryFn: async () => {
+      if (!tenantId) return { summary: null as Awaited<ReturnType<typeof fetchMarketSummary>>["summary"] | null };
+      return await fetchMarketSummary({ data: { tenantId, growthGoalId: goalId } });
+    },
     enabled: !!tenantId,
   });
 
