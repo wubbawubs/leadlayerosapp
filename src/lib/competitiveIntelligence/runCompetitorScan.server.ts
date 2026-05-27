@@ -817,6 +817,8 @@ export async function runCompetitorScan(
         });
 
     const reviewKnown = agg.gbpReviewCount != null && agg.gbpRating != null;
+    const lpMatch = localPackMatchByDomain.get(agg.domain) ?? null;
+    const pageDepthLimited = (pageDepth?.warnings ?? []).includes("firecrawl_map_limited");
     const score = computeCompetitorScore({
       clustersAppearedIn: agg.clusterKeys.size,
       clustersScanned: Math.max(1, clustersScannedCount),
@@ -831,29 +833,42 @@ export async function runCompetitorScan(
       trustSignals,
     });
 
-    const confidence = computeScoreConfidence({
+    const confidenceInput = {
       localPackDataPresent: agg.serpAppearanceCount > 0 || isSelf,
       reviewDataPresent: reviewKnown,
       firecrawlMapSuccess: mapOk,
       homepageScrapeSuccess: scrapeOk,
       pageCountsAvailable: pageDepth != null,
-    });
-    const completeness = computeDataCompleteness({
-      localPackDataPresent: agg.serpAppearanceCount > 0 || isSelf,
-      reviewDataPresent: reviewKnown,
-      firecrawlMapSuccess: mapOk,
-      homepageScrapeSuccess: scrapeOk,
-      pageCountsAvailable: pageDepth != null,
-    });
+      competitorTypeKnown: !isSelf
+        ? (finalClass.confidence ?? 0) >= 0.6 && finalClass.type !== "unknown"
+        : true,
+      localPackMatchConfidence: lpMatch?.confidence ?? null,
+      firecrawlMapLimited: pageDepthLimited,
+      serpOnly: !mapOk && !scrapeOk && !reviewKnown,
+    };
+    const confidence = computeScoreConfidence(confidenceInput);
+    const completeness = computeDataCompleteness(confidenceInput);
 
     // Enrich score_breakdown with self-identity + classifier fields so the
     // matrix summary and Blueprint UI can render baseline mode, confidence,
     // warnings, and the direct/intermediary split.
+    const pageDepthUnknownReason = pageDepth == null
+      ? (mapOk ? null : "Crawl unavailable")
+      : pageDepthLimited
+        ? "Crawl limited — few URLs returned"
+        : null;
     const breakdown: Record<string, unknown> = {
       ...(score.breakdown as unknown as Record<string, unknown>),
       competitorType: finalClass.type,
       competitorTypeConfidence: finalClass.confidence,
       competitorTypeReasons: finalClass.reasons,
+      localPackMatched: !!lpMatch && lpMatch.confidence >= 0.6,
+      localPackMatchConfidence: lpMatch?.confidence ?? null,
+      localPackMatchSignals: lpMatch?.signals ?? [],
+      pageDepthLimited,
+      pageDepthUnknownReason,
+      servicePageSamples: pageDepth?.servicePageDetails ?? [],
+      locationPageSamples: pageDepth?.locationPageDetails ?? [],
     };
     if (isSelf) {
       breakdown.identityMode = selfIdentity.identityMode;
