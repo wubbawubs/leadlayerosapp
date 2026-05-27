@@ -316,7 +316,7 @@ function resolveMarketDataForScoring(input: GenerateBlueprintInput) {
 // Scores → Blueprint scores
 // ---------------------------------------------------------------------------
 
-function buildScores(scoring: ScoringInputs): BlueprintScores {
+function buildScores(scoring: ScoringInputs, input?: GenerateBlueprintInput): BlueprintScores {
   const engine = calculateLeadEngineScore(scoring);
   const conv = calculateConversionReadinessScore(scoring);
   const demand = calculateDemandCoverageIndex(scoring);
@@ -324,6 +324,26 @@ function buildScores(scoring: ScoringInputs): BlueprintScores {
   const fin = calculateFinancialImpactScenarios(scoring);
 
   const missing = (cond: boolean, msg: string): string[] => (cond ? [msg] : []);
+
+  // Ticket 4c: append explicit module-status info reasons so "weak foundation"
+  // is explained by which intelligence modules are present, partial, or
+  // missing — not asserted in the abstract.
+  if (input) {
+    const marketAvailable =
+      (input.marketDemandSummary && input.marketDemandSummary.available) || !!input.marketData;
+    const cs = input.competitorSummary;
+    const competitorState: "available" | "partial" | "missing" = cs && cs.available
+      ? (cs.partial || cs.status === "partial" ? "partial" : "available")
+      : "missing";
+    const pageIntel = input.pageIntelligence.length > 0;
+    const gbpConnected = input.gbpData?.connected === true;
+    const trackingOk = input.trackingData?.hasAnalytics === true;
+    const auditOk = input.auditSummary?.overallScore != null;
+    engine.reasoning.push({
+      kind: "info",
+      message: `Module status — market: ${marketAvailable ? "available" : "missing"}; competitors: ${competitorState}; audit: ${auditOk ? "available" : "missing"}; page intelligence: ${pageIntel ? "available" : "missing"}; GBP: ${gbpConnected ? "available" : "missing"}; tracking: ${trackingOk ? "available" : "missing"}.`,
+    });
+  }
 
   const engineScore: BlueprintScore = {
     value: engine.score,
@@ -336,6 +356,7 @@ function buildScores(scoring: ScoringInputs): BlueprintScores {
     ],
     confidence: engine.confidence,
   };
+
 
   const convScore: BlueprintScore = {
     value: conv.score,
@@ -499,19 +520,21 @@ function buildDataAvailability(input: GenerateBlueprintInput): DataAvailability 
 function sectionGoal(input: GenerateBlueprintInput): BlueprintSection {
   const g = input.growthGoal;
   const horizon = g.timeframeMonths ?? 12;
-  const targetCount = g.targetCount ?? null;
+  // Ticket 4c convention: `targetCount` is the MONTHLY target (the form
+  // labels it "Target per maand"; masterplan + reporting treat it the same).
+  // Required leads/month = monthlyTarget / closeRate. No /horizon.
+  const monthlyTarget = g.targetCount ?? null;
   const closeRate = g.closeRate ?? null;
   const currentCount = g.currentCount ?? null;
 
-  const requiredLeads =
-    targetCount != null && closeRate && closeRate > 0
-      ? Math.ceil(targetCount / closeRate)
-      : null;
   const requiredLeadsPerMonth =
-    requiredLeads != null ? Math.ceil(requiredLeads / Math.max(1, horizon)) : null;
+    monthlyTarget != null && closeRate && closeRate > 0
+      ? Math.ceil(monthlyTarget / closeRate)
+      : null;
   const currentLeadsPerMonth =
-    currentCount != null ? round(currentCount / Math.max(1, horizon), 2) : null;
+    currentCount != null ? round(currentCount, 2) : null;
 
+  const targetUnit = g.targetType ?? "new clients";
   const warnings: string[] = [];
   if (closeRate != null && closeRate > 0.5) {
     warnings.push("Close rate above 50% — verify this is sustainable across the timeframe.");
@@ -519,12 +542,12 @@ function sectionGoal(input: GenerateBlueprintInput): BlueprintSection {
   if (closeRate == null) {
     warnings.push("Close rate not provided — lead math uses placeholder defaults.");
   }
-  if (targetCount == null) {
+  if (monthlyTarget == null) {
     warnings.push("Target count not provided — goal math cannot be fully derived.");
   }
 
   const metrics = [
-    { label: "Target", value: targetCount, unit: g.targetType ?? "new clients" },
+    { label: "Target", value: monthlyTarget, unit: `${targetUnit}/month` },
     { label: "Timeframe", value: horizon, unit: "months" },
     {
       label: "Close rate",
@@ -544,13 +567,14 @@ function sectionGoal(input: GenerateBlueprintInput): BlueprintSection {
     type: "goal",
     title: "Goal & Lead Math",
     summary:
-      targetCount != null
-        ? `Target ${targetCount} ${g.targetType ?? "new clients"} in ${horizon} months.`
+      monthlyTarget != null
+        ? `Target ${monthlyTarget} ${targetUnit}/month within ${horizon} months.`
         : "Growth target not fully specified — confirm with client.",
     metrics,
     warnings: warnings.length ? warnings : undefined,
   };
 }
+
 
 function sectionCurrentSituation(input: GenerateBlueprintInput): BlueprintSection {
   const pages = input.pageIntelligence;
@@ -636,23 +660,45 @@ function sectionGrowthGap(input: GenerateBlueprintInput, scores: BlueprintScores
       detail: "Google Business Profile not confirmed — likely largest local lead lever.",
     });
   }
-  const serviceFocus = input.growthGoal.serviceFocus?.length ?? 0;
-  const locations = input.growthGoal.locations?.length ?? 0;
+  const serviceFocus = input.growthGoal.serviceFocus ?? [];
+  const locations = input.growthGoal.locations ?? [];
   const items = input.masterplanItems;
-  const servicesPlanned = uniq(items.map((i) => i.service ?? "").filter(Boolean)).length;
-  const locationsPlanned = uniq(items.map((i) => i.location ?? "").filter(Boolean)).length;
-  if (serviceFocus > servicesPlanned) {
+
+  // Ticket 4c: match by item.service/location metadata when present, otherwise
+  // fall back to substring match on item title / description / rationale.
+  // This catches cases where masterplan items don't carry explicit
+  // service/location tags but clearly address them in their copy.
+  const norm = (s: string) => s.toLowerCase().trim();
+  const coverage = (terms: string[], pick: "service" | "location") => {
+    const addressed = new Set<string>();
+    for (const term of terms) {
+      const t = norm(term);
+      if (!t) continue;
+      const matched = items.some((i) => {
+        const tag = pick === "service" ? i.service : i.location;
+        if (tag && norm(tag) === t) return true;
+        const hay = `${i.title ?? ""} ${i.description ?? ""} ${i.rationale ?? ""}`.toLowerCase();
+        return hay.includes(t);
+      });
+      if (matched) addressed.add(t);
+    }
+    return addressed.size;
+  };
+  const servicesAddressed = coverage(serviceFocus, "service");
+  const locationsAddressed = coverage(locations, "location");
+  if (serviceFocus.length > 0 && servicesAddressed < serviceFocus.length) {
     gaps.push({
       title: "Service coverage gap",
-      detail: `${serviceFocus} priority service${serviceFocus === 1 ? "" : "s"} declared, ${servicesPlanned} addressed in plan.`,
+      detail: `${servicesAddressed}/${serviceFocus.length} priority services addressed across plan/backlog.`,
     });
   }
-  if (locations > locationsPlanned) {
+  if (locations.length > 0 && locationsAddressed < locations.length) {
     gaps.push({
       title: "Location coverage gap",
-      detail: `${locations} priority location${locations === 1 ? "" : "s"} declared, ${locationsPlanned} addressed in plan.`,
+      detail: `${locationsAddressed}/${locations.length} priority locations addressed across plan/backlog.`,
     });
   }
+
   if (!input.rankingData) {
     gaps.push({
       title: "Reporting loop",
@@ -957,13 +1003,17 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
       );
     }
 
+    const snapshotPrefix = cs.partial || cs.status === "partial"
+      ? "Partial snapshot — some clusters or competitor pages could not be analyzed. "
+      : "Snapshot across selected local demand clusters, not a complete ranking baseline. ";
     return {
       type: "competitive_position",
       title: "Competitive Position",
       summary:
-        cs.gaps.length > 0
+        snapshotPrefix +
+        (cs.gaps.length > 0
           ? `Top gap: ${cs.gaps[0].label}. ${cs.gaps[0].detail}`
-          : "Competitor scan complete. Self row is comparable across all scored dimensions.",
+          : "Self row is comparable across all scored dimensions."),
       metrics: [
         { label: "Direct competitors", value: cs.directCompetitorCount },
         { label: "SERP intermediaries", value: cs.intermediaryCount },
@@ -980,6 +1030,7 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
       warnings: cs.warnings.length ? cs.warnings : undefined,
     };
   }
+
 
 
   // Legacy / placeholder.
@@ -1016,11 +1067,16 @@ function sectionPageDiagnostics(input: GenerateBlueprintInput, scores: Blueprint
     return {
       type: "page_diagnostics",
       title: "Page Diagnostics",
-      summary: "No page intelligence available yet.",
+      summary:
+        "No page intelligence yet. Run a site audit and page analysis to unlock per-page conversion diagnostics.",
       placeholder: true,
-      warnings: ["Run page intelligence to populate per-page diagnostics."],
+      warnings: [
+        "Conversion Readiness and Lead Engine Score default lower while page intelligence is missing — they will sharpen once an audit runs.",
+        "Next step: open Sites → run an audit on the connected site to populate this section.",
+      ],
     };
   }
+
   // Prioritise pages with most gaps.
   const ranked = [...pages].sort((a, b) => {
     const score = (p: GeneratorPage) =>
@@ -1500,7 +1556,7 @@ export function generateLeadEngineBlueprint(
   const now = (input.now ?? new Date(0)).toISOString();
 
   const scoringInputs = toScoringInputs(input);
-  const scores = buildScores(scoringInputs);
+  const scores = buildScores(scoringInputs, input);
   const financialModel = buildFinancialModel(input, scoringInputs);
   const dataAvailability = buildDataAvailability(input);
   const leadEngineMap = buildLeadEngineMap(input);
