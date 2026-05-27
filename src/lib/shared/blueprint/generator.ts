@@ -1556,7 +1556,7 @@ export function generateLeadEngineBlueprint(
   const now = (input.now ?? new Date(0)).toISOString();
 
   const scoringInputs = toScoringInputs(input);
-  const scores = buildScores(scoringInputs);
+  const scores = buildScores(scoringInputs, input);
   const financialModel = buildFinancialModel(input, scoringInputs);
   const dataAvailability = buildDataAvailability(input);
   const leadEngineMap = buildLeadEngineMap(input);
