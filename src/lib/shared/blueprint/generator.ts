@@ -1041,11 +1041,16 @@ function sectionPageDiagnostics(input: GenerateBlueprintInput, scores: Blueprint
     return {
       type: "page_diagnostics",
       title: "Page Diagnostics",
-      summary: "No page intelligence available yet.",
+      summary:
+        "No page intelligence yet. Run a site audit and page analysis to unlock per-page conversion diagnostics.",
       placeholder: true,
-      warnings: ["Run page intelligence to populate per-page diagnostics."],
+      warnings: [
+        "Conversion Readiness and Lead Engine Score default lower while page intelligence is missing — they will sharpen once an audit runs.",
+        "Next step: open Sites → run an audit on the connected site to populate this section.",
+      ],
     };
   }
+
   // Prioritise pages with most gaps.
   const ranked = [...pages].sort((a, b) => {
     const score = (p: GeneratorPage) =>
