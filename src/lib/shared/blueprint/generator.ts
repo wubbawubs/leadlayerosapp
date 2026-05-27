@@ -250,6 +250,27 @@ function toScoringInputs(input: GenerateBlueprintInput): ScoringInputs {
   const pagesWithTrust = pages.filter((p) => p.hasTrustSignals).length;
   const thinPages = pages.filter((p) => p.isThin).length;
 
+  const scored = pages.filter((p): p is GeneratorPage & { conversionReadiness: number } =>
+    typeof p.conversionReadiness === "number",
+  );
+  const avgConversionReadiness = scored.length
+    ? scored.reduce((s, p) => s + p.conversionReadiness, 0) / scored.length
+    : undefined;
+  const priorityWeight = (p: GeneratorPage): number => {
+    const t = (p.pageType ?? "").toLowerCase();
+    const prio = (p.commercialPriority ?? "").toLowerCase();
+    if (prio === "critical") return 3;
+    if (prio === "high" || t === "service" || t === "landing" || t === "homepage") return 2;
+    if (t === "contact" || t === "location") return 1.5;
+    return 1;
+  };
+  const totalW = scored.reduce((s, p) => s + priorityWeight(p), 0);
+  const weightedConversionReadiness = totalW > 0
+    ? scored.reduce((s, p) => s + p.conversionReadiness * priorityWeight(p), 0) / totalW
+    : undefined;
+  // GBP confirmation comes from gbpData when present; absence = not confirmed.
+  const gbpConfirmed = !!(input.gbpData && (input.gbpData.reviewsCount ?? 0) > 0);
+
   const items = input.masterplanItems ?? [];
   const firstPhase = items.filter((i) => i.phase === "first_30_days").length;
 
@@ -264,7 +285,15 @@ function toScoringInputs(input: GenerateBlueprintInput): ScoringInputs {
         }
       : undefined,
     pageIntelligence: totalPages
-      ? { totalPages, pagesWithCta, pagesWithTrust, thinPages }
+      ? {
+          totalPages,
+          pagesWithCta,
+          pagesWithTrust,
+          thinPages,
+          avgConversionReadiness,
+          weightedConversionReadiness,
+          gbpConfirmed,
+        }
       : undefined,
     masterplan: {
       itemCount: items.length,
