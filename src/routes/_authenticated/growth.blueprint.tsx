@@ -273,7 +273,11 @@ function BlueprintView({ blueprint }: { blueprint: LeadEngineBlueprint }) {
       />
 
 
-      <PlaceholderSection section={sectionByType.competitive_position} />
+      <CompetitiveBlock
+        section={sectionByType.competitive_position}
+        tenantId={blueprint.tenantId ?? null}
+        growthGoalId={blueprint.growthGoalId ?? null}
+      />
 
       <PageDiagnostics section={sectionByType.page_diagnostics} />
       <Section section={sectionByType.strategy} accent="primary" />
