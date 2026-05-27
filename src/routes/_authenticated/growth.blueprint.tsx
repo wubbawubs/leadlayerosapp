@@ -89,9 +89,20 @@ function BlueprintPage() {
     enabled: !!tenantId && !!planId,
   });
 
+  const goalId = goalQuery.data?.goal?.id ?? null;
+  const marketQuery = useQuery({
+    queryKey: ["market-summary", tenantId, goalId],
+    queryFn: () =>
+      tenantId
+        ? fetchMarketSummary({ data: { tenantId, growthGoalId: goalId } })
+        : Promise.resolve({ summary: null }),
+    enabled: !!tenantId,
+  });
+
   const goal = goalQuery.data?.goal ?? null;
   const plan = planQuery.data?.plan ?? null;
   const items = itemsQuery.data?.items ?? [];
+  const marketSummary = marketQuery.data?.summary ?? null;
 
   const blueprint: LeadEngineBlueprint | null = useMemo(() => {
     if (!goal || !plan) return null;
@@ -126,10 +137,12 @@ function BlueprintPage() {
         }),
       ),
       pageIntelligence: [],
+      marketDemandSummary:
+        marketSummary && marketSummary.available ? marketSummary : undefined,
       now: new Date(),
     };
     return generateLeadEngineBlueprint(input);
-  }, [goal, plan, items, tenantId]);
+  }, [goal, plan, items, tenantId, marketSummary]);
 
   return (
     <div className="min-h-screen bg-background bg-blueprint">
