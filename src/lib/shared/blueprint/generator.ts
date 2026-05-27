@@ -275,15 +275,31 @@ function toScoringInputs(input: GenerateBlueprintInput): ScoringInputs {
       locationCount: input.growthGoal.locations?.length ?? 0,
       hasTracking: !!input.growthGoal.hasTracking,
     },
-    marketData: input.marketData
-      ? {
-          totalAddressableVolume: input.marketData.totalAddressableVolume ?? null,
-          capturedVolume: input.marketData.capturedVolume ?? null,
-          clusterCount: input.marketData.clusterCount ?? 0,
-          clustersCovered: input.marketData.clustersCovered ?? 0,
-        }
-      : undefined,
+    marketData: resolveMarketDataForScoring(input),
   };
+}
+
+function resolveMarketDataForScoring(input: GenerateBlueprintInput) {
+  const summary = input.marketDemandSummary;
+  if (summary && summary.available) {
+    // "Clusters covered" is unknown without ranking data (Ticket 6) — treat as 0
+    // so the scoring framework rewards demand sizing without inventing rank.
+    return {
+      totalAddressableVolume: summary.totalAddressableVolume,
+      capturedVolume: null,
+      clusterCount: summary.clusterCount,
+      clustersCovered: 0,
+    };
+  }
+  if (input.marketData) {
+    return {
+      totalAddressableVolume: input.marketData.totalAddressableVolume ?? null,
+      capturedVolume: input.marketData.capturedVolume ?? null,
+      clusterCount: input.marketData.clusterCount ?? 0,
+      clustersCovered: input.marketData.clustersCovered ?? 0,
+    };
+  }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
