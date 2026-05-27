@@ -582,6 +582,9 @@ export async function runCompetitorScan(
         cur.bestRankCount += 1;
       }
       if (!cur.displayName && o.title) cur.displayName = o.title;
+      if (!cur.bestTitle && o.title) cur.bestTitle = o.title;
+      if (!cur.bestSnippet && o.snippet) cur.bestSnippet = o.snippet;
+      if (!cur.bestUrl && o.url) cur.bestUrl = o.url;
       aggMap.set(d, cur);
     }
     // Local-pack enrichment
