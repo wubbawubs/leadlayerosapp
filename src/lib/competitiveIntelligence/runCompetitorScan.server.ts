@@ -378,16 +378,35 @@ export async function runCompetitorScan(
     const clusterKey = `${cluster.service ?? ""}|${cluster.location ?? ""}|${cluster.clusterName}`;
 
     try {
-      const result = await fetchSerpForKeyword({
-        keyword,
-        locationName,
-        languageCode: language,
-      });
+      let result;
+      let usedLocation = locationName;
+      try {
+        result = await fetchSerpForKeyword({
+          keyword,
+          locationName,
+          languageCode: language,
+        });
+      } catch (cityErr) {
+        // Fallback: DataForSEO often rejects city/state strings it doesn't
+        // recognise. Retry once with country-only so we still capture organic
+        // SERP coverage even if local-pack data isn't available.
+        const fallbackLocation = countryFullName(country);
+        if (fallbackLocation && fallbackLocation !== locationName) {
+          result = await fetchSerpForKeyword({
+            keyword,
+            locationName: fallbackLocation,
+            languageCode: language,
+          });
+          usedLocation = fallbackLocation;
+        } else {
+          throw cityErr;
+        }
+      }
       serpSuccesses++;
       clusterRuns.push({
         clusterKey,
         keyword,
-        locationName,
+        locationName: usedLocation,
         organic: result.organic,
         localPack: result.localPack,
       });
@@ -398,7 +417,7 @@ export async function runCompetitorScan(
           competitor_scan_id: scanId,
           cluster_key: clusterKey,
           keyword,
-          location: locationName,
+          location: usedLocation,
           rank: o.rank,
           url: o.url,
           domain: o.domain,
@@ -414,7 +433,7 @@ export async function runCompetitorScan(
           competitor_scan_id: scanId,
           cluster_key: clusterKey,
           keyword,
-          location: locationName,
+          location: usedLocation,
           rank: lp.rank,
           url: lp.url,
           domain: lp.domain,
@@ -437,6 +456,7 @@ export async function runCompetitorScan(
         error: err instanceof Error ? err.message : String(err),
       });
     }
+
   }
 
   // Persist SERP results in chunks.
