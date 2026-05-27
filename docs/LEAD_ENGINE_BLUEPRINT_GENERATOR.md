@@ -127,3 +127,26 @@ With this input, `generateLeadEngineBlueprint` returns a blueprint where:
 
 Ticket 1c — Blueprint View + internal/shareable preview. Render the object;
 do not re-derive its contents.
+
+## Ticket 2b — Market Intelligence integration
+
+The generator now accepts `marketDemandSummary: MarketDemandSummary` (from
+`summarizeMarketScan()`). When present and `available`:
+
+- `sectionMarketIntelligence` renders rich items: top clusters (with intent,
+  opportunity score, priority, representative keywords), top services, top
+  locations, and intent breakdown. Metrics include keyword count, total
+  demand, top service/location, source label, and confidence.
+- `toScoringInputs` maps the summary into the scoring framework's
+  `marketData` (totalAddressableVolume + clusterCount). `clustersCovered`
+  stays 0 until Ticket 6 (Ranking Baseline) provides real coverage.
+- `dataAvailability.marketData` flips to `available`.
+- `buildAssumptions` swaps the "Market data pending" assumption for either
+  "Market data available" or, for `manual` / `synthetic_fixture` sources,
+  "Market data is manual/synthetic" with a warning to replace via DataForSEO.
+
+When `marketDemandSummary` is absent, behavior is unchanged: the section
+renders the existing placeholder ("Pending market scan").
+
+Safety rule: synthetic/manual data is always labelled — the generator and
+View never present it as verified market data.

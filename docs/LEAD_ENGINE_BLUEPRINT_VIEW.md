@@ -125,3 +125,19 @@ With Dallas-shaped upstream data:
   the per-audit selection UX is decided.
 - Replace placeholder sections with real intelligence as Tickets 3–6
   land.
+
+## Ticket 2b — Market Intelligence rendering
+
+The Market Intelligence section now switches between two states:
+
+- **Placeholder** (no `marketDemandSummary`): existing dashed-border
+  "Pending market scan" card.
+- **Rich** (summary available): `MarketIntelligenceBlock` renders the
+  source badge (Synthetic fixture / Manual entry / DataForSEO), a metrics
+  grid, top demand clusters (with opportunity, intent, priority, volume,
+  representative keywords), top services and top locations pivoted by
+  total demand, and an intent-breakdown row. Synthetic/manual scans show
+  an amber source badge and an explicit warning in the section.
+
+The view consumes `summarizeLatestMarketScan({ tenantId, growthGoalId })`
+and passes the result into the generator. No external API calls.
