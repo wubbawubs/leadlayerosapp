@@ -146,7 +146,12 @@ export type LeadEngineMap = z.infer<typeof leadEngineMapSchema>;
 // Data availability matrix
 // ---------------------------------------------------------------------------
 
-export const dataAvailabilityStateSchema = z.enum(["available", "placeholder", "missing"]);
+export const dataAvailabilityStateSchema = z.enum([
+  "available",
+  "partial",
+  "placeholder",
+  "missing",
+]);
 export type DataAvailabilityState = z.infer<typeof dataAvailabilityStateSchema>;
 
 export const dataAvailabilitySchema = z.object({
