@@ -141,3 +141,22 @@ The Market Intelligence section now switches between two states:
 
 The view consumes `summarizeLatestMarketScan({ tenantId, growthGoalId })`
 and passes the result into the generator. No external API calls.
+
+## Ticket 4 — Competitive Position rendering
+
+`CompetitiveBlock` mirrors the Market Intelligence pattern:
+
+- **Placeholder** (no completed competitor scan): dashed card with the
+  generic competitive pillars, a "Run competitor scan" button, and a
+  config-key check. The button is disabled until DataForSEO + Firecrawl
+  are configured and a market scan has been completed.
+- **Rich** (summary available): metrics grid (competitor count, clusters
+  scanned, median competitor score, your score), pinned self row, a list
+  of competitor rows with score / confidence / SERP appearances / page
+  depth / reviews, and the "Where you're behind" evidence list from the
+  generator's top gaps.
+
+The block consumes `summarizeLatestCompetitorScan({ tenantId, growthGoalId })`
+for both the matrix data and the `config` flags (`dataForSeo`, `firecrawl`).
+Unknown review counts render as "Unknown" — never `0`. Partial scans surface
+their warnings without aborting the rest of the Blueprint.
