@@ -226,8 +226,8 @@ export const createMarketScan = createServerFn({ method: "POST" })
         average_competition: c.averageCompetition ?? null,
         opportunity_score: c.opportunityScore ?? null,
         priority: c.priority ?? null,
-        reasoning: c.reasoning,
-        representative_keywords: c.representativeKeywords,
+        reasoning: c.reasoning as never,
+        representative_keywords: c.representativeKeywords as never,
       }));
       const { data: clRows, error: clErr } = await supabaseAdmin
         .from("market_demand_clusters")
@@ -241,10 +241,10 @@ export const createMarketScan = createServerFn({ method: "POST" })
     const summary = summarizeMarketScan(scan, keywords, clusters);
     await supabaseAdmin
       .from("market_scans")
-      .update({ summary, confidence: summary.confidence })
+      .update({ summary: summary as never, confidence: summary.confidence })
       .eq("id", scan.id);
 
-    return { scan: { ...scan, summary, confidence: summary.confidence }, keywords, clusters };
+    return { scan, summary, keywords, clusters };
   });
 
 // ---------------------------------------------------------------------------
