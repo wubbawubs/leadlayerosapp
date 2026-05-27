@@ -86,7 +86,7 @@ export const marketScanSchema = z.object({
   source: marketScanSourceSchema,
   scanStartedAt: z.string().nullable().optional(),
   scanCompletedAt: z.string().nullable().optional(),
-  summary: z.record(z.string(), z.unknown()).default({}),
+  summary: z.record(z.string(), jsonValueSchema).default({}),
   confidence: z.number().nullable().optional(),
   errorMessage: z.string().nullable().optional(),
   createdAt: z.string(),
@@ -109,7 +109,7 @@ export const marketKeywordSchema = z.object({
   cpc: z.number().nullable().optional(),
   source: marketScanSourceSchema,
   confidence: z.number().nullable().optional(),
-  raw: z.record(z.string(), z.unknown()).default({}),
+  raw: z.record(z.string(), jsonValueSchema).default({}),
   createdAt: z.string(),
 });
 export type MarketKeyword = z.infer<typeof marketKeywordSchema>;
@@ -148,7 +148,7 @@ export const createMarketKeywordInputSchema = z.object({
   competition: z.number().min(0).max(1).nullable().optional(),
   cpc: z.number().min(0).max(1000).nullable().optional(),
   confidence: z.number().min(0).max(1).nullable().optional(),
-  raw: z.record(z.string(), z.unknown()).optional(),
+  raw: z.record(z.string(), jsonValueSchema).optional(),
 });
 export type CreateMarketKeywordInput = z.infer<typeof createMarketKeywordInputSchema>;
 
