@@ -35,6 +35,12 @@ import { classifyMapUrls } from "@/lib/shared/competitiveIntelligence/pageDepthC
 import { parseHomepageMarkdown } from "@/lib/shared/competitiveIntelligence/trustExtractor";
 import { buildCompetitorMatrixSummary } from "@/lib/shared/competitiveIntelligence/summarize";
 import {
+  buildSelfIdentity,
+  detectTemporaryOrPlaceholderDomain,
+  type SelfIdentity,
+  type SerpRowLike,
+} from "@/lib/shared/competitiveIntelligence/entityResolution";
+import {
   competitorScanSchema,
   competitorSchema,
   type Competitor,
