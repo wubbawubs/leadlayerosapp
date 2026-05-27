@@ -856,6 +856,78 @@ function sectionMarketIntelligence(input: GenerateBlueprintInput): BlueprintSect
 }
 
 function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSection {
+  const cs = input.competitorSummary;
+  if (cs && cs.available) {
+    const items: BlueprintSectionItem[] = [];
+    if (cs.self) {
+      items.push({
+        title: `Your site — ${cs.self.displayName ?? cs.self.domain}`,
+        detail: [
+          `Score ${cs.self.competitorScore ?? "—"} (confidence ${
+            cs.self.scoreConfidence != null
+              ? Math.round(cs.self.scoreConfidence * 100) + "%"
+              : "—"
+          })`,
+          `SERP appearances: ${cs.self.serpAppearanceCount}`,
+          `Service pages: ${cs.self.servicePagesCount ?? "unknown"}, location pages: ${cs.self.locationPagesCount ?? "unknown"}`,
+          `Reviews: ${cs.self.reviewsUnknown ? "unknown" : `${cs.self.gbpReviewCount ?? 0} @ ${cs.self.gbpRating ?? "—"}`}`,
+        ].join(" · "),
+        meta: { isSelf: true },
+      });
+    }
+    for (const row of cs.rows) {
+      items.push({
+        title: row.displayName ?? row.domain,
+        detail: [
+          `Score ${row.competitorScore ?? "—"} (confidence ${
+            row.scoreConfidence != null
+              ? Math.round(row.scoreConfidence * 100) + "%"
+              : "—"
+          })`,
+          `SERP appearances: ${row.serpAppearanceCount}`,
+          `Pages svc/loc: ${row.servicePagesCount ?? "?"}/${row.locationPagesCount ?? "?"}`,
+          `Reviews: ${row.reviewsUnknown ? "unknown" : `${row.gbpReviewCount ?? 0} @ ${row.gbpRating ?? "—"}`}`,
+        ].join(" · "),
+        meta: { domain: row.domain },
+      });
+    }
+
+    const evidence: string[] = [`Source: ${cs.source}`];
+    if (cs.scanCompletedAt) evidence.push(`Scan completed: ${cs.scanCompletedAt}`);
+    evidence.push(
+      `Clusters scanned: ${cs.clustersScanned}; SERP results: ${cs.serpResultsCollected}; competitors: ${cs.competitorCount}.`,
+    );
+    if (cs.gaps.length > 0) {
+      evidence.push(
+        `Where you're behind: ${cs.gaps
+          .map(
+            (g) =>
+              `${g.label} (you ${g.selfValue ?? "?"} vs. median ${g.competitorMedian ?? "?"})`,
+          )
+          .join("; ")}.`,
+      );
+    }
+
+    return {
+      type: "competitive_position",
+      title: "Competitive Position",
+      summary:
+        cs.gaps.length > 0
+          ? `Top gap: ${cs.gaps[0].label}. ${cs.gaps[0].detail}`
+          : "Competitor scan complete. Self row is comparable across all scored dimensions.",
+      metrics: [
+        { label: "Competitors", value: cs.competitorCount },
+        { label: "Clusters scanned", value: cs.clustersScanned },
+        { label: "Median competitor score", value: cs.medianCompetitorScore ?? null, unit: "/100" },
+        { label: "Your score", value: cs.selfScore ?? null, unit: "/100" },
+      ],
+      items,
+      evidence,
+      warnings: cs.warnings.length ? cs.warnings : undefined,
+    };
+  }
+
+  // Legacy / placeholder.
   if (!input.competitorData?.competitors?.length) {
     return {
       type: "competitive_position",
