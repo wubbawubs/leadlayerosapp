@@ -907,6 +907,37 @@ function sectionMarketIntelligence(input: GenerateBlueprintInput): BlueprintSect
   };
 }
 
+function classifySelfCoverage(input: GenerateBlueprintInput) {
+  const services = (input.growthGoal.serviceFocus ?? []).map((s) => s.toLowerCase());
+  const locations = (input.growthGoal.locations ?? []).map((l) => l.toLowerCase());
+  const pages = input.pageIntelligence ?? [];
+  const items = input.masterplanItems ?? [];
+
+  const matchAny = (text: string, terms: string[]) =>
+    terms.some((t) => t.length >= 3 && text.includes(t));
+
+  let existingService = 0;
+  let existingLocation = 0;
+  for (const p of pages) {
+    const role = (p.role ?? "").toLowerCase();
+    const hay = `${p.url ?? ""} ${p.title ?? ""}`.toLowerCase();
+    const isServiceRole = role.includes("service");
+    const isLocationRole = role.includes("location") || role.includes("area");
+    if (isServiceRole || matchAny(hay, services)) existingService += 1;
+    if (isLocationRole || matchAny(hay, locations)) existingLocation += 1;
+  }
+
+  let plannedService = 0;
+  let plannedLocation = 0;
+  for (const it of items) {
+    const type = (it.type ?? "").toLowerCase();
+    if (type === "service_page") plannedService += 1;
+    if (type === "location_page") plannedLocation += 1;
+  }
+
+  return { existingService, existingLocation, plannedService, plannedLocation };
+}
+
 function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSection {
   const cs = input.competitorSummary;
   if (cs && cs.available) {
@@ -938,6 +969,8 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
         identityBits.push(`identity confidence ${Math.round(cs.self.identityConfidence * 100)}%`);
       }
       if (rankingLabel) identityBits.push(rankingLabel);
+      const cov = classifySelfCoverage(input);
+      const coverageLine = `Internal coverage — service: ${cov.existingService} existing / ${cov.plannedService} planned · location: ${cov.existingLocation} existing / ${cov.plannedLocation} planned`;
       items.push({
         title: `Your site — ${cs.self.displayName ?? cs.self.domain}`,
         detail: [
@@ -949,6 +982,7 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
           identityBits.length ? identityBits.join(" · ") : null,
           `SERP appearances: ${cs.self.serpAppearanceCount}`,
           `Service pages: ${cs.self.servicePagesCount ?? "unknown"}, location pages: ${cs.self.locationPagesCount ?? "unknown"}`,
+          coverageLine,
           `Reviews: ${cs.self.reviewsUnknown ? "unknown" : `${cs.self.gbpReviewCount ?? 0} @ ${cs.self.gbpRating ?? "—"}`}`,
         ]
           .filter(Boolean)
@@ -959,6 +993,10 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
           identityConfidence: cs.self.identityConfidence,
           rankingPresence: cs.self.rankingPresence,
           temporaryDomain: cs.self.temporaryDomain,
+          existingServicePages: cov.existingService,
+          plannedServicePages: cov.plannedService,
+          existingLocationPages: cov.existingLocation,
+          plannedLocationPages: cov.plannedLocation,
         },
       });
     }
