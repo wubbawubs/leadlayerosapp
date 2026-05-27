@@ -140,6 +140,7 @@ function BlueprintPage() {
   const marketSummary = marketQuery.data?.summary ?? null;
   const competitorSummary = competitorQuery.data?.summary ?? null;
   const competitorConfig = competitorQuery.data?.config ?? { dataForSeo: false, firecrawl: false };
+  const pageDiagnostics = pageDiagnosticsQuery.data?.pages ?? [];
 
   const blueprint: LeadEngineBlueprint | null = useMemo(() => {
     if (!goal || !plan) return null;
@@ -173,7 +174,24 @@ function BlueprintPage() {
           metadata: (it.metadata ?? {}) as Record<string, unknown>,
         }),
       ),
-      pageIntelligence: [],
+      pageIntelligence: pageDiagnostics.map((p) => ({
+        id: p.id,
+        url: p.url,
+        title: p.title,
+        role: p.role,
+        hasCta: p.hasCta,
+        hasTrustSignals: p.hasTrustSignals,
+        isThin: p.isThin,
+        issues: p.issues,
+        recommendation: p.nextAction,
+        pageType: p.pageType,
+        intent: p.intent,
+        commercialPriority: p.commercialPriority,
+        conversionReadiness: p.conversionReadiness,
+        gaps: p.gaps,
+        nextAction: p.nextAction,
+        isLocalRelevant: p.isLocalRelevant,
+      })),
       marketDemandSummary:
         marketSummary && marketSummary.available ? marketSummary : undefined,
       competitorSummary:
@@ -181,7 +199,7 @@ function BlueprintPage() {
       now: new Date(),
     };
     return generateLeadEngineBlueprint(input);
-  }, [goal, plan, items, tenantId, marketSummary, competitorSummary]);
+  }, [goal, plan, items, tenantId, marketSummary, competitorSummary, pageDiagnostics]);
 
   return (
     <div className="min-h-screen bg-background bg-blueprint">
