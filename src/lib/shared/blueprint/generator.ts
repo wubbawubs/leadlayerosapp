@@ -171,6 +171,12 @@ export interface GenerateBlueprintInput {
   pageIntelligence: GeneratorPage[];
   auditSummary?: GeneratorAuditSummary;
   marketData?: GeneratorMarketData;
+  /**
+   * Preferred input as of Ticket 2b: a MarketDemandSummary produced by
+   * summarizeMarketScan(). When present, takes precedence over the legacy
+   * GeneratorMarketData shape and feeds rich cluster rendering + scoring.
+   */
+  marketDemandSummary?: MarketDemandSummary;
   competitorData?: GeneratorCompetitorData;
   gbpData?: GeneratorGbpData;
   rankingData?: GeneratorRankingData;
