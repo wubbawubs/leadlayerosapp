@@ -9,6 +9,26 @@
 
 import { z } from "zod";
 
+// JSON-safe recursive value (serializable across server-fn boundary).
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(jsonValueSchema),
+    z.record(z.string(), jsonValueSchema),
+  ]),
+);
+
 export const MARKET_INTELLIGENCE_SCHEMA_VERSION = "1.0.0";
 
 // ---------------------------------------------------------------------------
