@@ -982,13 +982,17 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
       );
     }
 
+    const snapshotPrefix = cs.partial || cs.status === "partial"
+      ? "Partial snapshot — some clusters or competitor pages could not be analyzed. "
+      : "Snapshot across selected local demand clusters, not a complete ranking baseline. ";
     return {
       type: "competitive_position",
       title: "Competitive Position",
       summary:
-        cs.gaps.length > 0
+        snapshotPrefix +
+        (cs.gaps.length > 0
           ? `Top gap: ${cs.gaps[0].label}. ${cs.gaps[0].detail}`
-          : "Competitor scan complete. Self row is comparable across all scored dimensions.",
+          : "Self row is comparable across all scored dimensions."),
       metrics: [
         { label: "Direct competitors", value: cs.directCompetitorCount },
         { label: "SERP intermediaries", value: cs.intermediaryCount },
@@ -1005,6 +1009,7 @@ function sectionCompetitivePosition(input: GenerateBlueprintInput): BlueprintSec
       warnings: cs.warnings.length ? cs.warnings : undefined,
     };
   }
+
 
 
   // Legacy / placeholder.
