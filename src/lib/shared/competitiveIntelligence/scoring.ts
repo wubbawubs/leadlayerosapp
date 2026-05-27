@@ -157,25 +157,75 @@ export interface ConfidenceInput {
   firecrawlMapSuccess: boolean;
   homepageScrapeSuccess: boolean;
   pageCountsAvailable: boolean;
+  /** Phase B — optional dimensions. Older callers can omit. */
+  competitorTypeKnown?: boolean;
+  /** 0..1 match strength when local-pack ↔ competitor was attempted. */
+  localPackMatchConfidence?: number | null;
+  /** True when Firecrawl map returned very few URLs (page-depth unreliable). */
+  firecrawlMapLimited?: boolean;
+  /** True when only SERP presence is known (no Firecrawl, no reviews). */
+  serpOnly?: boolean;
 }
 
-/** Returns 0..1 confidence based on signal completeness. */
+/**
+ * Returns 0..1 confidence based on signal completeness, with Phase B caps:
+ *  - reviews + page depth both unknown  → ≤0.50
+ *  - Firecrawl map failed               → ≤0.60
+ *  - SERP-only signal                   → ≤0.45
+ *  - competitor type unknown            → −0.10
+ *  - local-pack match attempted but weak → −0.10
+ *  - Firecrawl map limited              → −0.10
+ */
 export function computeScoreConfidence(input: ConfidenceInput): number {
   const weights = {
-    localPackDataPresent: 0.25,
+    localPackDataPresent: 0.2,
     reviewDataPresent: 0.25,
-    firecrawlMapSuccess: 0.2,
-    homepageScrapeSuccess: 0.15,
-    pageCountsAvailable: 0.15,
+    firecrawlMapSuccess: 0.15,
+    homepageScrapeSuccess: 0.1,
+    pageCountsAvailable: 0.2,
+    competitorTypeKnown: 0.1,
   };
   let score = 0;
   for (const [k, w] of Object.entries(weights)) {
-    if ((input as unknown as Record<string, boolean>)[k]) score += w;
+    const v = (input as unknown as Record<string, boolean | undefined>)[k];
+    if (v === true) score += w;
   }
-  return Math.max(0, Math.min(1, Math.round(score * 100) / 100));
+
+  if (input.competitorTypeKnown === false) score -= 0.1;
+  if (
+    typeof input.localPackMatchConfidence === "number" &&
+    input.localPackMatchConfidence > 0 &&
+    input.localPackMatchConfidence < 0.6
+  ) {
+    score -= 0.1;
+  }
+  if (input.firecrawlMapLimited === true) score -= 0.1;
+
+  let capped = Math.max(0, Math.min(1, score));
+
+  const reviewsUnknown = !input.reviewDataPresent;
+  const pageDepthUnknown = !input.pageCountsAvailable;
+  if (reviewsUnknown && pageDepthUnknown) capped = Math.min(capped, 0.5);
+  if (input.firecrawlMapSuccess === false) capped = Math.min(capped, 0.6);
+  if (input.serpOnly === true) capped = Math.min(capped, 0.45);
+
+  return Math.max(0, Math.min(1, Math.round(capped * 100) / 100));
 }
 
 export function computeDataCompleteness(input: ConfidenceInput): number {
-  // Same scoring as confidence today; kept separate so we can diverge later.
-  return computeScoreConfidence(input);
+  // Data completeness ignores the caps — it's a pure "% of signals present" view.
+  const weights = {
+    localPackDataPresent: 0.2,
+    reviewDataPresent: 0.25,
+    firecrawlMapSuccess: 0.15,
+    homepageScrapeSuccess: 0.1,
+    pageCountsAvailable: 0.2,
+    competitorTypeKnown: 0.1,
+  };
+  let score = 0;
+  for (const [k, w] of Object.entries(weights)) {
+    const v = (input as unknown as Record<string, boolean | undefined>)[k];
+    if (v === true) score += w;
+  }
+  return Math.max(0, Math.min(1, Math.round(score * 100) / 100));
 }
