@@ -542,12 +542,13 @@ export function calculateGrowthVelocityModel(inputs: ScoringInputs): GrowthVeloc
   const goal = inputs.goal;
   const horizonMonths = clampInt(goal?.timeframeMonths ?? 12, 1, 24);
 
-  // Baseline: current monthly leads from goal, falling back to 0.
-  const currentTotal = numericOrNull(goal?.currentCount);
+  // Baseline: current monthly leads/clients from goal (treated as monthly per
+  // Ticket 4c convention; was previously divided by horizon, which assumed
+  // currentCount was a total over the timeframe).
+  const currentMonthly = numericOrNull(goal?.currentCount);
   const baselineMonthly =
-    currentTotal != null
-      ? Math.max(0, round(currentTotal / Math.max(1, horizonMonths), 2))
-      : 0;
+    currentMonthly != null ? Math.max(0, round(currentMonthly, 2)) : 0;
+
 
   // Choose a monthly growth rate from masterplan + readiness signals.
   const mpConfidence = inputs.masterplan?.confidence ?? 0.5;
