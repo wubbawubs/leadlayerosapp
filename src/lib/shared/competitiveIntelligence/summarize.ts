@@ -275,6 +275,11 @@ export function buildCompetitorMatrixSummary(
       "Scan completed partially — some clusters or competitors returned errors. Scores reflect available data only.",
     );
   }
+  if (reviewComparisonLimited) {
+    warnings.push(
+      "Review comparison limited because local-pack matches were incomplete. Review-volume gap is suppressed until more competitors are matched.",
+    );
+  }
   if (allRows.length === 0) {
     warnings.push("No external competitors were captured in this scan.");
   }
