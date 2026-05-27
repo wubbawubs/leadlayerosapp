@@ -187,7 +187,7 @@ export const createMarketScan = createServerFn({ method: "POST" })
         cpc: k.cpc ?? null,
         source: data.source,
         confidence: k.confidence ?? null,
-        raw: k.raw ?? {},
+        raw: (k.raw ?? {}) as never,
       };
     });
 
