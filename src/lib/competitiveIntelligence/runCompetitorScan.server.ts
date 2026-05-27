@@ -743,7 +743,7 @@ export async function runCompetitorScan(
     // Enrich score_breakdown with self-identity fields so the matrix summary
     // and Blueprint UI can render baseline mode, confidence, and warnings.
     const breakdown: Record<string, unknown> = {
-      ...(score.breakdown as Record<string, unknown>),
+      ...(score.breakdown as unknown as Record<string, unknown>),
     };
     if (isSelf) {
       breakdown.identityMode = selfIdentity.identityMode;
