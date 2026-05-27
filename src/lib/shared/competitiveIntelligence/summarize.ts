@@ -25,8 +25,22 @@ function median(nums: number[]): number | null {
 }
 
 function toRow(c: Competitor): CompetitorMatrixRow {
-  const reviewsUnknown =
-    (c.scoreBreakdown as Record<string, unknown>)?.reviewsUnknown === true;
+  const sb = (c.scoreBreakdown as Record<string, unknown>) ?? {};
+  const reviewsUnknown = sb.reviewsUnknown === true;
+  const identityMode =
+    typeof sb.identityMode === "string"
+      ? (sb.identityMode as CompetitorMatrixRow["identityMode"])
+      : null;
+  const identityConfidence =
+    typeof sb.identityConfidence === "number" ? (sb.identityConfidence as number) : null;
+  const identityWarnings = Array.isArray(sb.identityWarnings)
+    ? (sb.identityWarnings as string[])
+    : [];
+  const rankingPresence =
+    typeof sb.rankingPresence === "string"
+      ? (sb.rankingPresence as CompetitorMatrixRow["rankingPresence"])
+      : null;
+  const temporaryDomain = sb.temporaryDomain === true;
   return {
     domain: c.domain,
     displayName: c.displayName ?? null,
@@ -43,6 +57,11 @@ function toRow(c: Competitor): CompetitorMatrixRow {
     scoreConfidence: c.scoreConfidence ?? null,
     dataCompleteness: c.dataCompleteness ?? null,
     reviewsUnknown,
+    identityMode,
+    identityConfidence,
+    identityWarnings,
+    rankingPresence,
+    temporaryDomain,
   };
 }
 
