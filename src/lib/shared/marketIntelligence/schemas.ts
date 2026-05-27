@@ -180,6 +180,34 @@ export const topEntityVolumeSchema = z.object({
 });
 export type TopEntityVolume = z.infer<typeof topEntityVolumeSchema>;
 
+export const clusterLocalityTypeSchema = z.enum(["local", "generic_reference", "mixed"]);
+export type ClusterLocalityType = z.infer<typeof clusterLocalityTypeSchema>;
+
+export const summaryClusterSchema = z.object({
+  clusterName: z.string(),
+  service: z.string().nullable(),
+  location: z.string().nullable(),
+  intent: keywordIntentSchema.nullable(),
+  totalVolume: z.number().nullable(),
+  opportunityScore: z.number().nullable(),
+  priority: clusterPrioritySchema.nullable(),
+  representativeKeywords: z.array(z.string()),
+  localityType: clusterLocalityTypeSchema.default("local"),
+});
+export type SummaryCluster = z.infer<typeof summaryClusterSchema>;
+
+export const localityBreakdownSchema = z.object({
+  localDemandVolume: z.number(),
+  genericReferenceDemandVolume: z.number(),
+  totalScannedDemandVolume: z.number(),
+  localKeywordCount: z.number(),
+  genericReferenceKeywordCount: z.number(),
+  keywordsWithVolumeCount: z.number(),
+  totalKeywordCount: z.number(),
+  volumeCoveragePercent: z.number(),
+});
+export type LocalityBreakdown = z.infer<typeof localityBreakdownSchema>;
+
 export const marketDemandSummarySchema = z.object({
   available: z.boolean(),
   source: marketScanSourceSchema.nullable(),
@@ -191,18 +219,9 @@ export const marketDemandSummarySchema = z.object({
   totalAddressableVolume: z.number().nullable(),
   averageDifficulty: z.number().nullable(),
   clusterCount: z.number(),
-  topClusters: z.array(
-    z.object({
-      clusterName: z.string(),
-      service: z.string().nullable(),
-      location: z.string().nullable(),
-      intent: keywordIntentSchema.nullable(),
-      totalVolume: z.number().nullable(),
-      opportunityScore: z.number().nullable(),
-      priority: clusterPrioritySchema.nullable(),
-      representativeKeywords: z.array(z.string()),
-    }),
-  ),
+  topClusters: z.array(summaryClusterSchema),
+  genericReferenceClusters: z.array(summaryClusterSchema).default([]),
+  localityBreakdown: localityBreakdownSchema.optional(),
   topServices: z.array(topEntityVolumeSchema),
   topLocations: z.array(topEntityVolumeSchema),
   intentDistribution: z.record(keywordIntentSchema, z.number()),
