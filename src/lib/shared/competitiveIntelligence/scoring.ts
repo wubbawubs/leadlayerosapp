@@ -116,7 +116,9 @@ export function computeCompetitorScore(
       input.locationsCount > 0
         ? Math.min(1, (input.locationPagesCount ?? 0) / input.locationsCount)
         : 0;
-    pageDepthComponent = Math.round(15 * serviceRatio + 10 * locationRatio);
+    const svcW = confidenceWeight(input.servicePagesConfidence);
+    const locW = confidenceWeight(input.locationPagesConfidence);
+    pageDepthComponent = Math.round(15 * serviceRatio * svcW + 10 * locationRatio * locW);
   }
 
   // D. trust
