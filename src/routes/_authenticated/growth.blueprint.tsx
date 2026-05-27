@@ -14,6 +14,10 @@ import {
   runDataForSeoMarketScan,
   summarizeLatestMarketScan,
 } from "@/lib/marketIntelligence/marketIntelligence.functions";
+import {
+  runCompetitorScanFn,
+  summarizeLatestCompetitorScan,
+} from "@/lib/competitiveIntelligence/competitiveIntelligence.functions";
 import { itemPhase } from "@/lib/shared/masterplan/schemas";
 
 import {
@@ -103,10 +107,28 @@ function BlueprintPage() {
     enabled: !!tenantId,
   });
 
+  const fetchCompetitorSummary = useServerFn(summarizeLatestCompetitorScan);
+  const competitorQuery = useQuery({
+    queryKey: ["competitor-summary", tenantId, goalId],
+    queryFn: async () => {
+      if (!tenantId)
+        return {
+          summary: null as Awaited<ReturnType<typeof fetchCompetitorSummary>>["summary"] | null,
+          config: { dataForSeo: false, firecrawl: false },
+        };
+      return await fetchCompetitorSummary({
+        data: { tenantId, growthGoalId: goalId },
+      });
+    },
+    enabled: !!tenantId,
+  });
+
   const goal = goalQuery.data?.goal ?? null;
   const plan = planQuery.data?.plan ?? null;
   const items = itemsQuery.data?.items ?? [];
   const marketSummary = marketQuery.data?.summary ?? null;
+  const competitorSummary = competitorQuery.data?.summary ?? null;
+  const competitorConfig = competitorQuery.data?.config ?? { dataForSeo: false, firecrawl: false };
 
   const blueprint: LeadEngineBlueprint | null = useMemo(() => {
     if (!goal || !plan) return null;
@@ -143,10 +165,12 @@ function BlueprintPage() {
       pageIntelligence: [],
       marketDemandSummary:
         marketSummary && marketSummary.available ? marketSummary : undefined,
+      competitorSummary:
+        competitorSummary && competitorSummary.available ? competitorSummary : undefined,
       now: new Date(),
     };
     return generateLeadEngineBlueprint(input);
-  }, [goal, plan, items, tenantId, marketSummary]);
+  }, [goal, plan, items, tenantId, marketSummary, competitorSummary]);
 
   return (
     <div className="min-h-screen bg-background bg-blueprint">
@@ -249,7 +273,11 @@ function BlueprintView({ blueprint }: { blueprint: LeadEngineBlueprint }) {
       />
 
 
-      <PlaceholderSection section={sectionByType.competitive_position} />
+      <CompetitiveBlock
+        section={sectionByType.competitive_position}
+        tenantId={blueprint.tenantId ?? null}
+        growthGoalId={blueprint.growthGoalId ?? null}
+      />
 
       <PageDiagnostics section={sectionByType.page_diagnostics} />
       <Section section={sectionByType.strategy} accent="primary" />
