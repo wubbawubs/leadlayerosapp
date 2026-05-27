@@ -1513,6 +1513,7 @@ function DataAvailabilityBlock({ blueprint }: { blueprint: LeadEngineBlueprint }
 
 function AvailabilityBadge({ state }: { state: DataAvailabilityState }) {
   if (state === "available") return <Badge variant="success">Available</Badge>;
+  if (state === "partial") return <Badge variant="warning">Partial</Badge>;
   if (state === "placeholder") return <Badge variant="pending">Placeholder</Badge>;
   return <Badge variant="muted">Missing</Badge>;
 }
