@@ -179,6 +179,24 @@ export function buildCompetitorMatrixSummary(
   }
   if (!self) {
     warnings.push("Self row is missing — tenant domain could not be resolved.");
+  } else {
+    if (self.identityMode === "profile_baseline" || self.identityMode === "unknown_baseline") {
+      warnings.push(
+        "Client site was not found in scanned SERPs. Gaps are based on connected site / profile baseline vs observed competitors.",
+      );
+    } else if (self.identityMode === "connected_site") {
+      warnings.push(
+        "Connected domain was not visible in scanned SERPs. Self-row uses connected-site baseline.",
+      );
+    }
+    if (self.temporaryDomain) {
+      warnings.push(
+        "Connected domain appears temporary. Competitive comparison uses profile/site baseline.",
+      );
+    }
+    for (const w of self.identityWarnings ?? []) {
+      if (!warnings.includes(w)) warnings.push(w);
+    }
   }
 
   return {
