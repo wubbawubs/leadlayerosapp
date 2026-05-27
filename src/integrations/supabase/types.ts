@@ -627,6 +627,236 @@ export type Database = {
           },
         ]
       }
+      competitor_scans: {
+        Row: {
+          clusters_scanned: number | null
+          confidence: number | null
+          created_at: string
+          error_message: string | null
+          growth_goal_id: string | null
+          id: string
+          market_scan_id: string | null
+          partial: boolean
+          scan_completed_at: string | null
+          scan_started_at: string | null
+          serp_results_collected: number | null
+          source: string | null
+          status: string
+          summary: Json
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          clusters_scanned?: number | null
+          confidence?: number | null
+          created_at?: string
+          error_message?: string | null
+          growth_goal_id?: string | null
+          id?: string
+          market_scan_id?: string | null
+          partial?: boolean
+          scan_completed_at?: string | null
+          scan_started_at?: string | null
+          serp_results_collected?: number | null
+          source?: string | null
+          status?: string
+          summary?: Json
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          clusters_scanned?: number | null
+          confidence?: number | null
+          created_at?: string
+          error_message?: string | null
+          growth_goal_id?: string | null
+          id?: string
+          market_scan_id?: string | null
+          partial?: boolean
+          scan_completed_at?: string | null
+          scan_started_at?: string | null
+          serp_results_collected?: number | null
+          source?: string | null
+          status?: string
+          summary?: Json
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      competitor_serp_results: {
+        Row: {
+          cluster_key: string | null
+          competitor_id: string | null
+          competitor_scan_id: string
+          created_at: string
+          domain: string | null
+          id: string
+          is_local_pack: boolean
+          keyword: string | null
+          local_pack_name: string | null
+          local_pack_rating: number | null
+          local_pack_review_count: number | null
+          location: string | null
+          rank: number | null
+          raw: Json
+          snippet: string | null
+          tenant_id: string
+          title: string | null
+          url: string | null
+        }
+        Insert: {
+          cluster_key?: string | null
+          competitor_id?: string | null
+          competitor_scan_id: string
+          created_at?: string
+          domain?: string | null
+          id?: string
+          is_local_pack?: boolean
+          keyword?: string | null
+          local_pack_name?: string | null
+          local_pack_rating?: number | null
+          local_pack_review_count?: number | null
+          location?: string | null
+          rank?: number | null
+          raw?: Json
+          snippet?: string | null
+          tenant_id: string
+          title?: string | null
+          url?: string | null
+        }
+        Update: {
+          cluster_key?: string | null
+          competitor_id?: string | null
+          competitor_scan_id?: string
+          created_at?: string
+          domain?: string | null
+          id?: string
+          is_local_pack?: boolean
+          keyword?: string | null
+          local_pack_name?: string | null
+          local_pack_rating?: number | null
+          local_pack_review_count?: number | null
+          location?: string | null
+          rank?: number | null
+          raw?: Json
+          snippet?: string | null
+          tenant_id?: string
+          title?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_serp_results_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_serp_results_competitor_scan_id_fkey"
+            columns: ["competitor_scan_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitors: {
+        Row: {
+          clusters_appeared_in: Json
+          competitor_scan_id: string
+          competitor_score: number | null
+          created_at: string
+          data_completeness: number | null
+          display_name: string | null
+          domain: string
+          error_message: string | null
+          gbp_category: string | null
+          gbp_name: string | null
+          gbp_rating: number | null
+          gbp_review_count: number | null
+          id: string
+          is_self: boolean
+          location_pages_count: number | null
+          location_pages_sample: Json
+          raw_homepage: Json
+          raw_map: Json
+          score_breakdown: Json
+          score_confidence: number | null
+          serp_appearance_count: number
+          service_pages_count: number | null
+          service_pages_sample: Json
+          tenant_id: string
+          trust_signals: Json
+          updated_at: string
+        }
+        Insert: {
+          clusters_appeared_in?: Json
+          competitor_scan_id: string
+          competitor_score?: number | null
+          created_at?: string
+          data_completeness?: number | null
+          display_name?: string | null
+          domain: string
+          error_message?: string | null
+          gbp_category?: string | null
+          gbp_name?: string | null
+          gbp_rating?: number | null
+          gbp_review_count?: number | null
+          id?: string
+          is_self?: boolean
+          location_pages_count?: number | null
+          location_pages_sample?: Json
+          raw_homepage?: Json
+          raw_map?: Json
+          score_breakdown?: Json
+          score_confidence?: number | null
+          serp_appearance_count?: number
+          service_pages_count?: number | null
+          service_pages_sample?: Json
+          tenant_id: string
+          trust_signals?: Json
+          updated_at?: string
+        }
+        Update: {
+          clusters_appeared_in?: Json
+          competitor_scan_id?: string
+          competitor_score?: number | null
+          created_at?: string
+          data_completeness?: number | null
+          display_name?: string | null
+          domain?: string
+          error_message?: string | null
+          gbp_category?: string | null
+          gbp_name?: string | null
+          gbp_rating?: number | null
+          gbp_review_count?: number | null
+          id?: string
+          is_self?: boolean
+          location_pages_count?: number | null
+          location_pages_sample?: Json
+          raw_homepage?: Json
+          raw_map?: Json
+          score_breakdown?: Json
+          score_confidence?: number | null
+          serp_appearance_count?: number
+          service_pages_count?: number | null
+          service_pages_sample?: Json
+          tenant_id?: string
+          trust_signals?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitors_competitor_scan_id_fkey"
+            columns: ["competitor_scan_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fix_proposal_groups: {
         Row: {
           audit_id: string
