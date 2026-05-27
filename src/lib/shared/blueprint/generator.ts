@@ -639,23 +639,45 @@ function sectionGrowthGap(input: GenerateBlueprintInput, scores: BlueprintScores
       detail: "Google Business Profile not confirmed — likely largest local lead lever.",
     });
   }
-  const serviceFocus = input.growthGoal.serviceFocus?.length ?? 0;
-  const locations = input.growthGoal.locations?.length ?? 0;
+  const serviceFocus = input.growthGoal.serviceFocus ?? [];
+  const locations = input.growthGoal.locations ?? [];
   const items = input.masterplanItems;
-  const servicesPlanned = uniq(items.map((i) => i.service ?? "").filter(Boolean)).length;
-  const locationsPlanned = uniq(items.map((i) => i.location ?? "").filter(Boolean)).length;
-  if (serviceFocus > servicesPlanned) {
+
+  // Ticket 4c: match by item.service/location metadata when present, otherwise
+  // fall back to substring match on item title / description / rationale.
+  // This catches cases where masterplan items don't carry explicit
+  // service/location tags but clearly address them in their copy.
+  const norm = (s: string) => s.toLowerCase().trim();
+  const coverage = (terms: string[], pick: "service" | "location") => {
+    const addressed = new Set<string>();
+    for (const term of terms) {
+      const t = norm(term);
+      if (!t) continue;
+      const matched = items.some((i) => {
+        const tag = pick === "service" ? i.service : i.location;
+        if (tag && norm(tag) === t) return true;
+        const hay = `${i.title ?? ""} ${i.description ?? ""} ${i.rationale ?? ""}`.toLowerCase();
+        return hay.includes(t);
+      });
+      if (matched) addressed.add(t);
+    }
+    return addressed.size;
+  };
+  const servicesAddressed = coverage(serviceFocus, "service");
+  const locationsAddressed = coverage(locations, "location");
+  if (serviceFocus.length > 0 && servicesAddressed < serviceFocus.length) {
     gaps.push({
       title: "Service coverage gap",
-      detail: `${serviceFocus} priority service${serviceFocus === 1 ? "" : "s"} declared, ${servicesPlanned} addressed in plan.`,
+      detail: `${servicesAddressed}/${serviceFocus.length} priority services addressed across plan/backlog.`,
     });
   }
-  if (locations > locationsPlanned) {
+  if (locations.length > 0 && locationsAddressed < locations.length) {
     gaps.push({
       title: "Location coverage gap",
-      detail: `${locations} priority location${locations === 1 ? "" : "s"} declared, ${locationsPlanned} addressed in plan.`,
+      detail: `${locationsAddressed}/${locations.length} priority locations addressed across plan/backlog.`,
     });
   }
+
   if (!input.rankingData) {
     gaps.push({
       title: "Reporting loop",
