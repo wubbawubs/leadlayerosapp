@@ -1203,9 +1203,13 @@ function sectionPageDiagnostics(input: GenerateBlueprintInput, scores: Blueprint
         intent: p.intent ?? null,
         commercialPriority: p.commercialPriority ?? null,
         conversionReadiness: p.conversionReadiness ?? null,
+        scoreLabel: p.scoreLabel ?? null,
         nextAction: p.nextAction ?? null,
         gapCount: gaps.length,
         isLocalRelevant: p.isLocalRelevant ?? null,
+        positives: (p.positives ?? []).slice(0, 4),
+        appliedCaps: p.appliedCaps ?? [],
+        negatives: (p.negatives ?? []).slice(0, 4),
       },
     };
   });
