@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 
 import { Logo } from "@/components/brand/Logo";
 import { listMyTenants } from "@/lib/shared/db/repos/tenants.functions";
@@ -10,8 +10,12 @@ import {
   getActiveMasterplan,
   listMasterplanItems,
 } from "@/lib/shared/masterplan/repo.functions";
-import { summarizeLatestMarketScan } from "@/lib/marketIntelligence/marketIntelligence.functions";
+import {
+  runDataForSeoMarketScan,
+  summarizeLatestMarketScan,
+} from "@/lib/marketIntelligence/marketIntelligence.functions";
 import { itemPhase } from "@/lib/shared/masterplan/schemas";
+
 import {
   generateLeadEngineBlueprint,
   type GenerateBlueprintInput,
@@ -238,7 +242,13 @@ function BlueprintView({ blueprint }: { blueprint: LeadEngineBlueprint }) {
       <Section section={sectionByType.current_situation} />
       <Section section={sectionByType.growth_gap} accent="warning" />
 
-      <MarketIntelligenceBlock section={sectionByType.market_intelligence} />
+      <MarketIntelligenceBlock
+        section={sectionByType.market_intelligence}
+        tenantId={blueprint.tenantId ?? null}
+        growthGoalId={blueprint.growthGoalId ?? null}
+      />
+
+
       <PlaceholderSection section={sectionByType.competitive_position} />
 
       <PageDiagnostics section={sectionByType.page_diagnostics} />
@@ -516,13 +526,73 @@ function PlaceholderSection({ section }: { section: BlueprintSection | undefined
 
 // ---------- Market Intelligence (rich) ----------
 
-function MarketIntelligenceBlock({ section }: { section: BlueprintSection | undefined }) {
+function MarketIntelligenceBlock({
+  section,
+  tenantId,
+  growthGoalId,
+}: {
+  section: BlueprintSection | undefined;
+  tenantId: string | null;
+  growthGoalId: string | null;
+}) {
+  const queryClient = useQueryClient();
+  const runScan = useServerFn(runDataForSeoMarketScan);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  const scanMutation = useMutation({
+    mutationFn: async () => {
+      if (!tenantId) throw new Error("No active tenant");
+      return await runScan({
+        data: { tenantId, growthGoalId: growthGoalId ?? null },
+      });
+    },
+    onSuccess: () => {
+      setScanError(null);
+      queryClient.invalidateQueries({ queryKey: ["market-summary"] });
+    },
+    onError: (err: unknown) => {
+      setScanError(err instanceof Error ? err.message : "Scan failed");
+    },
+  });
+
+  const ScanButton = (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={() => scanMutation.mutate()}
+        disabled={!tenantId || scanMutation.isPending}
+        className="rounded-md border border-primary/40 bg-primary px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+      >
+        {scanMutation.isPending ? "Running scan…" : "Run market scan"}
+      </button>
+      {scanError && (
+        <p className="max-w-xs text-right text-[11px] text-amber-500">⚠ {scanError}</p>
+      )}
+    </div>
+  );
+
   if (!section) return null;
-  if (section.placeholder) return <PlaceholderSection section={section} />;
+  if (section.placeholder) {
+    return (
+      <section className="rounded-xl border border-dashed border-border bg-card/40 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <SectionHeading title={section.title} subtitle={section.summary} />
+          {ScanButton}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          No completed market scan yet. Run a DataForSEO scan to populate demand clusters.
+        </p>
+        {section.warnings && section.warnings.length > 0 && (
+          <p className="mt-3 text-xs text-muted-foreground">{section.warnings.join(" · ")}</p>
+        )}
+      </section>
+    );
+  }
 
   const items = section.items ?? [];
   const clusters = items.filter((i) => (i.meta?.kind ?? "") === "cluster");
   const topServices = items.filter((i) => (i.meta?.kind ?? "") === "top_service");
+
   const topLocations = items.filter((i) => (i.meta?.kind ?? "") === "top_location");
   const intents = items.filter((i) => (i.meta?.kind ?? "") === "intent_breakdown");
 
@@ -535,12 +605,16 @@ function MarketIntelligenceBlock({ section }: { section: BlueprintSection | unde
     <section className="rounded-xl border border-primary/30 bg-primary/5 p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <SectionHeading title={section.title} subtitle={section.summary} />
-        {sourceMetric && (
-          <Badge variant={isSyntheticOrManual ? "warning" : "success"}>
-            {String(sourceMetric.value)}
-          </Badge>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {sourceMetric && (
+            <Badge variant={isSyntheticOrManual ? "warning" : "success"}>
+              {String(sourceMetric.value)}
+            </Badge>
+          )}
+          {ScanButton}
+        </div>
       </div>
+
 
       {section.metrics && section.metrics.length > 0 && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
