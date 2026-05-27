@@ -45,12 +45,23 @@ export async function mapDomain(
       limit: opts?.limit ?? 200,
       includeSubdomains: false,
     });
-    const links: string[] = Array.isArray(res?.links)
+    const rawLinks: unknown[] = Array.isArray(res?.links)
       ? res.links
       : Array.isArray(res?.data?.links)
         ? res.data.links
         : [];
-    return { ok: true, urls: links.filter((l) => typeof l === "string") };
+    // SDK v2 returns links as objects ({ url, title?, description? }); older
+    // shapes returned plain strings. Normalize both.
+    const urls: string[] = rawLinks
+      .map((l) =>
+        typeof l === "string"
+          ? l
+          : l && typeof l === "object" && typeof (l as { url?: unknown }).url === "string"
+            ? ((l as { url: string }).url)
+            : null,
+      )
+      .filter((u): u is string => !!u);
+    return { ok: true, urls };
   } catch (err) {
     return {
       ok: false,
