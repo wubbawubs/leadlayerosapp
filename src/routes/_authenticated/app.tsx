@@ -338,6 +338,33 @@ function AppHome() {
           </Card>
         </section>
 
+        <section className="mt-6">
+          <Card
+            title="Lead Engine Blueprint"
+            subtitle="Client-facing strategic blueprint"
+            cta={{
+              label: goal && plan ? "Open blueprint" : "Set up prerequisites",
+              to: goal && plan ? "/growth/blueprint" : "/growth/masterplan",
+            }}
+          >
+            {!goal || !plan ? (
+              <p className="text-sm text-muted-foreground">
+                Create a growth goal and masterplan to generate the Lead Engine
+                Blueprint — the strategic compile of goal, plan, page intelligence
+                and market signals.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Generate or review the Lead Engine Blueprint. Compiles scoring,
+                roadmap, lead engine map, financial scenarios and pending
+                intelligence modules into one client-facing document.
+              </p>
+            )}
+          </Card>
+        </section>
+
+
+
 
         <section className="mt-10 grid gap-5 lg:grid-cols-2">
           <Card title="Next steps" subtitle="What to do now">
