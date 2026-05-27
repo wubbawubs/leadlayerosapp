@@ -69,21 +69,58 @@ function extractHostname(input: string | null | undefined): string | null {
   }
 }
 
+/**
+ * US state abbreviation → full state name, used to convert client-friendly
+ * locations like "Dallas, TX" into the format DataForSEO SERP expects
+ * ("Dallas,Texas,United States"). Country-level fallback is handled by the
+ * caller if the city-level location is rejected.
+ */
+const US_STATE_ABBR: Record<string, string> = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
+  CO: "Colorado", CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia",
+  HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa",
+  KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland",
+  MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi",
+  MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada", NH: "New Hampshire",
+  NJ: "New Jersey", NM: "New Mexico", NY: "New York", NC: "North Carolina",
+  ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania",
+  RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee",
+  TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington",
+  WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia",
+};
+
+function countryFullName(country: string | null): string {
+  const c = (country ?? "US").toUpperCase();
+  if (c === "US" || c === "USA") return "United States";
+  if (c === "CA") return "Canada";
+  if (c === "GB" || c === "UK") return "United Kingdom";
+  if (c === "AU") return "Australia";
+  return c;
+}
+
 function pickSerpLocationName(
   clusterLocation: string | null,
   scanLocations: string[],
   country: string | null,
 ): string {
+  const countryName = countryFullName(country);
   const loc = (clusterLocation ?? scanLocations[0] ?? "").trim();
-  const c = (country ?? "US").toUpperCase();
-  const countryName = c === "US" ? "United States" : c;
   if (!loc) return countryName;
-  // If already includes a country, return as-is in DataForSEO comma-format.
-  if (/united states|usa|us$/i.test(loc)) return loc.replace(/,\s*/g, ",");
-  // Convert "Dallas, TX" → "Dallas,Texas,United States"? We'll pass best-effort:
-  // DataForSEO accepts both "Dallas, Texas, United States" and "Dallas, TX, United States" in many cases.
-  return `${loc}, ${countryName}`.replace(/\s+,/g, ",");
+  // Already contains a country marker — normalise spaces only.
+  if (/united states|usa|canada|united kingdom|australia/i.test(loc)) {
+    return loc.replace(/\s*,\s*/g, ",");
+  }
+  // Split "City, ST" → ["City", "ST"] (also handles "City, State").
+  const parts = loc.split(",").map((p) => p.trim()).filter(Boolean);
+  const city = parts[0] ?? "";
+  const stateRaw = parts[1] ?? "";
+  const stateExpanded =
+    stateRaw.length === 2 && US_STATE_ABBR[stateRaw.toUpperCase()]
+      ? US_STATE_ABBR[stateRaw.toUpperCase()]
+      : stateRaw;
+  return [city, stateExpanded, countryName].filter(Boolean).join(",");
 }
+
 
 async function loadSelfDomains(tenantId: string): Promise<string[]> {
   const { data } = await supabaseAdmin
