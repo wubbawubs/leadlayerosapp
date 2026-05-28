@@ -11,6 +11,7 @@ import type {
   ProductFlowState,
   ReviewGateStatus,
 } from "@/lib/shared/productFlow/schemas";
+import { IntelligencePipelinePanel } from "@/components/intelligencePipeline/IntelligencePipelinePanel";
 
 export const Route = createFileRoute("/_authenticated/growth/flow")({
   component: ProductFlowPage,
