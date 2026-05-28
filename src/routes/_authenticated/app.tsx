@@ -34,23 +34,23 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Growth",
     items: [
       { label: "Goal", to: "/settings/growth-goal" },
-      { label: "Masterplan", to: "/growth/masterplan" },
+      { label: "Intelligence", to: "/growth/intelligence" },
       { label: "Blueprint", to: "/growth/blueprint" },
+      { label: "Masterplan", to: "/growth/masterplan" },
       { label: "Execution", to: "/growth/execution" },
-    ],
-  },
-  {
-    label: "Intelligence",
-    items: [
-      { label: "Snapshot", to: "/growth/intelligence" },
-      { label: "Business profile", to: "/settings/business-profile" },
-      { label: "Tone profile", to: "/settings/tone-profile" },
     ],
   },
   {
     label: "Website",
     items: [
       { label: "Sites", to: "/sites" },
+    ],
+  },
+  {
+    label: "Settings",
+    items: [
+      { label: "Business profile", to: "/settings/business-profile" },
+      { label: "Tone profile", to: "/settings/tone-profile" },
     ],
   },
 ];
@@ -207,12 +207,12 @@ function AppHome() {
           Lead Growth OS
         </p>
         <h1 className="font-display text-5xl text-foreground">
-          Goal → Masterplan → <span className="text-primary">Execution.</span>
+          Goal → Intelligence → Blueprint → Masterplan → <span className="text-primary">Execution.</span>
         </h1>
         <p className="mt-3 max-w-2xl text-muted-foreground">
-          Your operator cockpit. Define the growth goal, generate the
-          masterplan, then run audits and proposals against it. Publishing,
-          tracking and reporting follow in later sprints.
+          One operating system for growth. The Snapshot below is the brainstem —
+          it normalizes every intelligence module and tells you exactly what to
+          do next. Publishing and the full Execution Task Engine land in upcoming sprints.
         </p>
 
         {snapshot && (
