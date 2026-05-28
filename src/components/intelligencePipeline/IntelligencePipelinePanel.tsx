@@ -100,38 +100,40 @@ export function IntelligencePipelinePanel({ tenantId }: { tenantId: string }) {
   if (!hasGoal) blockers.push("growth goal");
   if (!hasConnectedSite) blockers.push("connected site");
 
-  const progress = useMemo(() => (run ? computeProgress(run) : 0), [run]);
+  const summary = useMemo(() => (run ? getRunSummary(run) : null), [run]);
 
   return (
     <section className="mt-8 rounded-2xl border border-border bg-card/60 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">
             Intelligence Pipeline V1
           </p>
           <h2 className="mt-1 font-display text-2xl text-foreground">
-            {run?.currentStage ? STAGE_LABELS[run.currentStage] : run ? "Pipeline reviewed" : "No run yet"}
+            {summary ? summary.title : "No run yet"}
           </h2>
-          {run ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Status <RunStatusBadge status={run.status} /> · triggered by{" "}
-              <span className="text-foreground">{run.triggeredBy}</span>
-              {run.triggerReason ? ` · ${run.triggerReason}` : ""}
-            </p>
+          {run && summary ? (
+            <>
+              <p className="mt-1 text-sm text-foreground">{summary.subtitle}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                <RunStatusBadge status={run.status} /> · triggered by{" "}
+                <span className="text-foreground">{run.triggeredBy}</span>
+                {run.triggerReason ? ` · ${run.triggerReason}` : ""}
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {run.startedAt ? `Started ${fmt(run.startedAt)}` : "Not started"}
+                {run.completedAt ? ` · finished ${fmt(run.completedAt)}` : ""}
+                {run.failedAt ? ` · failed ${fmt(run.failedAt)}` : ""}
+              </p>
+            </>
           ) : (
             <p className="mt-1 text-xs text-muted-foreground">
               No intelligence run yet. Start one to build the Growth Intelligence Snapshot,
               Blueprint and Masterplan.
             </p>
           )}
-          {run && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {run.startedAt ? `Started ${fmt(run.startedAt)}` : "Not started"}
-              {run.completedAt ? ` · finished ${fmt(run.completedAt)}` : ""}
-              {run.failedAt ? ` · failed ${fmt(run.failedAt)}` : ""}
-            </p>
-          )}
         </div>
+
 
         <div className="flex flex-wrap gap-2">
           <button
