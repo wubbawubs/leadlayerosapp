@@ -121,6 +121,12 @@ the operator view.
 
 ## E. Automation Flow
 
+Orchestrated by **Intelligence Pipeline Orchestrator V1**
+(`intelligence_runs`, `/growth/flow`). See
+`docs/INTELLIGENCE_PIPELINE_ORCHESTRATOR_V1.md`.
+
+
+
 ### Runs automatically on "website added"
 - Site crawl
 - Audit
