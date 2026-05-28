@@ -135,6 +135,17 @@ function BlueprintPage() {
     enabled: !!tenantId,
   });
 
+  const fetchGbpSummary = useServerFn(summarizeGbpProfileFn);
+  const gbpQuery = useQuery({
+    queryKey: ["gbp-summary", tenantId, goalId],
+    queryFn: async () => {
+      if (!tenantId) return { summary: null };
+      return await fetchGbpSummary({ data: { tenantId, growthGoalId: goalId } });
+    },
+    enabled: !!tenantId,
+  });
+
+
   const goal = goalQuery.data?.goal ?? null;
   const plan = planQuery.data?.plan ?? null;
   const items = itemsQuery.data?.items ?? [];
