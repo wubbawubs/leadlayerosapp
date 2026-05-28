@@ -50,6 +50,7 @@ import type {
   MarketScanSource,
 } from "@/lib/shared/marketIntelligence/schemas";
 import type { CompetitorMatrixSummary } from "@/lib/shared/competitiveIntelligence/schemas";
+import type { GbpSummary } from "@/lib/shared/gbpIntelligence/schemas";
 
 // ---------------------------------------------------------------------------
 // Input contract (intentionally loose / structural)
