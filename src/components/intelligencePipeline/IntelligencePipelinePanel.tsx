@@ -24,8 +24,13 @@ import {
   type IntelligenceRunStatus,
   type IntelligenceStageKey,
   type IntelligenceStageState,
-  type IntelligenceStageStatus,
 } from "@/lib/shared/intelligencePipeline/schemas";
+import {
+  getRunSummary,
+  mapPipelineStageDisplay,
+  toneClass,
+  type DisplayTone,
+} from "./displayStatus";
 
 export function IntelligencePipelinePanel({ tenantId }: { tenantId: string }) {
   const qc = useQueryClient();
