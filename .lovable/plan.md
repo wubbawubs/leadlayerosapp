@@ -1,110 +1,79 @@
-# Blueprint Polish — Two Phases
+# Client Journey & OS Architecture + WordPress Integration Sprint
 
-You gave me two big tickets. Both are needed, but they touch overlapping files (generator, competitor summary, scoring, UI). To avoid one massive PR that's hard to verify, I'll ship them as two sequential phases with a typecheck and a Dallas review between them.
+Strategic reset. Two canonical product docs. Zero feature code, zero migrations, zero UI refactor.
 
-## Phase A — Ticket 4c: Blueprint Integrity & Goal Math Polish
+## Scope
 
-Smallest, highest-trust fix first. No new external calls.
+**In**
+- Create `docs/CLIENT_JOURNEY_AND_OS_ARCHITECTURE.md` — canonical product architecture
+- Create `docs/WORDPRESS_INTEGRATION_ARCHITECTURE.md` — staged WP delivery design
+- Read-only audit of `src/routes/_authenticated/*` and `src/lib/**` so the "keep / fold / demote" classification is grounded in what actually exists today
+- Add short cross-link pointers at the top of `docs/ROADMAP_V4.md` and `docs/LEAD_ENGINE_BLUEPRINT_ROADMAP.md` so future tickets reference these docs
 
-### A1. Goal math
-- Audit `growthGoalSchema` for `targetType` (`clients_per_month` vs `total_clients`) and `timeframeMonths`.
-- Rewrite `requiredLeadsPerMonth` in the generator:
-  - monthly target → `target / closeRate`
-  - total target → `(target / timeframeMonths) / closeRate`
-  - ambiguous → keep current value but emit `goalAmbiguous` warning + show "Goal period is ambiguous" in Goal & Lead Math section.
-- Goal headline reads "Target X clients/month within Y months" when monthly.
+**Out**
+- Execution Task Engine
+- Growth Intelligence Snapshot builder (next sprint, defined here only as a spec)
+- WordPress connection code, schema, or UI (existing WPCOM OAuth helper untouched)
+- Navigation refactor
+- Any migration, any new server function, any UI change
 
-### A2. Financial scenarios
-- `calculateFinancialImpactScenarios` driven by `requiredLeadsPerMonth` (gap), `closeRate`, `avgLeadValue`.
-- Scenarios = % of monthly lead gap (conservative 25%, expected 60%, aggressive 100%), not cold-start defaults.
-- If `currentLeadsPerMonth` unknown → say baseline unknown but still model target potential.
+## Doc 1 — `docs/CLIENT_JOURNEY_AND_OS_ARCHITECTURE.md`
 
-### A3. Service/location coverage
-- In growth-gap section, match priority services/locations from goal + business profile against masterplan items (`service_page`, `location_page`, `content`, `conversion`, `website_fix`) using normalized substring match.
-- Output "4/4 services addressed, 5/5 locations addressed across plan/backlog" instead of `0`.
+Canonical product architecture source. Sections:
 
-### A4. Page diagnostics empty state
-- Replace bare "No page intelligence available yet." with actionable copy + note that the score defaults lower until audit runs. No fake data.
+- **A. Product North Star** — Goal → Intelligence → Blueprint → Masterplan → Execution → Delivery → Tracking → Monthly Loop
+- **B. Actors** — Client, Operator, Software, each with explicit "does NOT do" lists
+- **C. Client Journey** — signup → website added → goal confirmed → assumptions confirmed → intelligence generated → operator review → blueprint delivered → client approval → execution → monthly loop, with what the client sees at each stage
+- **D. Operator Journey** — intake queue → intelligence review → blueprint review → masterplan approval → artifact review → publishing approval → monthly review
+- **E. Automation Flow** — what runs on website-added trigger (crawl, audit, page intel, BP draft, tone draft, market scan, competitor scan, GBP request, snapshot, blueprint draft, masterplan draft) vs what gates on human review (BP approval, tone approval, GBP assumptions, blueprint, masterplan, artifacts, publishing bundle)
+- **F. System Layers** — Intelligence / Blueprint / Masterplan / Execution / WordPress-Delivery / Tracking-Monthly-Loop
+- **G. Growth Intelligence Snapshot spec** — central normalized truth object (fields, sources, refresh triggers); flagged as next-sprint build target
+- **H. Two Blueprint Modes** — operator view (confidence, partials, warnings) vs client view (cleaned but honest)
+- **I. WordPress Direction (summary)** — core delivery layer, deep connection + inventory + mapping + draft creation, no live auto-publish in V1; full design lives in Doc 2
+- **J. Navigation Proposal** — Growth (Goal / Intelligence / Blueprint / Masterplan / Execution), Website (Sites / Audits / WordPress Connection), Settings (Business Profile / Tone Profile); GBP folded under Growth → Intelligence
+- **K. Legacy / Cleanup** — audit of current modules (from `src/routes/_authenticated/*` and `src/lib/**`) classified Keep / Fold / Demote. Concretely:
+  - Keep: Goal, Blueprint, Masterplan, Intelligence modules (market, competitive, GBP, page), Sites/Audits/Page Intelligence, Business Profile, Tone Profile
+  - Fold: old Proposals (`proposalsV2`) into future Execution Artifacts; QA Compare into Artifact Review; Execution Board V1 (`growth.execution.tsx`) into future Execution Engine
+  - Legacy / parked: V1 `proposals`, `leads`, `raw_events`, `change_groups` (already noted in ROADMAP_V4)
+- **L. State Machine** — `onboarding → collecting_intelligence → operator_review → client_review → approved → in_execution → publishing_ready → draft_published → live → monthly_review`
+- **M. Open Decisions** — client approval gates per tier; automatic scan cost ceilings; WP draft vs toplayer for existing pages; publishing safety model; tracking source; monthly loop cadence; what to do when new intelligence contradicts an approved masterplan
 
-### A5. Competitive snapshot framing
-- Add subtitle: "Snapshot across selected local demand clusters, not a complete ranking baseline."
-- Partial: "Partial snapshot — some clusters or competitor pages could not be analyzed."
+## Doc 2 — `docs/WORDPRESS_INTEGRATION_ARCHITECTURE.md`
 
-### A6. Scoreboard reasoning consistency
-- Lead Engine Score reasoning enumerates module status (market ✓, competitors partial, page intel missing, GBP missing, tracking missing) so "weak foundation" is explained, not asserted.
+Staged integration design. Sections:
 
-### A7. Docs
-- Update `LEAD_ENGINE_BLUEPRINT_VIEW.md`, `LEAD_ENGINE_BLUEPRINT_GENERATOR.md`, `COMPETITIVE_INTELLIGENCE_V1.md`.
+- **A. Product Purpose** — WordPress is the delivery surface for approved execution artifacts; designed before Execution so artifacts know their target
+- **B. Integration Stages** — Connection → Capability Check → Inventory → Page Mapping → Draft Creation → Existing-Page Update Bundle → Publishing Gate → (future) Safe Auto-Publish
+- **C. Auth Model** — WordPress Application Passwords for self-hosted; existing WPCOM OAuth (`src/lib/shared/wpcom/`) reused for .com; HTTPS required, encrypted storage (`ENCRYPTION_KEY` already in use), revocable, operator-assisted in V1
+- **D. Data Model Proposal** (table sketches, NOT migrations) — `wordpress_connections`, `wordpress_site_inventory`, `wordpress_page_mappings`, `wordpress_drafts`, `publishing_bundles`
+- **E. Field Specs** — connection / inventory / mapping fields fully enumerated (tenant_id, site_id, base_url, rest_base_url, username, encrypted_application_password, status, capabilities, last_checked_at, error_message; wp_post_id, type, status, title, slug, link, parent, template, modified, content_hash, mapped_page_role)
+- **F. Page Mapping Logic** — how WP pages map to `page_intelligence` rows, masterplan items, service/location targets; existing vs new; prevents duplicate-page generation
+- **G. Draft Strategy** — new pages → WP draft; existing pages → LeadLayer update bundle first, no live overwrite in V1
+- **H. Content Format** — V1 generates Gutenberg-compatible structured blocks (title, slug, intro, sections, FAQ, CTA, JSON-LD schema); meta stored in artifact; no Elementor/Divi support in V1
+- **I. Safety Model** — no live publish, operator approval gate, artifact versioning, write audit log, rollback as future work
+- **J. How This Connects to Execution** — approved artifact → publishing bundle → WP draft; artifact approval is the only path that touches WP
+- **K. Client/Operator Journey** — operator-assisted connection in V1, client self-service later
+- **L. Open Questions** — encryption mechanism (reuse `ENCRYPTION_KEY` vs new), Gutenberg vs raw HTML edge cases, media upload, Yoast/RankMath meta plumbing, revisions/rollback, client approval gates for publish
 
-**Stop point**: typecheck, you reload `/growth/blueprint`, confirm Dallas numbers are correct before Phase B.
+## Cross-links
 
----
+- Top of `docs/ROADMAP_V4.md`: pointer noting both new docs supersede ad-hoc next-ticket selection and revise the sprint order (Journey → WP Architecture → Snapshot → Nav cleanup → Execution → WP Draft Publishing → Publish Gate → Tracking)
+- Bottom of `docs/LEAD_ENGINE_BLUEPRINT_ROADMAP.md`: "Next layer" pointer to the Journey doc
 
-## Phase B — Competitive Enrichment V2
+## Acceptance
 
-Only after Phase A is verified.
+- Both docs exist and are self-contained.
+- Journey doc classifies every current module under Keep / Fold / Legacy with file references.
+- WP doc defines staged integration with no live-write path in V1 and explains how artifacts become bundles.
+- Only code-adjacent change is two short cross-link pointers in existing roadmap docs.
+- Build untouched, typecheck untouched.
 
-### B1. Local-pack ↔ organic matching
-- New `src/lib/shared/competitiveIntelligence/localPackMatcher.ts` with `matchLocalPackToCompetitor()` scoring on name similarity, domain, phone, address/city, snippet overlap.
-- Persist `gbpMatchConfidence` + matched signals in `score_breakdown`. Never invent reviews.
+## Implied next order (not in this sprint)
 
-### B2. SERP parser local-pack capture
-- `dataForSeoSerp.server.ts`: capture all local-pack items per cluster (not just first), store name/rating/reviews/address/category/website in `competitor_serp_results`, keep raw item.
-
-### B3. Page-depth classifier — fuzzy patterns
-- Extend `pageDepthClassifier.ts` with HVAC service synonyms (`ac-repair`, `cooling`, `hvac-services`, `furnace`, `emergency-*`, etc.) and location patterns (`service-area(s)`, `areas-we-serve`, `locations`, city slugs).
-- Add `firecrawlMapLimited` warning when map returns < N urls; reduce confidence.
-
-### B4. Self-row enrichment
-- Pull `audit_pages` + `page_intelligence` + masterplan items before falling back to business profile.
-- Split into `existingServicePagesCount` / `plannedServicePagesCount` (same for locations). Score rewards existing > planned.
-
-### B5. Confidence recalibration
-- Rewrite `computeScoreConfidence` with explicit dimension scoring (reviews, depth, trust, SERP, type, local-pack match).
-- Hard caps: reviews+depth both unknown → ≤50; Firecrawl failed → ≤60; SERP-only → ≤45.
-
-### B6. UI
-- CompetitiveBlock: show reason for unknowns ("No local-pack match", "Crawl limited"), 1–2 service/location page samples, distinguish Existing vs Planned for self row, keep Unknown ≠ 0.
-
-### B7. Summary/gaps
-- `buildCompetitorMatrixSummary`: skip "review volume" as top gap if most competitors lack review data; add warning "Review comparison limited because local-pack matches were incomplete."
-
-### B8. Docs
-- Update `COMPETITIVE_INTELLIGENCE_V1.md` with matcher, page-depth fuzzy patterns, confidence rules, self-row existing/planned split.
-
----
-
-## What's explicitly out
-
-GBP API, ranking baseline, execution engine, Yelp/BBB scraping, Safe Publishing, WordPress writes. We finish the competitive loop first, then you decide.
-
-## Files touched (approx)
-
-```text
-Phase A
-  src/lib/shared/growthGoals/schemas.ts            (maybe add targetType)
-  src/lib/shared/blueprint/generator.ts            (goal math, financial, growth-gap, page diag, score reasoning)
-  src/lib/shared/blueprint/scoring.ts              (if reasoning lives here)
-  src/routes/_authenticated/growth.blueprint.tsx   (snapshot wording, page diag CTA)
-  docs/*.md
-
-Phase B
-  src/lib/shared/competitiveIntelligence/localPackMatcher.ts  (new)
-  src/lib/shared/competitiveIntelligence/pageDepthClassifier.ts
-  src/lib/shared/competitiveIntelligence/scoring.ts
-  src/lib/shared/competitiveIntelligence/summarize.ts
-  src/lib/shared/competitiveIntelligence/schemas.ts (existing/planned fields)
-  src/lib/competitiveIntelligence/dataForSeoSerp.server.ts
-  src/lib/competitiveIntelligence/runCompetitorScan.server.ts
-  src/routes/_authenticated/growth.blueprint.tsx
-  docs/COMPETITIVE_INTELLIGENCE_V1.md
-```
-
-## Verification per phase
-
-- Typecheck green.
-- Reload `/growth/blueprint` for Dallas.
-- Phase A: required leads/month = 20, financial scenarios target-aligned, services/locations show N/N, page diag has CTA, snapshot wording present.
-- Phase B (after rerunning competitor scan): reviews populated where local-pack matched, page depth >0 or explicitly "limited", confidence drops on unknowns, self-row shows existing/planned split.
-
-Ready to start Phase A on approval. I'll pause for your review before Phase B.
+1. Growth Intelligence Snapshot builder
+2. WordPress Connection + Inventory (schema + server functions)
+3. Navigation cleanup
+4. Execution Task Engine + Artifacts (targeting WP draft bundles)
+5. WordPress Draft Publishing
+6. Publishing Gate / QA
+7. Tracking + Monthly Loop

@@ -1,8 +1,11 @@
 # LeadLayer — Roadmap V4
 
-> Last updated: 2026-05-25
+> Last updated: 2026-05-28
 > Replaces all earlier roadmaps. Aligned with the new North Star:
 > **Client Goal → Masterplan → Execution Engine → Human QA → Safe Publishing → Tracking → Reporting → Monthly Growth Loop.**
+>
+> **Canonical product architecture now lives in [`CLIENT_JOURNEY_AND_OS_ARCHITECTURE.md`](./CLIENT_JOURNEY_AND_OS_ARCHITECTURE.md) and [`WORDPRESS_INTEGRATION_ARCHITECTURE.md`](./WORDPRESS_INTEGRATION_ARCHITECTURE.md). Future sprints reference those docs; the order below is superseded by:**
+> **Journey → WP Architecture → Snapshot → Nav cleanup → Execution → WP Draft Publishing → Publish Gate → Tracking + Monthly Loop.**
 
 ## North Star
 
