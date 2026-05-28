@@ -19,6 +19,7 @@ import {
   summarizeLatestCompetitorScan,
 } from "@/lib/competitiveIntelligence/competitiveIntelligence.functions";
 import { fetchBlueprintPageDiagnostics } from "@/lib/shared/blueprint/pageDiagnostics.functions";
+import { summarizeGbpProfileFn } from "@/lib/gbpIntelligence/gbpIntelligence.functions";
 import { itemPhase } from "@/lib/shared/masterplan/schemas";
 
 import {
