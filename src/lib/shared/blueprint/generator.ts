@@ -388,7 +388,8 @@ function buildScores(scoring: ScoringInputs, input?: GenerateBlueprintInput): Bl
       ? (cs.partial || cs.status === "partial" ? "partial" : "available")
       : "missing";
     const pageIntel = input.pageIntelligence.length > 0;
-    const gbpConnected = input.gbpData?.connected === true;
+    const gbpConnected =
+      input.gbpSummary?.available === true || input.gbpData?.connected === true;
     const trackingOk = input.trackingData?.hasAnalytics === true;
     const auditOk = input.auditSummary?.overallScore != null;
     engine.reasoning.push({
