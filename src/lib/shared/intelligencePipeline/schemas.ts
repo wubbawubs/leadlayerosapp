@@ -81,8 +81,8 @@ export interface IntelligenceRun {
   triggeredBy: IntelligenceTriggeredBy;
   triggerReason: string | null;
   stages: IntelligenceStagesMap;
-  inputHash: Record<string, unknown>;
-  outputRefs: Record<string, unknown>;
+  inputHash: { [key: string]: JsonValue };
+  outputRefs: { [key: string]: JsonValue };
   startedAt: string | null;
   completedAt: string | null;
   failedAt: string | null;
