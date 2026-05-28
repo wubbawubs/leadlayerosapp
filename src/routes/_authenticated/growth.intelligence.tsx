@@ -11,6 +11,7 @@ import type {
   GrowthIntelligenceSnapshot,
   ModuleStatus,
 } from "@/lib/shared/growthIntelligence/schemas";
+import { IntelligencePipelineSummary } from "@/components/intelligencePipeline/IntelligencePipelinePanel";
 
 export const Route = createFileRoute("/_authenticated/growth/intelligence")({
   component: IntelligencePage,
