@@ -1511,11 +1511,31 @@ function buildLeadEngineMap(input: GenerateBlueprintInput): LeadEngineMap {
       detail: "Service and location pages indexed by Google.",
       status: pages.length > 0 ? "active" : "planned",
     },
-    {
-      name: "Google Business Profile",
-      detail: input.gbpData?.connected ? "Connected and feeding local pack." : "Not yet verified.",
-      status: input.gbpData?.connected ? "active" : input.gbpData ? "planned" : "unknown",
-    },
+    (() => {
+      const s = input.gbpSummary;
+      if (s && s.available) {
+        let status: LeadEngineNode["status"] = "unknown";
+        let detail = `${s.statusLabel}. completeness ${s.completenessScore}/100, trust ${s.trustScore}/100, local ${s.localVisibilityScore}/100.`;
+        if (s.status === "not_connected" || s.status === "unavailable") {
+          status = "missing";
+          detail = "Profile not reviewed yet.";
+        } else if (s.status === "manual_review") {
+          status = "planned";
+        } else if (s.status === "reviewed" || s.status === "connected") {
+          const weak =
+            s.completenessScore < 60 ||
+            s.trustScore < 50 ||
+            s.localVisibilityScore < 55;
+          status = weak ? "planned" : "active";
+        }
+        return { name: "Google Business Profile", detail, status };
+      }
+      return {
+        name: "Google Business Profile",
+        detail: input.gbpData?.connected ? "Connected and feeding local pack." : "Not yet verified.",
+        status: input.gbpData?.connected ? "active" : input.gbpData ? "planned" : "missing",
+      };
+    })(),
     {
       name: "Direct + referral",
       detail: "Word of mouth, existing clients, partnerships.",
