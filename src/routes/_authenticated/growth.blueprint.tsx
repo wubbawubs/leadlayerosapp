@@ -235,6 +235,9 @@ function BlueprintPage() {
               Masterplan
             </Link>
             <span className="font-medium text-foreground">Blueprint</span>
+            <Link to="/growth/gbp" className="text-muted-foreground hover:text-foreground">
+              GBP
+            </Link>
             <Link to="/growth/execution" className="text-muted-foreground hover:text-foreground">
               Execution
             </Link>
