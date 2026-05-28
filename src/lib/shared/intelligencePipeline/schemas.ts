@@ -47,6 +47,14 @@ export type IntelligenceRunStatus =
 
 export type IntelligenceTriggeredBy = "auto" | "operator" | "system" | "scheduled";
 
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
 export interface IntelligenceStageState {
   key: IntelligenceStageKey;
   status: IntelligenceStageStatus;
@@ -55,7 +63,7 @@ export interface IntelligenceStageState {
   message?: string | null;
   error?: string | null;
   nextAction?: string | null;
-  outputs?: Record<string, unknown>;
+  outputs?: { [key: string]: JsonValue };
 }
 
 export type IntelligenceStagesMap = Record<
