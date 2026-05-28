@@ -41,6 +41,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Growth",
     items: [
       { label: "Goal", to: "/settings/growth-goal" },
+      { label: "Flow", to: "/growth/flow" },
       { label: "Intelligence", to: "/growth/intelligence" },
       { label: "Blueprint", to: "/growth/blueprint" },
       { label: "Masterplan", to: "/growth/masterplan" },
