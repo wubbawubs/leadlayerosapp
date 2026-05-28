@@ -88,6 +88,80 @@ async function persistStage(
     .eq("id", runId);
 }
 
+const TERMINAL_STAGE_STATUSES = new Set<IntelligenceStageStatus>([
+  "complete",
+  "partial",
+  "failed",
+  "skipped_needs_context",
+  "blocked_dependency",
+]);
+
+function asPositiveNumber(value: unknown): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function completeStageMeetsMinimum(
+  key: IntelligenceStageKey,
+  stage: IntelligenceStageState,
+): boolean {
+  if (stage.status !== "complete") return true;
+  const outputs = stage.outputs ?? {};
+  switch (key) {
+    case "site_audit":
+      return typeof outputs.auditId === "string" && asPositiveNumber(outputs.pagesCount) > 0;
+    case "page_intelligence":
+      return asPositiveNumber(outputs.pagesClassified) > 0;
+    case "business_profile_draft":
+      return typeof outputs.businessProfileId === "string" && outputs.profileStatus === "approved";
+    case "tone_profile_draft":
+      return typeof outputs.toneProfileId === "string" && asPositiveNumber(outputs.confidenceScore) > 0;
+    case "gbp_intelligence":
+      return typeof outputs.gbpProfileId === "string" && typeof outputs.lastReviewedAt === "string";
+    case "market_scan":
+      return typeof outputs.marketScanId === "string" && asPositiveNumber(outputs.clustersCount) > 0;
+    case "competitor_scan":
+      return typeof outputs.competitorScanId === "string";
+    case "growth_snapshot":
+      return typeof outputs.readinessScore === "number" && Number.isFinite(outputs.readinessScore);
+    case "blueprint_draft":
+      return outputs.blueprintAvailable === true;
+    case "masterplan_draft":
+      return typeof outputs.masterplanId === "string" || asPositiveNumber(outputs.itemCount) > 0;
+    default:
+      return true;
+  }
+}
+
+function isAcceptedTerminalStage(
+  key: IntelligenceStageKey,
+  stage: IntelligenceStageState,
+): boolean {
+  if (!TERMINAL_STAGE_STATUSES.has(stage.status)) return false;
+  return completeStageMeetsMinimum(key, stage);
+}
+
+function deriveCurrentStage(stages: IntelligenceStagesMap): IntelligenceStageKey | null {
+  const runningOrNext = INTELLIGENCE_STAGE_KEYS.find((key) => {
+    const status = stages[key].status;
+    return status === "running" || status === "not_started" || status === "stale";
+  });
+  if (runningOrNext) return runningOrNext;
+
+  const blocker = INTELLIGENCE_STAGE_KEYS.find((key) => {
+    const status = stages[key].status;
+    return status === "failed" || status === "blocked_dependency";
+  });
+  if (blocker) return blocker;
+
+  return (
+    INTELLIGENCE_STAGE_KEYS.find((key) => {
+      const status = stages[key].status;
+      return status === "partial" || status === "skipped_needs_context";
+    }) ?? null
+  );
+}
+
 function deriveRunStatus(stages: IntelligenceStagesMap): IntelligenceRunStatus {
   const vals = Object.values(stages);
   if (vals.some((s) => s.status === "running")) return "running";
@@ -101,13 +175,8 @@ function deriveRunStatus(stages: IntelligenceStagesMap): IntelligenceRunStatus {
       s.status === "skipped_needs_context" ||
       s.status === "blocked_dependency",
   );
-  const allTerminal = vals.every(
-    (s) =>
-      s.status === "complete" ||
-      s.status === "partial" ||
-      s.status === "failed" ||
-      s.status === "skipped_needs_context" ||
-      s.status === "blocked_dependency",
+  const allTerminal = INTELLIGENCE_STAGE_KEYS.every((key) =>
+    isAcceptedTerminalStage(key, stages[key]),
   );
   if (!allTerminal) return "running";
   if (anyFailed || anyPartial) return "partial";
