@@ -341,3 +341,19 @@ These are unresolved and need a call before the relevant sprint:
 5. **WordPress Draft Publishing**
 6. **Publishing Gate / QA**
 7. **Tracking + Monthly Loop**
+
+## Navigation alignment (Nav Cleanup Sprint)
+
+The app navigation now mirrors the OS flow end-to-end:
+
+```
+Growth:   Goal → Intelligence → Blueprint → Masterplan → Execution
+Website:  Sites  (Audits + WordPress: future)
+Settings: Business profile · Tone profile
+```
+
+GBP, Page Intelligence, Market and Competitive intelligence are no longer
+top-level modules — they live under the Intelligence Snapshot, which is the
+central status hub. Execution remains visible but is labeled as a preview
+until the Execution Task Engine ships. Legacy proposal/QA flows are kept
+but will fold into Execution Artifacts and Artifact Review in later sprints.
