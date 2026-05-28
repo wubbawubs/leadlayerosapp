@@ -1163,6 +1163,66 @@ export type Database = {
           },
         ]
       }
+      intelligence_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          current_stage: string | null
+          error_message: string | null
+          failed_at: string | null
+          growth_goal_id: string | null
+          id: string
+          input_hash: Json
+          output_refs: Json
+          site_id: string | null
+          stages: Json
+          started_at: string | null
+          status: string
+          tenant_id: string
+          trigger_reason: string | null
+          triggered_by: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          current_stage?: string | null
+          error_message?: string | null
+          failed_at?: string | null
+          growth_goal_id?: string | null
+          id?: string
+          input_hash?: Json
+          output_refs?: Json
+          site_id?: string | null
+          stages?: Json
+          started_at?: string | null
+          status?: string
+          tenant_id: string
+          trigger_reason?: string | null
+          triggered_by?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          current_stage?: string | null
+          error_message?: string | null
+          failed_at?: string | null
+          growth_goal_id?: string | null
+          id?: string
+          input_hash?: Json
+          output_refs?: Json
+          site_id?: string | null
+          stages?: Json
+          started_at?: string | null
+          status?: string
+          tenant_id?: string
+          trigger_reason?: string | null
+          triggered_by?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       issues: {
         Row: {
           code: string
