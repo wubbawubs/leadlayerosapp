@@ -663,7 +663,38 @@ function sectionCurrentSituation(input: GenerateBlueprintInput): BlueprintSectio
       detail: `${locationPages.length} location page${locationPages.length === 1 ? "" : "s"} detected.`,
     });
   }
-  if (input.gbpData?.connected) {
+  const gs = input.gbpSummary;
+  if (gs && gs.available && gs.profile) {
+    const p = gs.profile;
+    const sourceLabel =
+      p.source === "google_api"
+        ? "API-verified"
+        : p.source === "operator_review"
+          ? "operator-reviewed"
+          : p.source === "import"
+            ? "imported"
+            : "manual";
+    const bits: string[] = [];
+    if (p.businessName) bits.push(p.businessName);
+    if (p.primaryCategory) bits.push(p.primaryCategory);
+    if (p.rating != null && p.reviewCount != null)
+      bits.push(`${p.rating.toFixed(1)}★ (${p.reviewCount} reviews)`);
+    else if (p.reviewCount != null) bits.push(`${p.reviewCount} reviews`);
+    if (p.services.length) bits.push(`${p.services.length} services`);
+    if (p.serviceArea.length) bits.push(`${p.serviceArea.length} service areas`);
+    bits.push(
+      `completeness ${gs.completenessScore}/100 · trust ${gs.trustScore}/100 · local visibility ${gs.localVisibilityScore}/100`,
+    );
+    items.push({
+      title: `Google Business Profile (${gs.statusLabel.toLowerCase()}, ${sourceLabel})`,
+      detail: bits.join(" · "),
+    });
+  } else if (gs && gs.available) {
+    items.push({
+      title: `Google Business Profile (${gs.statusLabel.toLowerCase()})`,
+      detail: `Completeness ${gs.completenessScore}/100 · trust ${gs.trustScore}/100 · local visibility ${gs.localVisibilityScore}/100.`,
+    });
+  } else if (input.gbpData?.connected) {
     items.push({
       title: "Google Business Profile",
       detail: `Connected. ${input.gbpData.reviewsCount ?? "?"} reviews, rating ${input.gbpData.averageRating ?? "?"}.`,
@@ -671,7 +702,8 @@ function sectionCurrentSituation(input: GenerateBlueprintInput): BlueprintSectio
   } else {
     items.push({
       title: "Google Business Profile",
-      detail: "Connection status unknown — pending integration (Ticket 5).",
+      detail:
+        "GBP not reviewed yet — add GBP details to sharpen local trust and visibility.",
     });
   }
   if (input.trackingData?.hasAnalytics) {
