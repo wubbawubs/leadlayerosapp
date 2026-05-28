@@ -231,12 +231,12 @@ function BlueprintPage() {
             <Link to="/settings/growth-goal" className="text-muted-foreground hover:text-foreground">
               Goal
             </Link>
-            <Link to="/growth/masterplan" className="text-muted-foreground hover:text-foreground">
-              Masterplan
+            <Link to="/growth/intelligence" className="text-muted-foreground hover:text-foreground">
+              Intelligence
             </Link>
             <span className="font-medium text-foreground">Blueprint</span>
-            <Link to="/growth/gbp" className="text-muted-foreground hover:text-foreground">
-              GBP
+            <Link to="/growth/masterplan" className="text-muted-foreground hover:text-foreground">
+              Masterplan
             </Link>
             <Link to="/growth/execution" className="text-muted-foreground hover:text-foreground">
               Execution
@@ -361,6 +361,12 @@ function Hero({ blueprint }: { blueprint: LeadEngineBlueprint }) {
       <h1 className="mt-3 font-display text-4xl leading-tight text-foreground md:text-5xl">
         {blueprint.title}
       </h1>
+      <p className="mt-3 max-w-3xl text-xs text-muted-foreground">
+        Client-facing growth strategy generated from the{" "}
+        <Link to="/growth/intelligence" className="underline hover:text-foreground">
+          Growth Intelligence Snapshot
+        </Link>.
+      </p>
       <p className="mt-4 max-w-3xl text-base text-muted-foreground">{blueprint.summary}</p>
       <div className="mt-6 flex flex-wrap items-center gap-3 text-xs uppercase tracking-wide text-muted-foreground">
         <Badge variant="primary">{blueprint.status}</Badge>
@@ -371,6 +377,12 @@ function Hero({ blueprint }: { blueprint: LeadEngineBlueprint }) {
         <span>Schema v{blueprint.schemaVersion}</span>
       </div>
       <div className="mt-6 flex flex-wrap gap-2">
+        <Link
+          to="/growth/intelligence"
+          className="rounded-md border border-border bg-background/40 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
+        >
+          Open intelligence snapshot →
+        </Link>
         <Link
           to="/growth/masterplan"
           className="rounded-md border border-border bg-background/40 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"

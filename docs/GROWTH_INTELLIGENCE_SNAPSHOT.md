@@ -127,3 +127,21 @@ src/lib/growthIntelligence/
 src/routes/_authenticated/
   growth.intelligence.tsx
 ```
+
+## Navigation (cleanup sprint)
+
+The app navigation now groups around the OS flow:
+
+- **Growth**: Goal · Intelligence · Blueprint · Masterplan · Execution
+- **Website**: Sites (Audits + WordPress to follow)
+- **Settings**: Business profile · Tone profile
+
+GBP is no longer a top-level item — it lives inside Intelligence (and is
+still linked from Blueprint). Blueprint, Masterplan and Execution headers
+now position themselves explicitly against the Snapshot:
+
+- Blueprint: "Client-facing growth strategy generated from the Growth
+  Intelligence Snapshot."
+- Masterplan: "Operator-facing roadmap generated from the Blueprint and
+  Growth Intelligence Snapshot."
+- Execution: "Execution preview — full Execution Task Engine comes next."
