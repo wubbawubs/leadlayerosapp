@@ -153,7 +153,7 @@ async function stageSiteAudit(ctx: StageContext): Promise<StageResult> {
     .select("id, status, pages_count, created_at")
     .eq("tenant_id", ctx.tenantId)
     .eq("site_connection_id", site.id)
-    .eq("status", "completed")
+    .in("status", ["succeeded", "completed"])
     .gte("created_at", dayAgo)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -190,7 +190,7 @@ async function stageSiteAudit(ctx: StageContext): Promise<StageResult> {
     .select("status, pages_count, error")
     .eq("id", audit.id)
     .maybeSingle();
-  if (done?.status !== "completed") {
+  if (done?.status !== "succeeded" && done?.status !== "completed") {
     return {
       status: "failed",
       error: done?.error ?? `Audit ended in status ${done?.status}`,
