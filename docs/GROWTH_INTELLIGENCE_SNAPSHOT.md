@@ -93,6 +93,9 @@ up to 4 secondary actions, in this priority order:
   will swap that for a single snapshot read.
 - **Dashboard** (`/app`): exposes the primary next best action + a link to
   the Intelligence overview.
+- **Intelligence Pipeline Orchestrator V1**: the snapshot is the
+  `growth_snapshot` stage inside `intelligence_runs`. See
+  `docs/INTELLIGENCE_PIPELINE_ORCHESTRATOR_V1.md`.
 - **Masterplan, Execution, WordPress, Monthly Loop**: future consumers.
 
 ## Non-goals (V1)
