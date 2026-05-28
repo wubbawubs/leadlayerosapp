@@ -199,6 +199,8 @@ export interface GenerateBlueprintInput {
    */
   competitorSummary?: CompetitorMatrixSummary;
   gbpData?: GeneratorGbpData;
+  /** GBP Intelligence V1 — produced by summarizeGbpProfile(). Preferred over gbpData. */
+  gbpSummary?: GbpSummary;
   rankingData?: GeneratorRankingData;
   trackingData?: GeneratorTrackingData;
   /** Deterministic timestamp; defaults to a fixed epoch when omitted to keep snapshots stable in tests. */
