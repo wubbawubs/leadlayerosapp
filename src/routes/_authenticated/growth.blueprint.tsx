@@ -213,10 +213,11 @@ function BlueprintPage() {
         marketSummary && marketSummary.available ? marketSummary : undefined,
       competitorSummary:
         competitorSummary && competitorSummary.available ? competitorSummary : undefined,
+      gbpSummary: gbpSummary ?? undefined,
       now: new Date(),
     };
     return generateLeadEngineBlueprint(input);
-  }, [goal, plan, items, tenantId, marketSummary, competitorSummary, pageDiagnostics]);
+  }, [goal, plan, items, tenantId, marketSummary, competitorSummary, pageDiagnostics, gbpSummary]);
 
   return (
     <div className="min-h-screen bg-background bg-blueprint">
