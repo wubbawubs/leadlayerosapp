@@ -344,23 +344,46 @@ async function stagePageIntelligence(ctx: StageContext): Promise<StageResult> {
   if (!auditId) {
     return { status: "blocked_dependency", message: "Site audit not available" };
   }
+  const before = await countAuditPageIntelligenceCoverage(ctx.tenantId, auditId);
+  if (before.auditPagesCount === 0) {
+    return {
+      status: "blocked_dependency",
+      message: "Page Intelligence needs audit pages, but the audit has 0 pages.",
+      outputs: { auditId, auditPagesCount: 0, pagesClassified: 0 },
+    };
+  }
+  if (before.pagesClassified > 0) {
+    return {
+      status: "complete",
+      message: `${before.pagesClassified} of ${before.auditPagesCount} audit pages classified`,
+      outputs: { auditId, auditPagesCount: before.auditPagesCount, pagesClassified: before.pagesClassified },
+    };
+  }
+
   try {
-    const summary = await analyzePageIntelligenceForAudit({
+    await analyzePageIntelligenceForAudit({
       tenantId: ctx.tenantId,
       auditId,
     });
-    const analyzed = (summary as { analyzed?: number; pagesClassified?: number } | null);
-    const pagesClassified =
-      Number(analyzed?.pagesClassified ?? analyzed?.analyzed ?? 0) || undefined;
+    const after = await countAuditPageIntelligenceCoverage(ctx.tenantId, auditId);
+    if (after.auditPagesCount > 0 && after.pagesClassified === 0) {
+      return {
+        status: "partial",
+        message: `Audit found ${after.auditPagesCount} pages, but Page Intelligence classified 0 pages.`,
+        outputs: { auditId, auditPagesCount: after.auditPagesCount, pagesClassified: 0 },
+        nextAction: "Retry Page Intelligence from /growth/intelligence",
+      };
+    }
     return {
       status: "complete",
-      message: pagesClassified ? `${pagesClassified} pages classified` : "Page intelligence updated",
-      outputs: { pagesClassified: pagesClassified ?? 0, auditId },
+      message: `${after.pagesClassified} of ${after.auditPagesCount} audit pages classified`,
+      outputs: { auditId, auditPagesCount: after.auditPagesCount, pagesClassified: after.pagesClassified },
     };
   } catch (e) {
     return {
-      status: "partial",
+      status: "failed",
       error: e instanceof Error ? e.message : String(e),
+      outputs: { auditId, auditPagesCount: before.auditPagesCount, pagesClassified: before.pagesClassified },
       nextAction: "Retry Page Intelligence from /growth/intelligence",
     };
   }
