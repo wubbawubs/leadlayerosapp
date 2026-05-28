@@ -153,6 +153,7 @@ function BlueprintPage() {
   const competitorSummary = competitorQuery.data?.summary ?? null;
   const competitorConfig = competitorQuery.data?.config ?? { dataForSeo: false, firecrawl: false };
   const pageDiagnostics = pageDiagnosticsQuery.data?.pages ?? [];
+  const gbpSummary = gbpQuery.data?.summary ?? null;
 
   const blueprint: LeadEngineBlueprint | null = useMemo(() => {
     if (!goal || !plan) return null;
