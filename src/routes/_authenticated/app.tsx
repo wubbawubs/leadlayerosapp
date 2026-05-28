@@ -16,6 +16,8 @@ import {
   listMasterplanItems,
 } from "@/lib/shared/masterplan/repo.functions";
 import { getExecutionBoard } from "@/lib/shared/execution/board.functions";
+import { getGrowthIntelligenceSnapshot } from "@/lib/growthIntelligence/growthIntelligence.functions";
+import type { GrowthIntelligenceSnapshot } from "@/lib/shared/growthIntelligence/schemas";
 
 
 export const Route = createFileRoute("/_authenticated/app")({
