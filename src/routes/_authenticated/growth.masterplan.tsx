@@ -166,11 +166,17 @@ function MasterplanPage() {
               Dashboard
             </Link>
             <Link to="/settings/growth-goal" className="text-muted-foreground hover:text-foreground">
-              Growth goal
+              Goal
+            </Link>
+            <Link to="/growth/intelligence" className="text-muted-foreground hover:text-foreground">
+              Intelligence
+            </Link>
+            <Link to="/growth/blueprint" className="text-muted-foreground hover:text-foreground">
+              Blueprint
             </Link>
             <span className="font-medium text-foreground">Masterplan</span>
-            <Link to="/sites" className="text-muted-foreground hover:text-foreground">
-              Sites
+            <Link to="/growth/execution" className="text-muted-foreground hover:text-foreground">
+              Execution
             </Link>
           </nav>
         </div>
@@ -178,12 +184,15 @@ function MasterplanPage() {
 
       <main className="container mx-auto max-w-6xl px-6 pb-24 pt-6">
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-          Sprint · Masterplan V1
+          Operator roadmap
         </p>
         <h1 className="font-display text-4xl text-foreground">Masterplan</h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
-          De brug tussen growth goal en executie. Concrete acties met prioriteit, effort en
-          verwachte impact.
+          Operator-facing roadmap generated from the{" "}
+          <Link to="/growth/blueprint" className="underline hover:text-foreground">Blueprint</Link>{" "}
+          and{" "}
+          <Link to="/growth/intelligence" className="underline hover:text-foreground">Growth Intelligence Snapshot</Link>.
+          Prioritized actions with effort and expected impact.
         </p>
 
         {!tenantId && <p className="mt-6 text-muted-foreground">Tenant laden…</p>}

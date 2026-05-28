@@ -231,12 +231,12 @@ function BlueprintPage() {
             <Link to="/settings/growth-goal" className="text-muted-foreground hover:text-foreground">
               Goal
             </Link>
-            <Link to="/growth/masterplan" className="text-muted-foreground hover:text-foreground">
-              Masterplan
+            <Link to="/growth/intelligence" className="text-muted-foreground hover:text-foreground">
+              Intelligence
             </Link>
             <span className="font-medium text-foreground">Blueprint</span>
-            <Link to="/growth/gbp" className="text-muted-foreground hover:text-foreground">
-              GBP
+            <Link to="/growth/masterplan" className="text-muted-foreground hover:text-foreground">
+              Masterplan
             </Link>
             <Link to="/growth/execution" className="text-muted-foreground hover:text-foreground">
               Execution

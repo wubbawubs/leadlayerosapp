@@ -53,10 +53,11 @@ function IntelligencePage() {
           <Logo />
           <nav className="flex items-center gap-4 text-sm">
             <Link to="/app" className="text-muted-foreground hover:text-foreground">Dashboard</Link>
+            <Link to="/settings/growth-goal" className="text-muted-foreground hover:text-foreground">Goal</Link>
+            <span className="font-medium text-foreground">Intelligence</span>
             <Link to="/growth/blueprint" className="text-muted-foreground hover:text-foreground">Blueprint</Link>
             <Link to="/growth/masterplan" className="text-muted-foreground hover:text-foreground">Masterplan</Link>
-            <span className="font-medium text-foreground">Intelligence</span>
-            <Link to="/growth/gbp" className="text-muted-foreground hover:text-foreground">GBP</Link>
+            <Link to="/growth/execution" className="text-muted-foreground hover:text-foreground">Execution</Link>
           </nav>
         </div>
       </header>

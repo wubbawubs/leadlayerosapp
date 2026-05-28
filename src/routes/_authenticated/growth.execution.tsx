@@ -123,6 +123,15 @@ function ExecutionBoardPage() {
             <Link to="/app" className="text-muted-foreground hover:text-foreground">
               Dashboard
             </Link>
+            <Link to="/settings/growth-goal" className="text-muted-foreground hover:text-foreground">
+              Goal
+            </Link>
+            <Link to="/growth/intelligence" className="text-muted-foreground hover:text-foreground">
+              Intelligence
+            </Link>
+            <Link to="/growth/blueprint" className="text-muted-foreground hover:text-foreground">
+              Blueprint
+            </Link>
             <Link to="/growth/masterplan" className="text-muted-foreground hover:text-foreground">
               Masterplan
             </Link>
@@ -133,12 +142,13 @@ function ExecutionBoardPage() {
 
       <main className="container mx-auto px-6 pb-24 pt-6">
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-          Sprint C · Execution Board V1
+          Execution preview
         </p>
         <h1 className="font-display text-4xl text-foreground">Execution board</h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
-          One cockpit. Masterplan items, linked proposals, QA review status —
-          all in one place. No publishing yet.
+          Board view of Masterplan items: planned, in review, approved, done.
+          The full Execution Task Engine — artifact generation, WordPress
+          drafts, publishing gates — lands in upcoming sprints.
         </p>
 
         {!tenantId && (

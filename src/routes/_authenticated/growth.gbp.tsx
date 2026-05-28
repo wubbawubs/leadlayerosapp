@@ -220,6 +220,12 @@ function GbpReviewPage() {
               Dashboard
             </Link>
             <Link
+              to="/growth/intelligence"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Intelligence
+            </Link>
+            <Link
               to="/growth/blueprint"
               className="text-muted-foreground hover:text-foreground"
             >
