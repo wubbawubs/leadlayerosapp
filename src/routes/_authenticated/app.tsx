@@ -16,6 +16,8 @@ import {
   listMasterplanItems,
 } from "@/lib/shared/masterplan/repo.functions";
 import { getExecutionBoard } from "@/lib/shared/execution/board.functions";
+import { getGrowthIntelligenceSnapshot } from "@/lib/growthIntelligence/growthIntelligence.functions";
+import type { GrowthIntelligenceSnapshot } from "@/lib/shared/growthIntelligence/schemas";
 
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -40,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Intelligence",
     items: [
+      { label: "Snapshot", to: "/growth/intelligence" },
       { label: "Business profile", to: "/settings/business-profile" },
       { label: "Tone profile", to: "/settings/tone-profile" },
     ],
@@ -101,6 +104,18 @@ function AppHome() {
     queryFn: () => fetchBoard({ data: { tenantId: tenantId! } }),
     enabled: !!tenantId && !!planId,
   });
+
+  const fetchSnapshot = useServerFn(getGrowthIntelligenceSnapshot);
+  const snapshotQuery = useQuery({
+    queryKey: ["growth-intelligence-snapshot", tenantId],
+    queryFn: () => fetchSnapshot({ data: { tenantId: tenantId! } }),
+    enabled: !!tenantId,
+  });
+  const snapshot: GrowthIntelligenceSnapshot | null = (() => {
+    const raw = snapshotQuery.data?.snapshotJson;
+    if (!raw) return null;
+    try { return JSON.parse(raw) as GrowthIntelligenceSnapshot; } catch { return null; }
+  })();
 
 
   async function signOut() {
@@ -199,6 +214,55 @@ function AppHome() {
           masterplan, then run audits and proposals against it. Publishing,
           tracking and reporting follow in later sprints.
         </p>
+
+        {snapshot && (
+          <section className="mt-8 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card/80 to-card/40 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">
+                    Growth Intelligence
+                  </p>
+                  <p className="font-display text-4xl text-foreground">
+                    {snapshot.status.readinessScore}
+                    <span className="text-base text-muted-foreground">/100</span>
+                  </p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                    {snapshot.status.overall} · conf {(snapshot.status.confidence * 100).toFixed(0)}%
+                  </p>
+                </div>
+                <div className="max-w-md">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                    Next best action
+                  </p>
+                  <p className="mt-1 font-medium text-foreground">
+                    {snapshot.status.nextBestAction.label}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {snapshot.status.nextBestAction.reason}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {snapshot.status.nextBestAction.href && (
+                  <Link
+                    to={snapshot.status.nextBestAction.href}
+                    className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-primary/20"
+                  >
+                    Take action →
+                  </Link>
+                )}
+                <Link
+                  to="/growth/intelligence"
+                  className="rounded-md border border-border bg-background/40 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
+                >
+                  Open snapshot →
+                </Link>
+              </div>
+            </div>
+          </section>
+        )}
+
 
         <section className="mt-10 grid gap-5 lg:grid-cols-3">
           <Card

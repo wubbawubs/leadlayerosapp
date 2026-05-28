@@ -4,8 +4,8 @@
 > Replaces all earlier roadmaps. Aligned with the new North Star:
 > **Client Goal → Masterplan → Execution Engine → Human QA → Safe Publishing → Tracking → Reporting → Monthly Growth Loop.**
 >
-> **Canonical product architecture now lives in [`CLIENT_JOURNEY_AND_OS_ARCHITECTURE.md`](./CLIENT_JOURNEY_AND_OS_ARCHITECTURE.md) and [`WORDPRESS_INTEGRATION_ARCHITECTURE.md`](./WORDPRESS_INTEGRATION_ARCHITECTURE.md). Future sprints reference those docs; the order below is superseded by:**
-> **Journey → WP Architecture → Snapshot → Nav cleanup → Execution → WP Draft Publishing → Publish Gate → Tracking + Monthly Loop.**
+> **Canonical product architecture now lives in [`CLIENT_JOURNEY_AND_OS_ARCHITECTURE.md`](./CLIENT_JOURNEY_AND_OS_ARCHITECTURE.md), [`WORDPRESS_INTEGRATION_ARCHITECTURE.md`](./WORDPRESS_INTEGRATION_ARCHITECTURE.md), and [`GROWTH_INTELLIGENCE_SNAPSHOT.md`](./GROWTH_INTELLIGENCE_SNAPSHOT.md). Future sprints reference those docs; the order below is superseded by:**
+> **Journey → WP Architecture → ✅ Snapshot V1 → Nav cleanup → Execution → WP Draft Publishing → Publish Gate → Tracking + Monthly Loop.**
 
 ## North Star
 

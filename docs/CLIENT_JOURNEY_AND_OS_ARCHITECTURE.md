@@ -334,9 +334,9 @@ These are unresolved and need a call before the relevant sprint:
 
 ## Next sprints (in order)
 
-1. **WordPress Integration Architecture** (this sprint, sibling doc)
-2. **Growth Intelligence Snapshot builder**
-3. **Navigation cleanup**
+1. **WordPress Integration Architecture** ✅ — see [`WORDPRESS_INTEGRATION_ARCHITECTURE.md`](./WORDPRESS_INTEGRATION_ARCHITECTURE.md)
+2. **Growth Intelligence Snapshot builder** ✅ V1 — see [`GROWTH_INTELLIGENCE_SNAPSHOT.md`](./GROWTH_INTELLIGENCE_SNAPSHOT.md)
+3. **Navigation cleanup** (next)
 4. **Execution Task Engine + Artifacts** (now targeting WP draft bundles, not generic blobs)
 5. **WordPress Draft Publishing**
 6. **Publishing Gate / QA**
