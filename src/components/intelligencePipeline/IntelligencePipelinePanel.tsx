@@ -203,18 +203,33 @@ export function IntelligencePipelinePanel({ tenantId }: { tenantId: string }) {
 
       {run && (
         <>
-          <div className="mt-5">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Pipeline progress</span>
-              <span className="font-mono text-foreground">{progress}%</span>
-            </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-background/40">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <SummaryStat
+              label="Stages processed"
+              value={summary ? `${summary.processed}/${summary.total}` : "—"}
+              ratio={summary ? summary.processed / summary.total : 0}
+            />
+            <SummaryStat
+              label="Snapshot readiness"
+              value={
+                summary && summary.readinessScore !== null
+                  ? `${summary.readinessScore}/100`
+                  : "—"
+              }
+              ratio={
+                summary && summary.readinessScore !== null
+                  ? summary.readinessScore / 100
+                  : 0
+              }
+              barClass="bg-emerald-500"
+            />
+            <SummaryStat
+              label="Next action"
+              value={summary?.nextAction ?? summary?.subtitle ?? "—"}
+              compact
+            />
           </div>
+
 
           <ul className="mt-5 divide-y divide-border rounded-lg border border-border bg-background/30">
             {INTELLIGENCE_STAGE_KEYS.map((key) => (
