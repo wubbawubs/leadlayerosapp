@@ -11,6 +11,7 @@ import type {
   ProductFlowState,
   ReviewGateStatus,
 } from "@/lib/shared/productFlow/schemas";
+import { IntelligencePipelinePanel } from "@/components/intelligencePipeline/IntelligencePipelinePanel";
 
 export const Route = createFileRoute("/_authenticated/growth/flow")({
   component: ProductFlowPage,
@@ -91,6 +92,8 @@ function ProductFlowPage() {
           is in the journey, what is running automatically, what needs operator
           review, and what is blocked.
         </p>
+
+        {tenantId && <IntelligencePipelinePanel tenantId={tenantId} />}
 
         {flowQuery.isLoading && (
           <p className="mt-8 text-sm text-muted-foreground">Resolving flow…</p>

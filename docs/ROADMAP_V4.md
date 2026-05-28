@@ -47,7 +47,8 @@ The product only matters if it can answer:
 3. ✅ Execution Board V1 (Sprint C)
 4. ✅ End-to-End System Validation (Sprint D)
 5. ✅ Pre-Publishing Cleanup (Sprint E0) — labels, manual-task badges, partial unique indexes on active goal / active masterplan
-6. ⬜ Audit Issue → Masterplan Priority Mapping
+6. ✅ Intelligence Pipeline Orchestrator V1 — `intelligence_runs` + `/growth/flow` panel (see `docs/INTELLIGENCE_PIPELINE_ORCHESTRATOR_V1.md`)
+7. ⬜ Audit Issue → Masterplan Priority Mapping
 7. ⬜ Approval / Ready-for-Publishing Gate (Sprint E1)
 8. ⬜ Safe Publishing V1 (Sprint F) — **blocked** until E1 lands and live operator validation passes
 9. ⬜ Tracking / Lead Inbox V1

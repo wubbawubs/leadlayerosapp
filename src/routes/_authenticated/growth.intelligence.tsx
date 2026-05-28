@@ -11,6 +11,7 @@ import type {
   GrowthIntelligenceSnapshot,
   ModuleStatus,
 } from "@/lib/shared/growthIntelligence/schemas";
+import { IntelligencePipelineSummary } from "@/components/intelligencePipeline/IntelligencePipelinePanel";
 
 export const Route = createFileRoute("/_authenticated/growth/intelligence")({
   component: IntelligencePage,
@@ -74,6 +75,8 @@ function IntelligencePage() {
           pages, market, competitors, GBP, masterplan, tracking and ranking. Feeds Blueprint,
           Masterplan and (soon) Execution and WordPress delivery.
         </p>
+
+        {tenantId && <IntelligencePipelineSummary tenantId={tenantId} />}
 
         {snapshotQuery.isLoading && (
           <p className="mt-8 text-sm text-muted-foreground">Building snapshot…</p>
