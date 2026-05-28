@@ -19,6 +19,7 @@ import {
   summarizeLatestCompetitorScan,
 } from "@/lib/competitiveIntelligence/competitiveIntelligence.functions";
 import { fetchBlueprintPageDiagnostics } from "@/lib/shared/blueprint/pageDiagnostics.functions";
+import { summarizeGbpProfileFn } from "@/lib/gbpIntelligence/gbpIntelligence.functions";
 import { itemPhase } from "@/lib/shared/masterplan/schemas";
 
 import {
@@ -134,6 +135,17 @@ function BlueprintPage() {
     enabled: !!tenantId,
   });
 
+  const fetchGbpSummary = useServerFn(summarizeGbpProfileFn);
+  const gbpQuery = useQuery({
+    queryKey: ["gbp-summary", tenantId, goalId],
+    queryFn: async () => {
+      if (!tenantId) return { summary: null };
+      return await fetchGbpSummary({ data: { tenantId, growthGoalId: goalId } });
+    },
+    enabled: !!tenantId,
+  });
+
+
   const goal = goalQuery.data?.goal ?? null;
   const plan = planQuery.data?.plan ?? null;
   const items = itemsQuery.data?.items ?? [];
@@ -141,6 +153,7 @@ function BlueprintPage() {
   const competitorSummary = competitorQuery.data?.summary ?? null;
   const competitorConfig = competitorQuery.data?.config ?? { dataForSeo: false, firecrawl: false };
   const pageDiagnostics = pageDiagnosticsQuery.data?.pages ?? [];
+  const gbpSummary = gbpQuery.data?.summary ?? null;
 
   const blueprint: LeadEngineBlueprint | null = useMemo(() => {
     if (!goal || !plan) return null;
@@ -200,10 +213,11 @@ function BlueprintPage() {
         marketSummary && marketSummary.available ? marketSummary : undefined,
       competitorSummary:
         competitorSummary && competitorSummary.available ? competitorSummary : undefined,
+      gbpSummary: gbpSummary ?? undefined,
       now: new Date(),
     };
     return generateLeadEngineBlueprint(input);
-  }, [goal, plan, items, tenantId, marketSummary, competitorSummary, pageDiagnostics]);
+  }, [goal, plan, items, tenantId, marketSummary, competitorSummary, pageDiagnostics, gbpSummary]);
 
   return (
     <div className="min-h-screen bg-background bg-blueprint">
@@ -221,6 +235,9 @@ function BlueprintPage() {
               Masterplan
             </Link>
             <span className="font-medium text-foreground">Blueprint</span>
+            <Link to="/growth/gbp" className="text-muted-foreground hover:text-foreground">
+              GBP
+            </Link>
             <Link to="/growth/execution" className="text-muted-foreground hover:text-foreground">
               Execution
             </Link>

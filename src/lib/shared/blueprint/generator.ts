@@ -663,7 +663,38 @@ function sectionCurrentSituation(input: GenerateBlueprintInput): BlueprintSectio
       detail: `${locationPages.length} location page${locationPages.length === 1 ? "" : "s"} detected.`,
     });
   }
-  if (input.gbpData?.connected) {
+  const gs = input.gbpSummary;
+  if (gs && gs.available && gs.profile) {
+    const p = gs.profile;
+    const sourceLabel =
+      p.source === "google_api"
+        ? "API-verified"
+        : p.source === "operator_review"
+          ? "operator-reviewed"
+          : p.source === "import"
+            ? "imported"
+            : "manual";
+    const bits: string[] = [];
+    if (p.businessName) bits.push(p.businessName);
+    if (p.primaryCategory) bits.push(p.primaryCategory);
+    if (p.rating != null && p.reviewCount != null)
+      bits.push(`${p.rating.toFixed(1)}★ (${p.reviewCount} reviews)`);
+    else if (p.reviewCount != null) bits.push(`${p.reviewCount} reviews`);
+    if (p.services.length) bits.push(`${p.services.length} services`);
+    if (p.serviceArea.length) bits.push(`${p.serviceArea.length} service areas`);
+    bits.push(
+      `completeness ${gs.completenessScore}/100 · trust ${gs.trustScore}/100 · local visibility ${gs.localVisibilityScore}/100`,
+    );
+    items.push({
+      title: `Google Business Profile (${gs.statusLabel.toLowerCase()}, ${sourceLabel})`,
+      detail: bits.join(" · "),
+    });
+  } else if (gs && gs.available) {
+    items.push({
+      title: `Google Business Profile (${gs.statusLabel.toLowerCase()})`,
+      detail: `Completeness ${gs.completenessScore}/100 · trust ${gs.trustScore}/100 · local visibility ${gs.localVisibilityScore}/100.`,
+    });
+  } else if (input.gbpData?.connected) {
     items.push({
       title: "Google Business Profile",
       detail: `Connected. ${input.gbpData.reviewsCount ?? "?"} reviews, rating ${input.gbpData.averageRating ?? "?"}.`,
@@ -671,7 +702,8 @@ function sectionCurrentSituation(input: GenerateBlueprintInput): BlueprintSectio
   } else {
     items.push({
       title: "Google Business Profile",
-      detail: "Connection status unknown — pending integration (Ticket 5).",
+      detail:
+        "GBP not reviewed yet — add GBP details to sharpen local trust and visibility.",
     });
   }
   if (input.trackingData?.hasAnalytics) {
@@ -719,10 +751,32 @@ function sectionGrowthGap(input: GenerateBlueprintInput, scores: BlueprintScores
       detail: "No structured proof points captured — claims and credibility are weak.",
     });
   }
-  if (!input.gbpData?.connected) {
+  const gsGap = input.gbpSummary;
+  if (gsGap && gsGap.available) {
+    if (gsGap.status === "not_connected" || gsGap.status === "unavailable") {
+      gaps.push({
+        title: "GBP gap",
+        detail:
+          "Google Business Profile is not reviewed yet — category, reviews, services, photos and NAP consistency are unknown.",
+      });
+    } else {
+      const highMed = gsGap.gaps.filter((g) => g.severity !== "low");
+      if (highMed.length === 0) {
+        // GBP is a current strength, not a gap — do nothing.
+      } else {
+        for (const g of highMed.slice(0, 4)) {
+          gaps.push({
+            title: `GBP: ${g.label}`,
+            detail: g.detail ?? "Confirm during manual GBP review.",
+          });
+        }
+      }
+    }
+  } else if (!input.gbpData?.connected) {
     gaps.push({
       title: "GBP gap",
-      detail: "Google Business Profile not confirmed — likely largest local lead lever.",
+      detail:
+        "Google Business Profile is not reviewed yet — category, reviews, services, photos and NAP consistency are unknown.",
     });
   }
   const serviceFocus = input.growthGoal.serviceFocus ?? [];
@@ -1457,11 +1511,31 @@ function buildLeadEngineMap(input: GenerateBlueprintInput): LeadEngineMap {
       detail: "Service and location pages indexed by Google.",
       status: pages.length > 0 ? "active" : "planned",
     },
-    {
-      name: "Google Business Profile",
-      detail: input.gbpData?.connected ? "Connected and feeding local pack." : "Not yet verified.",
-      status: input.gbpData?.connected ? "active" : input.gbpData ? "planned" : "unknown",
-    },
+    (() => {
+      const s = input.gbpSummary;
+      if (s && s.available) {
+        let status: LeadEngineNode["status"] = "unknown";
+        let detail = `${s.statusLabel}. completeness ${s.completenessScore}/100, trust ${s.trustScore}/100, local ${s.localVisibilityScore}/100.`;
+        if (s.status === "not_connected" || s.status === "unavailable") {
+          status = "missing";
+          detail = "Profile not reviewed yet.";
+        } else if (s.status === "manual_review") {
+          status = "planned";
+        } else if (s.status === "reviewed" || s.status === "connected") {
+          const weak =
+            s.completenessScore < 60 ||
+            s.trustScore < 50 ||
+            s.localVisibilityScore < 55;
+          status = weak ? "planned" : "active";
+        }
+        return { name: "Google Business Profile", detail, status };
+      }
+      return {
+        name: "Google Business Profile",
+        detail: input.gbpData?.connected ? "Connected and feeding local pack." : "Not yet verified.",
+        status: input.gbpData?.connected ? "active" : input.gbpData ? "planned" : "missing",
+      };
+    })(),
     {
       name: "Direct + referral",
       detail: "Word of mouth, existing clients, partnerships.",
@@ -1501,8 +1575,18 @@ function buildLeadEngineMap(input: GenerateBlueprintInput): LeadEngineMap {
   } else {
     trustBuilders.push({
       name: "Reviews + ratings",
-      detail: "GBP + on-site testimonials.",
-      status: input.gbpData?.reviewsCount ? "active" : "missing",
+      detail: (() => {
+        const p = input.gbpSummary?.profile;
+        if (p?.rating != null && p?.reviewCount != null)
+          return `GBP: ${p.rating.toFixed(1)}★ across ${p.reviewCount} reviews.`;
+        if (p?.reviewCount != null) return `GBP: ${p.reviewCount} reviews captured.`;
+        return "GBP + on-site testimonials.";
+      })(),
+      status:
+        (input.gbpSummary?.profile?.reviewCount ?? 0) > 0 ||
+        input.gbpData?.reviewsCount
+          ? "active"
+          : "missing",
     });
     trustBuilders.push({
       name: "Licensing / certifications",
@@ -1602,6 +1686,21 @@ function buildAssumptions(input: GenerateBlueprintInput, scores: BlueprintScores
       detail: "Until conversion tracking is verified, results cannot be attributed reliably.",
     });
   }
+  const gsA = input.gbpSummary;
+  if (gsA && gsA.available) {
+    if (gsA.source === "manual" || gsA.source === "operator_review") {
+      a.push({
+        label: "GBP data is operator-reviewed",
+        detail:
+          "GBP profile data was entered manually and should be verified against the live listing before being cited as a hard claim.",
+      });
+    } else if (gsA.source === "google_api") {
+      a.push({
+        label: "GBP data is API-sourced",
+        detail: "Pulled directly from Google Business Profile API.",
+      });
+    }
+  }
   return a;
 }
 
@@ -1625,10 +1724,61 @@ function buildClientQuestions(input: GenerateBlueprintInput): ClientQuestion[] {
       required: true,
     });
   }
-  if (!input.gbpData?.connected) {
+  const gsQ = input.gbpSummary;
+  if (gsQ && gsQ.available && gsQ.profile) {
+    const p = gsQ.profile;
+    if (!p.primaryCategory)
+      q.push({
+        id: "gbp_primary_category",
+        question: "What is the primary GBP category for this business?",
+        why: "Drives local pack eligibility and category-driven discovery.",
+        category: "gbp",
+        required: true,
+      });
+    if (p.services.length === 0)
+      q.push({
+        id: "gbp_services",
+        question: "Which services should appear on the GBP listing?",
+        why: "GBP services map to local intent queries.",
+        category: "gbp",
+        required: true,
+      });
+    if (p.reviewCount == null)
+      q.push({
+        id: "gbp_reviews_source",
+        question: "Where are reviews currently captured (count + average)?",
+        why: "Required before we can cite review numbers in copy or ads.",
+        category: "gbp",
+        required: true,
+      });
+    if (p.photosStatus === "unknown" || p.photosStatus === "weak" || p.photosStatus === "missing")
+      q.push({
+        id: "gbp_photos",
+        question: "Do you have fresh GBP photos (team, jobs, exterior)?",
+        why: "Photos drive profile engagement and trust.",
+        category: "gbp",
+        required: false,
+      });
+    if (p.postsStatus === "unknown" || p.postsStatus === "inactive")
+      q.push({
+        id: "gbp_posts",
+        question: "Who can publish weekly GBP posts going forward?",
+        why: "Post cadence improves profile activity signals.",
+        category: "gbp",
+        required: false,
+      });
+    if (p.napConsistency === "unknown" || p.napConsistency === "inconsistent")
+      q.push({
+        id: "gbp_nap",
+        question: "Is the business name, address and phone identical everywhere it appears online?",
+        why: "Inconsistent NAP suppresses local rankings.",
+        category: "gbp",
+        required: true,
+      });
+  } else if (!input.gbpData?.connected) {
     q.push({
       id: "gbp_access",
-      question: "Can we get access to your Google Business Profile?",
+      question: "Can we get access to (or details of) your Google Business Profile?",
       why: "GBP is often the largest local lead lever.",
       category: "gbp",
       required: true,
