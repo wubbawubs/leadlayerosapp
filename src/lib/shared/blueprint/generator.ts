@@ -751,10 +751,32 @@ function sectionGrowthGap(input: GenerateBlueprintInput, scores: BlueprintScores
       detail: "No structured proof points captured — claims and credibility are weak.",
     });
   }
-  if (!input.gbpData?.connected) {
+  const gsGap = input.gbpSummary;
+  if (gsGap && gsGap.available) {
+    if (gsGap.status === "not_connected" || gsGap.status === "unavailable") {
+      gaps.push({
+        title: "GBP gap",
+        detail:
+          "Google Business Profile is not reviewed yet — category, reviews, services, photos and NAP consistency are unknown.",
+      });
+    } else {
+      const highMed = gsGap.gaps.filter((g) => g.severity !== "low");
+      if (highMed.length === 0) {
+        // GBP is a current strength, not a gap — do nothing.
+      } else {
+        for (const g of highMed.slice(0, 4)) {
+          gaps.push({
+            title: `GBP: ${g.label}`,
+            detail: g.detail ?? "Confirm during manual GBP review.",
+          });
+        }
+      }
+    }
+  } else if (!input.gbpData?.connected) {
     gaps.push({
       title: "GBP gap",
-      detail: "Google Business Profile not confirmed — likely largest local lead lever.",
+      detail:
+        "Google Business Profile is not reviewed yet — category, reviews, services, photos and NAP consistency are unknown.",
     });
   }
   const serviceFocus = input.growthGoal.serviceFocus ?? [];
