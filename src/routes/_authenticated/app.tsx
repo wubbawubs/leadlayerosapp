@@ -24,7 +24,9 @@ import {
 } from "@/lib/shared/masterplan/repo.functions";
 import { getExecutionBoard } from "@/lib/shared/execution/board.functions";
 import { getGrowthIntelligenceSnapshot } from "@/lib/growthIntelligence/growthIntelligence.functions";
+import { getProductFlowState } from "@/lib/productFlow/productFlow.functions";
 import type { GrowthIntelligenceSnapshot } from "@/lib/shared/growthIntelligence/schemas";
+import type { ProductFlowState } from "@/lib/shared/productFlow/schemas";
 
 
 export const Route = createFileRoute("/_authenticated/app")({
