@@ -201,6 +201,53 @@ type StageResult = Partial<IntelligenceStageState> & {
   outputs?: Record<string, unknown>;
 };
 
+async function countAuditPageIntelligenceCoverage(
+  tenantId: string,
+  auditId: string,
+): Promise<{ auditPagesCount: number; pagesClassified: number }> {
+  const { data: auditPages, error: auditPagesError } = await admin
+    .from("audit_pages")
+    .select("id, page_id, url")
+    .eq("tenant_id", tenantId)
+    .eq("audit_id", auditId);
+  if (auditPagesError) throw auditPagesError;
+
+  const pages = (auditPages ?? []) as Array<{ id: string; page_id: string | null; url: string | null }>;
+  if (pages.length === 0) return { auditPagesCount: 0, pagesClassified: 0 };
+
+  const auditPageIds = pages.map((p) => p.id);
+  const pageIds = pages.map((p) => p.page_id).filter((id): id is string => !!id);
+  const clauses = [
+    `audit_id.eq.${auditId}`,
+    auditPageIds.length > 0 ? `audit_page_id.in.(${auditPageIds.join(",")})` : null,
+    pageIds.length > 0 ? `page_id.in.(${pageIds.join(",")})` : null,
+  ].filter((clause): clause is string => !!clause);
+
+  const { data: intelRows, error: intelError } = await admin
+    .from("page_intelligence")
+    .select("id, page_id, audit_page_id, audit_id, page_url")
+    .eq("tenant_id", tenantId)
+    .or(clauses.join(","));
+  if (intelError) throw intelError;
+
+  const rows = (intelRows ?? []) as Array<{
+    page_id: string | null;
+    audit_page_id: string | null;
+    audit_id: string | null;
+    page_url: string | null;
+  }>;
+  const classified = pages.filter((page) =>
+    rows.some(
+      (row) =>
+        row.audit_page_id === page.id ||
+        (!!page.page_id && row.page_id === page.page_id) ||
+        (row.audit_id === auditId && !!page.url && row.page_url === page.url),
+    ),
+  ).length;
+
+  return { auditPagesCount: pages.length, pagesClassified: classified };
+}
+
 async function stageSiteAudit(ctx: StageContext): Promise<StageResult> {
   // Find site connection
   const { data: site } = await admin
