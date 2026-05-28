@@ -540,7 +540,7 @@ async function stageGbpIntelligence(ctx: StageContext): Promise<StageResult> {
   return {
     status: gbp.last_reviewed_at ? "complete" : "partial",
     message: `GBP profile available (completeness ${gbp.completeness_score ?? "n/a"})`,
-    outputs: { gbpProfileId: gbp.id, gbpStatus: gbp.status },
+    outputs: { gbpProfileId: gbp.id, gbpStatus: gbp.status, lastReviewedAt: gbp.last_reviewed_at },
     nextAction: gbp.last_reviewed_at ? null : "Review at /growth/gbp",
   };
 }
@@ -566,10 +566,22 @@ async function stageMarketScan(ctx: StageContext): Promise<StageResult> {
     .limit(1)
     .maybeSingle();
   if (existing && existing.status === "completed") {
+    const { count } = await admin
+      .from("market_demand_clusters")
+      .select("id", { count: "exact", head: true })
+      .eq("market_scan_id", existing.id);
+    if (!count) {
+      return {
+        status: "partial",
+        message: "Market scan completed, but no demand clusters were found",
+        outputs: { marketScanId: existing.id, clustersCount: 0 },
+        nextAction: "Review market scan from /growth/intelligence",
+      };
+    }
     return {
       status: "complete",
-      message: "Market scan available",
-      outputs: { marketScanId: existing.id },
+      message: `Market scan available (${count} clusters)`,
+      outputs: { marketScanId: existing.id, clustersCount: count },
     };
   }
   if (services.length === 0 || locations.length === 0) {
