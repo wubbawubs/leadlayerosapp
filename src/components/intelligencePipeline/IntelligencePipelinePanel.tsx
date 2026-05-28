@@ -105,7 +105,7 @@ export function IntelligencePipelinePanel({ tenantId }: { tenantId: string }) {
             Intelligence Pipeline V1
           </p>
           <h2 className="mt-1 font-display text-2xl text-foreground">
-            {run ? STAGE_LABELS[run.currentStage ?? "site_audit"] : "No run yet"}
+            {run?.currentStage ? STAGE_LABELS[run.currentStage] : run ? "Pipeline reviewed" : "No run yet"}
           </h2>
           {run ? (
             <p className="mt-1 text-xs text-muted-foreground">
@@ -235,6 +235,7 @@ function StageRow({
 }) {
   const outputs = stage.outputs ?? {};
   const outputKeys = Object.keys(outputs);
+  const partialCopy = getPartialCopy(stage);
   return (
     <li className="flex flex-col gap-2 p-3 text-sm sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
@@ -244,6 +245,9 @@ function StageRow({
         </div>
         {stage.message && (
           <p className="mt-1 text-xs text-muted-foreground">{stage.message}</p>
+        )}
+        {partialCopy && (
+          <p className="mt-1 text-xs text-muted-foreground">{partialCopy}</p>
         )}
         {stage.error && (
           <p className="mt-1 text-xs text-destructive">Error: {stage.error}</p>
@@ -345,6 +349,18 @@ function formatOutput(v: unknown): string {
   if (typeof v === "string") return v.length > 24 ? `${v.slice(0, 22)}…` : v;
   if (typeof v === "number" || typeof v === "boolean") return String(v);
   return "{…}";
+}
+
+function getPartialCopy(stage: IntelligenceStageState): string | null {
+  if (stage.status === "blocked_dependency") return "Blocked — fix required before continuing.";
+  if (stage.status !== "partial") return null;
+  if (
+    stage.key === "business_profile_draft" &&
+    stage.outputs?.profileStatus === "review_ready"
+  ) {
+    return "Draft ready for operator review. Pipeline can continue, but client-facing Blueprint should wait for approval.";
+  }
+  return "Partial — pipeline can continue.";
 }
 
 function RunStatusBadge({ status }: { status: IntelligenceRunStatus }) {

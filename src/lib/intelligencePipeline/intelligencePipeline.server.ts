@@ -48,18 +48,37 @@ function rowToRun(row: any): IntelligenceRun {
   for (const key of INTELLIGENCE_STAGE_KEYS) {
     if (stages[key]) fullStages[key] = stages[key] as IntelligenceStageState;
   }
+  const outputRefs = (row.output_refs ?? {}) as { [key: string]: import("@/lib/shared/intelligencePipeline/schemas").JsonValue };
+  if (
+    fullStages.page_intelligence.status === "complete" &&
+    asPositiveNumber(fullStages.page_intelligence.outputs?.pagesClassified) === 0
+  ) {
+    const auditPagesCount = asPositiveNumber(
+      fullStages.page_intelligence.outputs?.auditPagesCount ?? outputRefs.pagesCount,
+    );
+    fullStages.page_intelligence = {
+      ...fullStages.page_intelligence,
+      status: "partial",
+      message: auditPagesCount
+        ? `Audit found ${auditPagesCount} pages, but Page Intelligence classified 0 pages.`
+        : "Page Intelligence classified 0 pages.",
+    };
+  }
+  for (const key of INTELLIGENCE_STAGE_KEYS) {
+    fullStages[key] = hardenStageState(key, fullStages[key]);
+  }
   return {
     id: row.id,
     tenantId: row.tenant_id,
     siteId: row.site_id ?? null,
     growthGoalId: row.growth_goal_id ?? null,
     status: row.status as IntelligenceRunStatus,
-    currentStage: (row.current_stage ?? null) as IntelligenceStageKey | null,
+    currentStage: deriveCurrentStage(fullStages),
     triggeredBy: (row.triggered_by ?? "operator") as IntelligenceTriggeredBy,
     triggerReason: row.trigger_reason ?? null,
     stages: fullStages,
     inputHash: (row.input_hash ?? {}) as { [key: string]: import("@/lib/shared/intelligencePipeline/schemas").JsonValue },
-    outputRefs: (row.output_refs ?? {}) as { [key: string]: import("@/lib/shared/intelligencePipeline/schemas").JsonValue },
+    outputRefs,
     startedAt: row.started_at ?? null,
     completedAt: row.completed_at ?? null,
     failedAt: row.failed_at ?? null,
@@ -88,6 +107,105 @@ async function persistStage(
     .eq("id", runId);
 }
 
+const TERMINAL_STAGE_STATUSES = new Set<IntelligenceStageStatus>([
+  "complete",
+  "partial",
+  "failed",
+  "skipped_needs_context",
+  "blocked_dependency",
+]);
+
+function asPositiveNumber(value: unknown): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function completeStageMeetsMinimum(
+  key: IntelligenceStageKey,
+  stage: IntelligenceStageState,
+): boolean {
+  if (stage.status !== "complete") return true;
+  const outputs = stage.outputs ?? {};
+  switch (key) {
+    case "site_audit":
+      return typeof outputs.auditId === "string" && asPositiveNumber(outputs.pagesCount) > 0;
+    case "page_intelligence":
+      return asPositiveNumber(outputs.pagesClassified) > 0;
+    case "business_profile_draft":
+      return typeof outputs.businessProfileId === "string" && outputs.profileStatus === "approved";
+    case "tone_profile_draft":
+      return typeof outputs.toneProfileId === "string" && asPositiveNumber(outputs.confidenceScore) > 0;
+    case "gbp_intelligence":
+      return typeof outputs.gbpProfileId === "string" && typeof outputs.lastReviewedAt === "string";
+    case "market_scan":
+      return typeof outputs.marketScanId === "string" && asPositiveNumber(outputs.clustersCount) > 0;
+    case "competitor_scan":
+      return typeof outputs.competitorScanId === "string";
+    case "growth_snapshot":
+      return typeof outputs.readinessScore === "number" && Number.isFinite(outputs.readinessScore);
+    case "blueprint_draft":
+      return outputs.blueprintAvailable === true;
+    case "masterplan_draft":
+      return typeof outputs.masterplanId === "string" || asPositiveNumber(outputs.itemCount) > 0;
+    default:
+      return true;
+  }
+}
+
+function isAcceptedTerminalStage(
+  key: IntelligenceStageKey,
+  stage: IntelligenceStageState,
+): boolean {
+  if (!TERMINAL_STAGE_STATUSES.has(stage.status)) return false;
+  return completeStageMeetsMinimum(key, stage);
+}
+
+function hardenStageState(
+  key: IntelligenceStageKey,
+  stage: IntelligenceStageState,
+): IntelligenceStageState {
+  if (stage.status !== "complete" || completeStageMeetsMinimum(key, stage)) return stage;
+  const messages: Partial<Record<IntelligenceStageKey, string>> = {
+    site_audit: "Site audit did not meet minimum success conditions: auditId and pagesCount > 0 are required.",
+    page_intelligence: "Page Intelligence did not meet minimum success conditions: pagesClassified > 0 is required.",
+    business_profile_draft: "Business profile draft exists, but approval is required before this stage is complete.",
+    tone_profile_draft: "Tone profile exists, but confidence/status data is missing.",
+    gbp_intelligence: "GBP profile exists, but it has not been reviewed yet.",
+    market_scan: "Market scan exists, but no demand clusters were found.",
+    competitor_scan: "Competitor scan did not return a scan id.",
+    growth_snapshot: "Growth Intelligence Snapshot did not return a readiness score.",
+    blueprint_draft: "Blueprint draft is not available yet.",
+    masterplan_draft: "Masterplan draft is missing a masterplan id or items.",
+  };
+  return {
+    ...stage,
+    status: key === "site_audit" || key === "growth_snapshot" ? "failed" : "partial",
+    message: messages[key] ?? stage.message,
+    error: key === "site_audit" || key === "growth_snapshot" ? messages[key] ?? stage.error : stage.error,
+  };
+}
+
+function deriveCurrentStage(stages: IntelligenceStagesMap): IntelligenceStageKey | null {
+  const runningOrNext = INTELLIGENCE_STAGE_KEYS.find((key) => {
+    const status = stages[key].status;
+    return status === "running" || status === "not_started" || status === "stale";
+  });
+  if (runningOrNext) return runningOrNext;
+
+  const blocker = INTELLIGENCE_STAGE_KEYS.find((key) => {
+    const status = stages[key].status;
+    return status === "failed" || status === "blocked_dependency";
+  });
+  if (blocker) return blocker;
+
+  return (
+    INTELLIGENCE_STAGE_KEYS.find((key) => {
+      const status = stages[key].status;
+      return status === "partial" || status === "skipped_needs_context";
+    }) ?? null
+  );
+}
+
 function deriveRunStatus(stages: IntelligenceStagesMap): IntelligenceRunStatus {
   const vals = Object.values(stages);
   if (vals.some((s) => s.status === "running")) return "running";
@@ -101,13 +219,8 @@ function deriveRunStatus(stages: IntelligenceStagesMap): IntelligenceRunStatus {
       s.status === "skipped_needs_context" ||
       s.status === "blocked_dependency",
   );
-  const allTerminal = vals.every(
-    (s) =>
-      s.status === "complete" ||
-      s.status === "partial" ||
-      s.status === "failed" ||
-      s.status === "skipped_needs_context" ||
-      s.status === "blocked_dependency",
+  const allTerminal = INTELLIGENCE_STAGE_KEYS.every((key) =>
+    isAcceptedTerminalStage(key, stages[key]),
   );
   if (!allTerminal) return "running";
   if (anyFailed || anyPartial) return "partial";
@@ -131,6 +244,53 @@ type StageResult = Partial<IntelligenceStageState> & {
   status: IntelligenceStageStatus;
   outputs?: Record<string, unknown>;
 };
+
+async function countAuditPageIntelligenceCoverage(
+  tenantId: string,
+  auditId: string,
+): Promise<{ auditPagesCount: number; pagesClassified: number }> {
+  const { data: auditPages, error: auditPagesError } = await admin
+    .from("audit_pages")
+    .select("id, page_id, url")
+    .eq("tenant_id", tenantId)
+    .eq("audit_id", auditId);
+  if (auditPagesError) throw auditPagesError;
+
+  const pages = (auditPages ?? []) as Array<{ id: string; page_id: string | null; url: string | null }>;
+  if (pages.length === 0) return { auditPagesCount: 0, pagesClassified: 0 };
+
+  const auditPageIds = pages.map((p) => p.id);
+  const pageIds = pages.map((p) => p.page_id).filter((id): id is string => !!id);
+  const clauses = [
+    `audit_id.eq.${auditId}`,
+    auditPageIds.length > 0 ? `audit_page_id.in.(${auditPageIds.join(",")})` : null,
+    pageIds.length > 0 ? `page_id.in.(${pageIds.join(",")})` : null,
+  ].filter((clause): clause is string => !!clause);
+
+  const { data: intelRows, error: intelError } = await admin
+    .from("page_intelligence")
+    .select("id, page_id, audit_page_id, audit_id, page_url")
+    .eq("tenant_id", tenantId)
+    .or(clauses.join(","));
+  if (intelError) throw intelError;
+
+  const rows = (intelRows ?? []) as Array<{
+    page_id: string | null;
+    audit_page_id: string | null;
+    audit_id: string | null;
+    page_url: string | null;
+  }>;
+  const classified = pages.filter((page) =>
+    rows.some(
+      (row) =>
+        row.audit_page_id === page.id ||
+        (!!page.page_id && row.page_id === page.page_id) ||
+        (row.audit_id === auditId && !!page.url && row.page_url === page.url),
+    ),
+  ).length;
+
+  return { auditPagesCount: pages.length, pagesClassified: classified };
+}
 
 async function stageSiteAudit(ctx: StageContext): Promise<StageResult> {
   // Find site connection
@@ -160,10 +320,18 @@ async function stageSiteAudit(ctx: StageContext): Promise<StageResult> {
     .maybeSingle();
   if (recent) {
     ctx.outputs.auditId = recent.id;
+    const pagesCount = asPositiveNumber(recent.pages_count);
+    if (pagesCount === 0) {
+      return {
+        status: "failed",
+        error: "Recent audit has no pages",
+        outputs: { auditId: recent.id, pagesCount: 0 },
+      };
+    }
     return {
       status: "complete",
-      message: `Recent audit reused (${recent.pages_count} pages)`,
-      outputs: { auditId: recent.id, pagesCount: recent.pages_count },
+      message: `Recent audit reused (${pagesCount} pages)`,
+      outputs: { auditId: recent.id, pagesCount },
     };
   }
 
@@ -198,10 +366,18 @@ async function stageSiteAudit(ctx: StageContext): Promise<StageResult> {
     };
   }
   ctx.outputs.auditId = audit.id;
+  const pagesCount = asPositiveNumber(done.pages_count);
+  if (pagesCount === 0) {
+    return {
+      status: "failed",
+      error: "Audit completed but found 0 pages",
+      outputs: { auditId: audit.id, pagesCount: 0 },
+    };
+  }
   return {
     status: "complete",
-    message: `Audit completed (${done.pages_count} pages)`,
-    outputs: { auditId: audit.id, pagesCount: done.pages_count },
+    message: `Audit completed (${pagesCount} pages)`,
+    outputs: { auditId: audit.id, pagesCount },
   };
 }
 
@@ -212,23 +388,46 @@ async function stagePageIntelligence(ctx: StageContext): Promise<StageResult> {
   if (!auditId) {
     return { status: "blocked_dependency", message: "Site audit not available" };
   }
+  const before = await countAuditPageIntelligenceCoverage(ctx.tenantId, auditId);
+  if (before.auditPagesCount === 0) {
+    return {
+      status: "blocked_dependency",
+      message: "Page Intelligence needs audit pages, but the audit has 0 pages.",
+      outputs: { auditId, auditPagesCount: 0, pagesClassified: 0 },
+    };
+  }
+  if (before.pagesClassified > 0) {
+    return {
+      status: "complete",
+      message: `${before.pagesClassified} of ${before.auditPagesCount} audit pages classified`,
+      outputs: { auditId, auditPagesCount: before.auditPagesCount, pagesClassified: before.pagesClassified },
+    };
+  }
+
   try {
-    const summary = await analyzePageIntelligenceForAudit({
+    await analyzePageIntelligenceForAudit({
       tenantId: ctx.tenantId,
       auditId,
     });
-    const analyzed = (summary as { analyzed?: number; pagesClassified?: number } | null);
-    const pagesClassified =
-      Number(analyzed?.pagesClassified ?? analyzed?.analyzed ?? 0) || undefined;
+    const after = await countAuditPageIntelligenceCoverage(ctx.tenantId, auditId);
+    if (after.auditPagesCount > 0 && after.pagesClassified === 0) {
+      return {
+        status: "partial",
+        message: `Audit found ${after.auditPagesCount} pages, but Page Intelligence classified 0 pages.`,
+        outputs: { auditId, auditPagesCount: after.auditPagesCount, pagesClassified: 0 },
+        nextAction: "Retry Page Intelligence from /growth/intelligence",
+      };
+    }
     return {
       status: "complete",
-      message: pagesClassified ? `${pagesClassified} pages classified` : "Page intelligence updated",
-      outputs: { pagesClassified: pagesClassified ?? 0, auditId },
+      message: `${after.pagesClassified} of ${after.auditPagesCount} audit pages classified`,
+      outputs: { auditId, auditPagesCount: after.auditPagesCount, pagesClassified: after.pagesClassified },
     };
   } catch (e) {
     return {
-      status: "partial",
+      status: "failed",
       error: e instanceof Error ? e.message : String(e),
+      outputs: { auditId, auditPagesCount: before.auditPagesCount, pagesClassified: before.pagesClassified },
       nextAction: "Retry Page Intelligence from /growth/intelligence",
     };
   }
@@ -288,18 +487,23 @@ async function stageBusinessProfile(ctx: StageContext): Promise<StageResult> {
 
 async function stageToneProfile(ctx: StageContext): Promise<StageResult> {
   const { data: existing } = await admin
-    .from("brand_voice_profiles")
-    .select("id, job_status, analyzed_at")
+    .from("tone_profiles")
+    .select("id, status, job_status, confidence_score, analyzed_at")
     .eq("tenant_id", ctx.tenantId)
     .maybeSingle();
   if (existing?.analyzed_at) {
     const ageHours = (Date.now() - new Date(existing.analyzed_at).getTime()) / 3600000;
     if (ageHours < 24) {
       return {
-        status: "complete",
-        message: `Tone profile reused (${ageHours.toFixed(0)}h old)`,
-        outputs: { toneProfileId: existing.id, jobStatus: existing.job_status },
-        nextAction: "Approve at /settings/tone-profile",
+        status: existing.status === "approved" || existing.status === "locked" ? "complete" : "partial",
+        message: `Tone profile ${existing.status} (${ageHours.toFixed(0)}h old)`,
+        outputs: {
+          toneProfileId: existing.id,
+          profileStatus: existing.status,
+          jobStatus: existing.job_status,
+          confidenceScore: existing.confidence_score ?? 0,
+        },
+        nextAction: existing.status === "approved" || existing.status === "locked" ? null : "Approve at /settings/tone-profile",
       };
     }
   }
@@ -308,7 +512,7 @@ async function stageToneProfile(ctx: StageContext): Promise<StageResult> {
     return {
       status: "partial",
       message: "Tone profile draft generated — approval pending",
-      outputs: { toneProfileId: (profile as { id?: string } | null)?.id ?? existing?.id ?? null },
+      outputs: { toneProfileId: existing?.id ?? null, profileStatus: "draft" },
       nextAction: "Approve at /settings/tone-profile",
     };
   } catch (e) {
@@ -336,7 +540,7 @@ async function stageGbpIntelligence(ctx: StageContext): Promise<StageResult> {
   return {
     status: gbp.last_reviewed_at ? "complete" : "partial",
     message: `GBP profile available (completeness ${gbp.completeness_score ?? "n/a"})`,
-    outputs: { gbpProfileId: gbp.id, gbpStatus: gbp.status },
+    outputs: { gbpProfileId: gbp.id, gbpStatus: gbp.status, lastReviewedAt: gbp.last_reviewed_at },
     nextAction: gbp.last_reviewed_at ? null : "Review at /growth/gbp",
   };
 }
@@ -362,10 +566,22 @@ async function stageMarketScan(ctx: StageContext): Promise<StageResult> {
     .limit(1)
     .maybeSingle();
   if (existing && existing.status === "completed") {
+    const { count } = await admin
+      .from("market_demand_clusters")
+      .select("id", { count: "exact", head: true })
+      .eq("market_scan_id", existing.id);
+    if (!count) {
+      return {
+        status: "partial",
+        message: "Market scan completed, but no demand clusters were found",
+        outputs: { marketScanId: existing.id, clustersCount: 0 },
+        nextAction: "Review market scan from /growth/intelligence",
+      };
+    }
     return {
       status: "complete",
-      message: "Market scan available",
-      outputs: { marketScanId: existing.id },
+      message: `Market scan available (${count} clusters)`,
+      outputs: { marketScanId: existing.id, clustersCount: count },
     };
   }
   if (services.length === 0 || locations.length === 0) {
@@ -663,10 +879,15 @@ export async function advanceIntelligenceRun(input: {
     };
     ctx.stages[key] = stageState;
     if (result.outputs) ctx.outputs = { ...ctx.outputs, ...result.outputs };
+    const nextCurrentStage = deriveCurrentStage(ctx.stages);
     await persistStage(run.id, key, stageState);
     await admin
       .from("intelligence_runs")
-      .update({ output_refs: ctx.outputs })
+      .update({
+        status: "running",
+        output_refs: ctx.outputs,
+        current_stage: nextCurrentStage,
+      })
       .eq("id", run.id);
 
     // Hard-stop on foundational failures
@@ -693,6 +914,7 @@ export async function advanceIntelligenceRun(input: {
   }
 
   const finalStatus = deriveRunStatus(ctx.stages);
+  const finalCurrentStage = deriveCurrentStage(ctx.stages);
   await admin
     .from("intelligence_runs")
     .update({
@@ -702,7 +924,7 @@ export async function advanceIntelligenceRun(input: {
           ? new Date().toISOString()
           : null,
       output_refs: ctx.outputs,
-      current_stage: null,
+      current_stage: finalCurrentStage,
     })
     .eq("id", run.id);
 
