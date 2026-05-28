@@ -8,6 +8,13 @@ import {
   TenantSwitcher,
   getActiveTenantId,
 } from "@/components/app/TenantSwitcher";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { listMyTenants } from "@/lib/shared/db/repos/tenants.functions";
 import { getActiveGrowthGoal } from "@/lib/shared/growthGoals/repo.functions";
