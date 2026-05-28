@@ -306,23 +306,27 @@ export function IntelligencePipelineSummary({ tenantId }: { tenantId: string }) 
   });
   const run = runQuery.data?.run ?? null;
 
+  const summary = run ? getRunSummary(run) : null;
   return (
     <section className="mt-6 rounded-xl border border-primary/30 bg-primary/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">
             Latest intelligence run
           </p>
-          {run ? (
-            <p className="mt-1 text-sm text-foreground">
-              <RunStatusBadge status={run.status} /> ·{" "}
-              <span className="text-muted-foreground">
-                stage:{" "}
-                <span className="text-foreground">
-                  {STAGE_LABELS[run.currentStage ?? "operator_review_ready"]}
-                </span>
-              </span>
-            </p>
+          {run && summary ? (
+            <>
+              <p className="mt-1 text-sm text-foreground">
+                <RunStatusBadge status={run.status} />{" "}
+                <span className="text-foreground">{summary.title}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {summary.subtitle} · {summary.processed}/{summary.total} stages
+                {summary.readinessScore !== null
+                  ? ` · readiness ${summary.readinessScore}/100`
+                  : ""}
+              </p>
+            </>
           ) : (
             <p className="mt-1 text-sm text-muted-foreground">
               No run yet. Start one to build the snapshot, blueprint and masterplan.
@@ -339,6 +343,7 @@ export function IntelligencePipelineSummary({ tenantId }: { tenantId: string }) 
     </section>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // Helpers
