@@ -53,7 +53,7 @@ export interface GbpProfile {
   secondaryCategories: string[];
   rating: number | null;
   reviewCount: number | null;
-  reviewVelocity: Record<string, unknown>;
+  reviewVelocity: Record<string, number>;
   services: string[];
   serviceArea: string[];
   address: string | null;
