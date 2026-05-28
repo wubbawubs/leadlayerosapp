@@ -257,20 +257,24 @@ function StageRow({
 }) {
   const outputs = stage.outputs ?? {};
   const outputKeys = Object.keys(outputs);
-  const partialCopy = getPartialCopy(stage);
+  const display = mapPipelineStageDisplay(stageKey, stage);
   return (
     <li className="flex flex-col gap-2 p-3 text-sm sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-foreground">{STAGE_LABELS[stageKey]}</span>
-          <StageStatusBadge status={stage.status} />
+          <DisplayBadge tone={display.tone} label={display.label} />
+          <span
+            className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70"
+            title="Technical status"
+          >
+            {stage.status}
+          </span>
         </div>
         {stage.message && (
           <p className="mt-1 text-xs text-muted-foreground">{stage.message}</p>
         )}
-        {partialCopy && (
-          <p className="mt-1 text-xs text-muted-foreground">{partialCopy}</p>
-        )}
+
         {stage.error && (
           <p className="mt-1 text-xs text-destructive">Error: {stage.error}</p>
         )}
