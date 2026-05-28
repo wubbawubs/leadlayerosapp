@@ -229,10 +229,18 @@ async function stageSiteAudit(ctx: StageContext): Promise<StageResult> {
     .maybeSingle();
   if (recent) {
     ctx.outputs.auditId = recent.id;
+    const pagesCount = asPositiveNumber(recent.pages_count);
+    if (pagesCount === 0) {
+      return {
+        status: "failed",
+        error: "Recent audit has no pages",
+        outputs: { auditId: recent.id, pagesCount: 0 },
+      };
+    }
     return {
       status: "complete",
-      message: `Recent audit reused (${recent.pages_count} pages)`,
-      outputs: { auditId: recent.id, pagesCount: recent.pages_count },
+      message: `Recent audit reused (${pagesCount} pages)`,
+      outputs: { auditId: recent.id, pagesCount },
     };
   }
 
@@ -267,10 +275,18 @@ async function stageSiteAudit(ctx: StageContext): Promise<StageResult> {
     };
   }
   ctx.outputs.auditId = audit.id;
+  const pagesCount = asPositiveNumber(done.pages_count);
+  if (pagesCount === 0) {
+    return {
+      status: "failed",
+      error: "Audit completed but found 0 pages",
+      outputs: { auditId: audit.id, pagesCount: 0 },
+    };
+  }
   return {
     status: "complete",
-    message: `Audit completed (${done.pages_count} pages)`,
-    outputs: { auditId: audit.id, pagesCount: done.pages_count },
+    message: `Audit completed (${pagesCount} pages)`,
+    outputs: { auditId: audit.id, pagesCount },
   };
 }
 
