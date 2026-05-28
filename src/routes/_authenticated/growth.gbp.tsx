@@ -116,7 +116,7 @@ function GbpReviewPage() {
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
-    queryFn: () => fetchTenants({ data: {} }),
+    queryFn: () => fetchTenants(),
   });
   const tenantId = tenantsQuery.data?.tenants[0]?.id ?? null;
 
