@@ -140,7 +140,11 @@ export function IntelligencePipelinePanel({ tenantId }: { tenantId: string }) {
             {start.isPending ? "Starting…" : "Start intelligence run"}
           </button>
           <button
-            onClick={() => advance.mutate()}
+            onClick={() => {
+              loopGuard.current = 0;
+              setAutoLoop(true);
+              advance.mutate();
+            }}
             disabled={!run || isTerminal || isRunning}
             className="rounded border border-border bg-background/40 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-background/60 disabled:cursor-not-allowed disabled:opacity-50"
           >
