@@ -624,6 +624,9 @@ export async function advanceIntelligenceRun(input: {
     stages: { ...run.stages },
   };
 
+  // V1: process ONE stage per advance call to stay inside worker timeout.
+  // UI auto-loops until the run reaches a terminal state.
+  let processedOne = false;
   for (const key of INTELLIGENCE_STAGE_KEYS) {
     const current = ctx.stages[key];
     // Skip stages already in a terminal state from a prior pass — except stale.
@@ -636,6 +639,8 @@ export async function advanceIntelligenceRun(input: {
     ) {
       continue;
     }
+    if (processedOne) break;
+    processedOne = true;
     await persistStage(run.id, key, {
       status: "running",
       startedAt: new Date().toISOString(),
@@ -659,6 +664,10 @@ export async function advanceIntelligenceRun(input: {
     ctx.stages[key] = stageState;
     if (result.outputs) ctx.outputs = { ...ctx.outputs, ...result.outputs };
     await persistStage(run.id, key, stageState);
+    await admin
+      .from("intelligence_runs")
+      .update({ output_refs: ctx.outputs })
+      .eq("id", run.id);
 
     // Hard-stop on foundational failures
     if (
