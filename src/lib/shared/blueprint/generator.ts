@@ -1686,6 +1686,21 @@ function buildAssumptions(input: GenerateBlueprintInput, scores: BlueprintScores
       detail: "Until conversion tracking is verified, results cannot be attributed reliably.",
     });
   }
+  const gsA = input.gbpSummary;
+  if (gsA && gsA.available) {
+    if (gsA.source === "manual" || gsA.source === "operator_review") {
+      a.push({
+        label: "GBP data is operator-reviewed",
+        detail:
+          "GBP profile data was entered manually and should be verified against the live listing before being cited as a hard claim.",
+      });
+    } else if (gsA.source === "google_api") {
+      a.push({
+        label: "GBP data is API-sourced",
+        detail: "Pulled directly from Google Business Profile API.",
+      });
+    }
+  }
   return a;
 }
 
