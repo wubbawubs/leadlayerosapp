@@ -271,8 +271,16 @@ function toScoringInputs(input: GenerateBlueprintInput): ScoringInputs {
   const weightedConversionReadiness = totalW > 0
     ? scored.reduce((s, p) => s + p.conversionReadiness * priorityWeight(p), 0) / totalW
     : undefined;
-  // GBP confirmation comes from gbpData when present; absence = not confirmed.
-  const gbpConfirmed = !!(input.gbpData && (input.gbpData.reviewsCount ?? 0) > 0);
+  // GBP confirmation comes from gbpSummary (reviewed/connected status with
+  // any review_count) when present, otherwise from legacy gbpData.
+  const gbpConfirmed = !!(
+    (input.gbpSummary &&
+      input.gbpSummary.available &&
+      (input.gbpSummary.profile?.reviewCount ?? 0) > 0 &&
+      (input.gbpSummary.status === "reviewed" ||
+        input.gbpSummary.status === "connected")) ||
+    (input.gbpData && (input.gbpData.reviewsCount ?? 0) > 0)
+  );
 
   const items = input.masterplanItems ?? [];
   const firstPhase = items.filter((i) => i.phase === "first_30_days").length;
