@@ -1575,8 +1575,18 @@ function buildLeadEngineMap(input: GenerateBlueprintInput): LeadEngineMap {
   } else {
     trustBuilders.push({
       name: "Reviews + ratings",
-      detail: "GBP + on-site testimonials.",
-      status: input.gbpData?.reviewsCount ? "active" : "missing",
+      detail: (() => {
+        const p = input.gbpSummary?.profile;
+        if (p?.rating != null && p?.reviewCount != null)
+          return `GBP: ${p.rating.toFixed(1)}★ across ${p.reviewCount} reviews.`;
+        if (p?.reviewCount != null) return `GBP: ${p.reviewCount} reviews captured.`;
+        return "GBP + on-site testimonials.";
+      })(),
+      status:
+        (input.gbpSummary?.profile?.reviewCount ?? 0) > 0 ||
+        input.gbpData?.reviewsCount
+          ? "active"
+          : "missing",
     });
     trustBuilders.push({
       name: "Licensing / certifications",
