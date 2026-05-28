@@ -76,6 +76,8 @@ function IntelligencePage() {
           Masterplan and (soon) Execution and WordPress delivery.
         </p>
 
+        {tenantId && <IntelligencePipelineSummary tenantId={tenantId} />}
+
         {snapshotQuery.isLoading && (
           <p className="mt-8 text-sm text-muted-foreground">Building snapshot…</p>
         )}
