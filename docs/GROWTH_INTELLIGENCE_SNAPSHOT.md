@@ -1,7 +1,12 @@
 # Growth Intelligence Snapshot V1
 
 > Status: V1 implementation
-> See also: `CLIENT_JOURNEY_AND_OS_ARCHITECTURE.md`, `WORDPRESS_INTEGRATION_ARCHITECTURE.md`
+> See also: `CLIENT_JOURNEY_AND_OS_ARCHITECTURE.md`, `WORDPRESS_INTEGRATION_ARCHITECTURE.md`, `PRODUCT_FLOW_ORCHESTRATION_V1.md`
+>
+> The Snapshot is the **read model**. The derived **Product Flow** (lifecycle
+> stage, review gates, automation checklist, blockers, client/operator copy)
+> lives in `src/lib/shared/productFlow/` and is documented in
+> `PRODUCT_FLOW_ORCHESTRATION_V1.md`.
 
 ## Purpose
 

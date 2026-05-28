@@ -24,7 +24,9 @@ import {
 } from "@/lib/shared/masterplan/repo.functions";
 import { getExecutionBoard } from "@/lib/shared/execution/board.functions";
 import { getGrowthIntelligenceSnapshot } from "@/lib/growthIntelligence/growthIntelligence.functions";
+import { getProductFlowState } from "@/lib/productFlow/productFlow.functions";
 import type { GrowthIntelligenceSnapshot } from "@/lib/shared/growthIntelligence/schemas";
+import type { ProductFlowState } from "@/lib/shared/productFlow/schemas";
 
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -41,6 +43,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Growth",
     items: [
       { label: "Goal", to: "/settings/growth-goal" },
+      { label: "Flow", to: "/growth/flow" },
       { label: "Intelligence", to: "/growth/intelligence" },
       { label: "Blueprint", to: "/growth/blueprint" },
       { label: "Masterplan", to: "/growth/masterplan" },
@@ -122,6 +125,18 @@ function AppHome() {
     const raw = snapshotQuery.data?.snapshotJson;
     if (!raw) return null;
     try { return JSON.parse(raw) as GrowthIntelligenceSnapshot; } catch { return null; }
+  })();
+
+  const fetchFlow = useServerFn(getProductFlowState);
+  const flowQuery = useQuery({
+    queryKey: ["product-flow-state", tenantId],
+    queryFn: () => fetchFlow({ data: { tenantId: tenantId! } }),
+    enabled: !!tenantId,
+  });
+  const flow: ProductFlowState | null = (() => {
+    const raw = flowQuery.data?.flowJson;
+    if (!raw) return null;
+    try { return JSON.parse(raw) as ProductFlowState; } catch { return null; }
   })();
 
 
@@ -270,6 +285,57 @@ function AppHome() {
             </div>
           </section>
         )}
+
+        {flow && (
+          <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">
+                  Product flow · {flow.lifecycleStage}
+                </p>
+                <p className="mt-1 font-display text-2xl text-foreground">
+                  {flow.lifecycleLabel}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {flow.clientVisibleStatus}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground/80">
+                  Operator: {flow.operatorStatus}
+                </p>
+              </div>
+              <div className="flex min-w-[240px] flex-1 flex-col gap-2">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Journey</span>
+                  <span className="font-mono text-foreground">{flow.progressPercent}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-background/40">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{ width: `${flow.progressPercent}%` }}
+                  />
+                </div>
+                <div className="mt-1 flex items-center gap-2">
+                  <Link
+                    to="/growth/flow"
+                    className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-primary/20"
+                  >
+                    Open flow →
+                  </Link>
+                  {flow.primaryNextAction.href && (
+                    <Link
+                      to={flow.primaryNextAction.href}
+                      className="rounded-md border border-border bg-background/40 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
+                    >
+                      {flow.primaryNextAction.label} →
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+
 
 
         <section className="mt-10 grid gap-5 lg:grid-cols-3">

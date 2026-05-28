@@ -336,11 +336,13 @@ These are unresolved and need a call before the relevant sprint:
 
 1. **WordPress Integration Architecture** ✅ — see [`WORDPRESS_INTEGRATION_ARCHITECTURE.md`](./WORDPRESS_INTEGRATION_ARCHITECTURE.md)
 2. **Growth Intelligence Snapshot builder** ✅ V1 — see [`GROWTH_INTELLIGENCE_SNAPSHOT.md`](./GROWTH_INTELLIGENCE_SNAPSHOT.md)
-3. **Navigation cleanup** (next)
-4. **Execution Task Engine + Artifacts** (now targeting WP draft bundles, not generic blobs)
-5. **WordPress Draft Publishing**
-6. **Publishing Gate / QA**
-7. **Tracking + Monthly Loop**
+3. **Navigation cleanup** ✅
+4. **Product Flow Orchestration V1** ✅ — see [`PRODUCT_FLOW_ORCHESTRATION_V1.md`](./PRODUCT_FLOW_ORCHESTRATION_V1.md)
+5. **WordPress Connection + Inventory V1** (next)
+6. **Execution Task Engine + Artifacts** (now targeting WP draft bundles, not generic blobs)
+7. **WordPress Draft Publishing**
+8. **Publishing Gate / QA**
+9. **Tracking + Monthly Loop**
 
 ## Navigation alignment (Nav Cleanup Sprint)
 
