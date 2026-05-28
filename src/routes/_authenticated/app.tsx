@@ -42,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Intelligence",
     items: [
+      { label: "Snapshot", to: "/growth/intelligence" },
       { label: "Business profile", to: "/settings/business-profile" },
       { label: "Tone profile", to: "/settings/tone-profile" },
     ],
