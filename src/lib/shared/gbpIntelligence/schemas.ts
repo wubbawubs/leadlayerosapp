@@ -133,8 +133,14 @@ export function gbpStatusLabel(status: GbpStatus): string {
 export function rowToGbpProfile(row: Record<string, unknown>): GbpProfile {
   const arr = (v: unknown): string[] =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-  const obj = (v: unknown): Record<string, unknown> =>
-    v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  const numObj = (v: unknown): Record<string, number> => {
+    if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+    const out: Record<string, number> = {};
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (typeof val === "number" && Number.isFinite(val)) out[k] = val;
+    }
+    return out;
+  };
   return {
     id: String(row.id ?? ""),
     tenantId: String(row.tenant_id ?? ""),
