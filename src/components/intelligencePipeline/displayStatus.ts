@@ -35,7 +35,10 @@ export function mapPipelineStageDisplay(
   key: IntelligenceStageKey,
   stage: IntelligenceStageState,
 ): StageDisplay {
-  const s = stage.status;
+  // Use `string` to prevent TS from over-narrowing `s` across switch cases
+  // (cases share function scope; early `if (s === "complete") return` in one
+  // case would otherwise exclude "complete" from later cases).
+  const s: string = stage.status;
   const o = (stage.outputs ?? {}) as Record<string, unknown>;
 
   // Universal terminal states
