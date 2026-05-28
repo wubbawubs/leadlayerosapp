@@ -24,8 +24,13 @@ import {
   type IntelligenceRunStatus,
   type IntelligenceStageKey,
   type IntelligenceStageState,
-  type IntelligenceStageStatus,
 } from "@/lib/shared/intelligencePipeline/schemas";
+import {
+  getRunSummary,
+  mapPipelineStageDisplay,
+  toneClass,
+  type DisplayTone,
+} from "./displayStatus";
 
 export function IntelligencePipelinePanel({ tenantId }: { tenantId: string }) {
   const qc = useQueryClient();
@@ -95,38 +100,40 @@ export function IntelligencePipelinePanel({ tenantId }: { tenantId: string }) {
   if (!hasGoal) blockers.push("growth goal");
   if (!hasConnectedSite) blockers.push("connected site");
 
-  const progress = useMemo(() => (run ? computeProgress(run) : 0), [run]);
+  const summary = useMemo(() => (run ? getRunSummary(run) : null), [run]);
 
   return (
     <section className="mt-8 rounded-2xl border border-border bg-card/60 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">
             Intelligence Pipeline V1
           </p>
           <h2 className="mt-1 font-display text-2xl text-foreground">
-            {run?.currentStage ? STAGE_LABELS[run.currentStage] : run ? "Pipeline reviewed" : "No run yet"}
+            {summary ? summary.title : "No run yet"}
           </h2>
-          {run ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Status <RunStatusBadge status={run.status} /> · triggered by{" "}
-              <span className="text-foreground">{run.triggeredBy}</span>
-              {run.triggerReason ? ` · ${run.triggerReason}` : ""}
-            </p>
+          {run && summary ? (
+            <>
+              <p className="mt-1 text-sm text-foreground">{summary.subtitle}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                <RunStatusBadge status={run.status} /> · triggered by{" "}
+                <span className="text-foreground">{run.triggeredBy}</span>
+                {run.triggerReason ? ` · ${run.triggerReason}` : ""}
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {run.startedAt ? `Started ${fmt(run.startedAt)}` : "Not started"}
+                {run.completedAt ? ` · finished ${fmt(run.completedAt)}` : ""}
+                {run.failedAt ? ` · failed ${fmt(run.failedAt)}` : ""}
+              </p>
+            </>
           ) : (
             <p className="mt-1 text-xs text-muted-foreground">
               No intelligence run yet. Start one to build the Growth Intelligence Snapshot,
               Blueprint and Masterplan.
             </p>
           )}
-          {run && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {run.startedAt ? `Started ${fmt(run.startedAt)}` : "Not started"}
-              {run.completedAt ? ` · finished ${fmt(run.completedAt)}` : ""}
-              {run.failedAt ? ` · failed ${fmt(run.failedAt)}` : ""}
-            </p>
-          )}
         </div>
+
 
         <div className="flex flex-wrap gap-2">
           <button
@@ -196,18 +203,33 @@ export function IntelligencePipelinePanel({ tenantId }: { tenantId: string }) {
 
       {run && (
         <>
-          <div className="mt-5">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Pipeline progress</span>
-              <span className="font-mono text-foreground">{progress}%</span>
-            </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-background/40">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <SummaryStat
+              label="Stages processed"
+              value={summary ? `${summary.processed}/${summary.total}` : "—"}
+              ratio={summary ? summary.processed / summary.total : 0}
+            />
+            <SummaryStat
+              label="Snapshot readiness"
+              value={
+                summary && summary.readinessScore !== null
+                  ? `${summary.readinessScore}/100`
+                  : "—"
+              }
+              ratio={
+                summary && summary.readinessScore !== null
+                  ? summary.readinessScore / 100
+                  : 0
+              }
+              barClass="bg-emerald-500"
+            />
+            <SummaryStat
+              label="Next action"
+              value={summary?.nextAction ?? summary?.subtitle ?? "—"}
+              compact
+            />
           </div>
+
 
           <ul className="mt-5 divide-y divide-border rounded-lg border border-border bg-background/30">
             {INTELLIGENCE_STAGE_KEYS.map((key) => (
@@ -235,20 +257,24 @@ function StageRow({
 }) {
   const outputs = stage.outputs ?? {};
   const outputKeys = Object.keys(outputs);
-  const partialCopy = getPartialCopy(stage);
+  const display = mapPipelineStageDisplay(stageKey, stage);
   return (
     <li className="flex flex-col gap-2 p-3 text-sm sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-foreground">{STAGE_LABELS[stageKey]}</span>
-          <StageStatusBadge status={stage.status} />
+          <DisplayBadge tone={display.tone} label={display.label} />
+          <span
+            className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70"
+            title="Technical status"
+          >
+            {stage.status}
+          </span>
         </div>
         {stage.message && (
           <p className="mt-1 text-xs text-muted-foreground">{stage.message}</p>
         )}
-        {partialCopy && (
-          <p className="mt-1 text-xs text-muted-foreground">{partialCopy}</p>
-        )}
+
         {stage.error && (
           <p className="mt-1 text-xs text-destructive">Error: {stage.error}</p>
         )}
@@ -280,23 +306,27 @@ export function IntelligencePipelineSummary({ tenantId }: { tenantId: string }) 
   });
   const run = runQuery.data?.run ?? null;
 
+  const summary = run ? getRunSummary(run) : null;
   return (
     <section className="mt-6 rounded-xl border border-primary/30 bg-primary/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">
             Latest intelligence run
           </p>
-          {run ? (
-            <p className="mt-1 text-sm text-foreground">
-              <RunStatusBadge status={run.status} /> ·{" "}
-              <span className="text-muted-foreground">
-                stage:{" "}
-                <span className="text-foreground">
-                  {STAGE_LABELS[run.currentStage ?? "operator_review_ready"]}
-                </span>
-              </span>
-            </p>
+          {run && summary ? (
+            <>
+              <p className="mt-1 text-sm text-foreground">
+                <RunStatusBadge status={run.status} />{" "}
+                <span className="text-foreground">{summary.title}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {summary.subtitle} · {summary.processed}/{summary.total} stages
+                {summary.readinessScore !== null
+                  ? ` · readiness ${summary.readinessScore}/100`
+                  : ""}
+              </p>
+            </>
           ) : (
             <p className="mt-1 text-sm text-muted-foreground">
               No run yet. Start one to build the snapshot, blueprint and masterplan.
@@ -314,27 +344,10 @@ export function IntelligencePipelineSummary({ tenantId }: { tenantId: string }) 
   );
 }
 
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function computeProgress(run: IntelligenceRun): number {
-  const total = INTELLIGENCE_STAGE_KEYS.length;
-  let done = 0;
-  for (const key of INTELLIGENCE_STAGE_KEYS) {
-    const s = run.stages[key].status;
-    if (
-      s === "complete" ||
-      s === "partial" ||
-      s === "failed" ||
-      s === "skipped_needs_context" ||
-      s === "blocked_dependency"
-    ) {
-      done += 1;
-    }
-  }
-  return Math.round((done / total) * 100);
-}
 
 function fmt(iso: string): string {
   try {
@@ -349,18 +362,6 @@ function formatOutput(v: unknown): string {
   if (typeof v === "string") return v.length > 24 ? `${v.slice(0, 22)}…` : v;
   if (typeof v === "number" || typeof v === "boolean") return String(v);
   return "{…}";
-}
-
-function getPartialCopy(stage: IntelligenceStageState): string | null {
-  if (stage.status === "blocked_dependency") return "Blocked — fix required before continuing.";
-  if (stage.status !== "partial") return null;
-  if (
-    stage.key === "business_profile_draft" &&
-    stage.outputs?.profileStatus === "review_ready"
-  ) {
-    return "Draft ready for operator review. Pipeline can continue, but client-facing Blueprint should wait for approval.";
-  }
-  return "Partial — pipeline can continue.";
 }
 
 function RunStatusBadge({ status }: { status: IntelligenceRunStatus }) {
@@ -381,29 +382,50 @@ function RunStatusBadge({ status }: { status: IntelligenceRunStatus }) {
   );
 }
 
-function StageStatusBadge({ status }: { status: IntelligenceStageStatus }) {
-  const map: Record<IntelligenceStageStatus, { label: string; cls: string }> = {
-    not_started: { label: "Not started", cls: "border-border bg-background/40 text-muted-foreground" },
-    running: { label: "Running", cls: "border-primary/40 bg-primary/10 text-primary" },
-    complete: { label: "Complete", cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400" },
-    partial: { label: "Partial", cls: "border-amber-500/40 bg-amber-500/10 text-amber-400" },
-    failed: { label: "Failed", cls: "border-destructive/40 bg-destructive/10 text-destructive" },
-    skipped_needs_context: {
-      label: "Needs context",
-      cls: "border-amber-500/40 bg-amber-500/10 text-amber-400",
-    },
-    blocked_dependency: {
-      label: "Blocked",
-      cls: "border-destructive/40 bg-destructive/10 text-destructive",
-    },
-    stale: { label: "Stale", cls: "border-amber-500/40 bg-amber-500/10 text-amber-400" },
-  };
-  const cfg = map[status];
+function DisplayBadge({ tone, label }: { tone: DisplayTone; label: string }) {
   return (
     <span
-      className={`rounded border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${cfg.cls}`}
+      className={`rounded border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${toneClass(tone)}`}
     >
-      {cfg.label}
+      {label}
     </span>
   );
 }
+
+function SummaryStat({
+  label,
+  value,
+  ratio,
+  barClass = "bg-primary",
+  compact = false,
+}: {
+  label: string;
+  value: string;
+  ratio?: number;
+  barClass?: string;
+  compact?: boolean;
+}) {
+  const pct = Math.max(0, Math.min(1, ratio ?? 0)) * 100;
+  return (
+    <div className="rounded-lg border border-border bg-background/40 p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={
+          compact
+            ? "mt-1 text-sm text-foreground line-clamp-2"
+            : "mt-1 font-mono text-lg text-foreground"
+        }
+      >
+        {value}
+      </p>
+      {ratio !== undefined && (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-background/60">
+          <div className={`h-full transition-all ${barClass}`} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
