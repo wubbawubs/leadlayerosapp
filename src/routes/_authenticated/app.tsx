@@ -8,6 +8,13 @@ import {
   TenantSwitcher,
   getActiveTenantId,
 } from "@/components/app/TenantSwitcher";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { listMyTenants } from "@/lib/shared/db/repos/tenants.functions";
 import { getActiveGrowthGoal } from "@/lib/shared/growthGoals/repo.functions";
@@ -165,27 +172,28 @@ function AppHome() {
       <header className="container mx-auto flex items-center justify-between px-6 py-5">
         <div className="flex items-center gap-6">
           <Logo />
-          <nav className="hidden items-center gap-5 text-sm md:flex">
+          <nav className="hidden items-center gap-1 text-sm md:flex">
             {NAV_GROUPS.map((group) => (
-              <div key={group.label} className="flex items-center gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              <DropdownMenu key={group.label}>
+                <DropdownMenuTrigger className="flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground focus:outline-none data-[state=open]:bg-secondary data-[state=open]:text-foreground">
                   {group.label}
-                </span>
-                {group.items.map((item) => (
-                  <Link
-                    key={item.label}
-                    to={item.to}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    {item.label}
-                    {item.soon && (
-                      <span className="ml-1 rounded bg-secondary px-1 text-[10px] uppercase text-muted-foreground">
-                        soon
-                      </span>
-                    )}
-                  </Link>
-                ))}
-              </div>
+                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-52">
+                  {group.items.map((item) => (
+                    <DropdownMenuItem key={item.label} asChild>
+                      <Link to={item.to} className="flex w-full items-center justify-between">
+                        <span>{item.label}</span>
+                        {item.soon && (
+                          <span className="ml-2 rounded bg-secondary px-1 text-[10px] uppercase text-muted-foreground">
+                            soon
+                          </span>
+                        )}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             ))}
           </nav>
         </div>
