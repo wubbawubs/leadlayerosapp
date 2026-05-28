@@ -27,6 +27,7 @@ import { Route as AuthenticatedOnboardingSiteRouteImport } from './routes/_authe
 import { Route as AuthenticatedOnboardingDoneRouteImport } from './routes/_authenticated/onboarding.done'
 import { Route as AuthenticatedOnboardingBusinessRouteImport } from './routes/_authenticated/onboarding.business'
 import { Route as AuthenticatedGrowthMasterplanRouteImport } from './routes/_authenticated/growth.masterplan'
+import { Route as AuthenticatedGrowthIntelligenceRouteImport } from './routes/_authenticated/growth.intelligence'
 import { Route as AuthenticatedGrowthGbpRouteImport } from './routes/_authenticated/growth.gbp'
 import { Route as AuthenticatedGrowthExecutionRouteImport } from './routes/_authenticated/growth.execution'
 import { Route as AuthenticatedGrowthBlueprintRouteImport } from './routes/_authenticated/growth.blueprint'
@@ -134,6 +135,12 @@ const AuthenticatedGrowthMasterplanRoute =
     path: '/growth/masterplan',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedGrowthIntelligenceRoute =
+  AuthenticatedGrowthIntelligenceRouteImport.update({
+    id: '/growth/intelligence',
+    path: '/growth/intelligence',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedGrowthGbpRoute = AuthenticatedGrowthGbpRouteImport.update({
   id: '/growth/gbp',
   path: '/growth/gbp',
@@ -198,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
   '/growth/execution': typeof AuthenticatedGrowthExecutionRoute
   '/growth/gbp': typeof AuthenticatedGrowthGbpRoute
+  '/growth/intelligence': typeof AuthenticatedGrowthIntelligenceRoute
   '/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
@@ -226,6 +234,7 @@ export interface FileRoutesByTo {
   '/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
   '/growth/execution': typeof AuthenticatedGrowthExecutionRoute
   '/growth/gbp': typeof AuthenticatedGrowthGbpRoute
+  '/growth/intelligence': typeof AuthenticatedGrowthIntelligenceRoute
   '/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
@@ -256,6 +265,7 @@ export interface FileRoutesById {
   '/_authenticated/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
   '/_authenticated/growth/execution': typeof AuthenticatedGrowthExecutionRoute
   '/_authenticated/growth/gbp': typeof AuthenticatedGrowthGbpRoute
+  '/_authenticated/growth/intelligence': typeof AuthenticatedGrowthIntelligenceRoute
   '/_authenticated/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
   '/_authenticated/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/_authenticated/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
     | '/growth/blueprint'
     | '/growth/execution'
     | '/growth/gbp'
+    | '/growth/intelligence'
     | '/growth/masterplan'
     | '/onboarding/business'
     | '/onboarding/done'
@@ -314,6 +325,7 @@ export interface FileRouteTypes {
     | '/growth/blueprint'
     | '/growth/execution'
     | '/growth/gbp'
+    | '/growth/intelligence'
     | '/growth/masterplan'
     | '/onboarding/business'
     | '/onboarding/done'
@@ -343,6 +355,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growth/blueprint'
     | '/_authenticated/growth/execution'
     | '/_authenticated/growth/gbp'
+    | '/_authenticated/growth/intelligence'
     | '/_authenticated/growth/masterplan'
     | '/_authenticated/onboarding/business'
     | '/_authenticated/onboarding/done'
@@ -499,6 +512,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthMasterplanRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/growth/intelligence': {
+      id: '/_authenticated/growth/intelligence'
+      path: '/growth/intelligence'
+      fullPath: '/growth/intelligence'
+      preLoaderRoute: typeof AuthenticatedGrowthIntelligenceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/growth/gbp': {
       id: '/_authenticated/growth/gbp'
       path: '/growth/gbp'
@@ -592,6 +612,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedGrowthBlueprintRoute: typeof AuthenticatedGrowthBlueprintRoute
   AuthenticatedGrowthExecutionRoute: typeof AuthenticatedGrowthExecutionRoute
   AuthenticatedGrowthGbpRoute: typeof AuthenticatedGrowthGbpRoute
+  AuthenticatedGrowthIntelligenceRoute: typeof AuthenticatedGrowthIntelligenceRoute
   AuthenticatedGrowthMasterplanRoute: typeof AuthenticatedGrowthMasterplanRoute
   AuthenticatedSettingsBusinessProfileRoute: typeof AuthenticatedSettingsBusinessProfileRoute
   AuthenticatedSettingsGrowthGoalRoute: typeof AuthenticatedSettingsGrowthGoalRoute
@@ -611,6 +632,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedGrowthBlueprintRoute: AuthenticatedGrowthBlueprintRoute,
   AuthenticatedGrowthExecutionRoute: AuthenticatedGrowthExecutionRoute,
   AuthenticatedGrowthGbpRoute: AuthenticatedGrowthGbpRoute,
+  AuthenticatedGrowthIntelligenceRoute: AuthenticatedGrowthIntelligenceRoute,
   AuthenticatedGrowthMasterplanRoute: AuthenticatedGrowthMasterplanRoute,
   AuthenticatedSettingsBusinessProfileRoute:
     AuthenticatedSettingsBusinessProfileRoute,
