@@ -29,6 +29,7 @@ import { Route as AuthenticatedOnboardingBusinessRouteImport } from './routes/_a
 import { Route as AuthenticatedGrowthMasterplanRouteImport } from './routes/_authenticated/growth.masterplan'
 import { Route as AuthenticatedGrowthIntelligenceRouteImport } from './routes/_authenticated/growth.intelligence'
 import { Route as AuthenticatedGrowthGbpRouteImport } from './routes/_authenticated/growth.gbp'
+import { Route as AuthenticatedGrowthFlowRouteImport } from './routes/_authenticated/growth.flow'
 import { Route as AuthenticatedGrowthExecutionRouteImport } from './routes/_authenticated/growth.execution'
 import { Route as AuthenticatedGrowthBlueprintRouteImport } from './routes/_authenticated/growth.blueprint'
 import { Route as AuthenticatedAuditsAuditIdRouteImport } from './routes/_authenticated/audits.$auditId'
@@ -146,6 +147,11 @@ const AuthenticatedGrowthGbpRoute = AuthenticatedGrowthGbpRouteImport.update({
   path: '/growth/gbp',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedGrowthFlowRoute = AuthenticatedGrowthFlowRouteImport.update({
+  id: '/growth/flow',
+  path: '/growth/flow',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedGrowthExecutionRoute =
   AuthenticatedGrowthExecutionRouteImport.update({
     id: '/growth/execution',
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
   '/growth/execution': typeof AuthenticatedGrowthExecutionRoute
+  '/growth/flow': typeof AuthenticatedGrowthFlowRoute
   '/growth/gbp': typeof AuthenticatedGrowthGbpRoute
   '/growth/intelligence': typeof AuthenticatedGrowthIntelligenceRoute
   '/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
@@ -233,6 +240,7 @@ export interface FileRoutesByTo {
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
   '/growth/execution': typeof AuthenticatedGrowthExecutionRoute
+  '/growth/flow': typeof AuthenticatedGrowthFlowRoute
   '/growth/gbp': typeof AuthenticatedGrowthGbpRoute
   '/growth/intelligence': typeof AuthenticatedGrowthIntelligenceRoute
   '/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
@@ -264,6 +272,7 @@ export interface FileRoutesById {
   '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/_authenticated/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
   '/_authenticated/growth/execution': typeof AuthenticatedGrowthExecutionRoute
+  '/_authenticated/growth/flow': typeof AuthenticatedGrowthFlowRoute
   '/_authenticated/growth/gbp': typeof AuthenticatedGrowthGbpRoute
   '/_authenticated/growth/intelligence': typeof AuthenticatedGrowthIntelligenceRoute
   '/_authenticated/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
@@ -295,6 +304,7 @@ export interface FileRouteTypes {
     | '/audits/$auditId'
     | '/growth/blueprint'
     | '/growth/execution'
+    | '/growth/flow'
     | '/growth/gbp'
     | '/growth/intelligence'
     | '/growth/masterplan'
@@ -324,6 +334,7 @@ export interface FileRouteTypes {
     | '/audits/$auditId'
     | '/growth/blueprint'
     | '/growth/execution'
+    | '/growth/flow'
     | '/growth/gbp'
     | '/growth/intelligence'
     | '/growth/masterplan'
@@ -354,6 +365,7 @@ export interface FileRouteTypes {
     | '/_authenticated/audits/$auditId'
     | '/_authenticated/growth/blueprint'
     | '/_authenticated/growth/execution'
+    | '/_authenticated/growth/flow'
     | '/_authenticated/growth/gbp'
     | '/_authenticated/growth/intelligence'
     | '/_authenticated/growth/masterplan'
@@ -526,6 +538,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthGbpRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/growth/flow': {
+      id: '/_authenticated/growth/flow'
+      path: '/growth/flow'
+      fullPath: '/growth/flow'
+      preLoaderRoute: typeof AuthenticatedGrowthFlowRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/growth/execution': {
       id: '/_authenticated/growth/execution'
       path: '/growth/execution'
@@ -611,6 +630,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAuditsAuditIdRoute: typeof AuthenticatedAuditsAuditIdRoute
   AuthenticatedGrowthBlueprintRoute: typeof AuthenticatedGrowthBlueprintRoute
   AuthenticatedGrowthExecutionRoute: typeof AuthenticatedGrowthExecutionRoute
+  AuthenticatedGrowthFlowRoute: typeof AuthenticatedGrowthFlowRoute
   AuthenticatedGrowthGbpRoute: typeof AuthenticatedGrowthGbpRoute
   AuthenticatedGrowthIntelligenceRoute: typeof AuthenticatedGrowthIntelligenceRoute
   AuthenticatedGrowthMasterplanRoute: typeof AuthenticatedGrowthMasterplanRoute
@@ -631,6 +651,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditsAuditIdRoute: AuthenticatedAuditsAuditIdRoute,
   AuthenticatedGrowthBlueprintRoute: AuthenticatedGrowthBlueprintRoute,
   AuthenticatedGrowthExecutionRoute: AuthenticatedGrowthExecutionRoute,
+  AuthenticatedGrowthFlowRoute: AuthenticatedGrowthFlowRoute,
   AuthenticatedGrowthGbpRoute: AuthenticatedGrowthGbpRoute,
   AuthenticatedGrowthIntelligenceRoute: AuthenticatedGrowthIntelligenceRoute,
   AuthenticatedGrowthMasterplanRoute: AuthenticatedGrowthMasterplanRoute,
