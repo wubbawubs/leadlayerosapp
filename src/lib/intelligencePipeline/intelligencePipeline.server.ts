@@ -1,0 +1,761 @@
+/**
+ * Intelligence Pipeline Orchestrator V1 — server-only engine.
+ *
+ * Server-only. Callers MUST verify operator/owner role before invoking.
+ * Uses supabaseAdmin to read/write across modules.
+ *
+ * V1 strategy:
+ *   - For each stage, detect existing artifacts and mark complete/partial.
+ *   - For cheap/local stages (audit, page intel, BP, tone, snapshot,
+ *     masterplan), trigger them if missing.
+ *   - For expensive external-API stages (market scan, competitor scan),
+ *     mark `skipped_needs_context` if missing — operator runs the module
+ *     button. Run still continues fail-soft.
+ *
+ * See: docs/INTELLIGENCE_PIPELINE_ORCHESTRATOR_V1.md
+ */
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  emptyStagesMap,
+  INTELLIGENCE_STAGE_KEYS,
+  STALE_DEPENDENCY_MAP,
+  type IntelligenceRun,
+  type IntelligenceRunStatus,
+  type IntelligenceStageKey,
+  type IntelligenceStageState,
+  type IntelligenceStageStatus,
+  type IntelligenceStagesMap,
+  type IntelligenceTriggeredBy,
+  type StartIntelligenceRunInput,
+} from "@/lib/shared/intelligencePipeline/schemas";
+import { runAudit } from "@/lib/shared/audits/runner.server";
+import { analyzePageIntelligenceForAudit } from "@/lib/shared/pageIntelligence/analyzer.server";
+import { runAnalyzerJob } from "@/lib/shared/businessProfile/runAnalyzerJob.server";
+import { analyzeToneProfileForTenant } from "@/lib/shared/tone/analyzer.server";
+import { buildGrowthIntelligenceSnapshot } from "@/lib/growthIntelligence/buildGrowthIntelligenceSnapshot.server";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const admin = supabaseAdmin as any;
+
+// ---------------------------------------------------------------------------
+// Row <-> domain mapping
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToRun(row: any): IntelligenceRun {
+  const stages = (row.stages ?? {}) as Partial<IntelligenceStagesMap>;
+  const fullStages = emptyStagesMap();
+  for (const key of INTELLIGENCE_STAGE_KEYS) {
+    if (stages[key]) fullStages[key] = stages[key] as IntelligenceStageState;
+  }
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    siteId: row.site_id ?? null,
+    growthGoalId: row.growth_goal_id ?? null,
+    status: row.status as IntelligenceRunStatus,
+    currentStage: (row.current_stage ?? null) as IntelligenceStageKey | null,
+    triggeredBy: (row.triggered_by ?? "operator") as IntelligenceTriggeredBy,
+    triggerReason: row.trigger_reason ?? null,
+    stages: fullStages,
+    inputHash: (row.input_hash ?? {}) as Record<string, unknown>,
+    outputRefs: (row.output_refs ?? {}) as Record<string, unknown>,
+    startedAt: row.started_at ?? null,
+    completedAt: row.completed_at ?? null,
+    failedAt: row.failed_at ?? null,
+    errorMessage: row.error_message ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+async function persistStage(
+  runId: string,
+  key: IntelligenceStageKey,
+  patch: Partial<IntelligenceStageState>,
+): Promise<void> {
+  const { data: row } = await admin
+    .from("intelligence_runs")
+    .select("stages")
+    .eq("id", runId)
+    .maybeSingle();
+  const stages = (row?.stages ?? {}) as IntelligenceStagesMap;
+  const prev = stages[key] ?? { key, status: "not_started" as IntelligenceStageStatus };
+  const next: IntelligenceStageState = { ...prev, ...patch, key };
+  await admin
+    .from("intelligence_runs")
+    .update({ stages: { ...stages, [key]: next }, current_stage: key })
+    .eq("id", runId);
+}
+
+function deriveRunStatus(stages: IntelligenceStagesMap): IntelligenceRunStatus {
+  const vals = Object.values(stages);
+  if (vals.some((s) => s.status === "running")) return "running";
+  const foundationalFailed =
+    stages.site_audit.status === "failed" || stages.growth_snapshot.status === "failed";
+  if (foundationalFailed) return "failed";
+  const anyFailed = vals.some((s) => s.status === "failed");
+  const anyPartial = vals.some(
+    (s) =>
+      s.status === "partial" ||
+      s.status === "skipped_needs_context" ||
+      s.status === "blocked_dependency",
+  );
+  const allTerminal = vals.every(
+    (s) =>
+      s.status === "complete" ||
+      s.status === "partial" ||
+      s.status === "failed" ||
+      s.status === "skipped_needs_context" ||
+      s.status === "blocked_dependency",
+  );
+  if (!allTerminal) return "running";
+  if (anyFailed || anyPartial) return "partial";
+  return "completed";
+}
+
+// ---------------------------------------------------------------------------
+// Stage handlers
+// ---------------------------------------------------------------------------
+
+type StageContext = {
+  tenantId: string;
+  siteId: string | null;
+  growthGoalId: string | null;
+  runId: string;
+  outputs: Record<string, unknown>;
+  stages: IntelligenceStagesMap;
+};
+
+type StageResult = Partial<IntelligenceStageState> & {
+  status: IntelligenceStageStatus;
+  outputs?: Record<string, unknown>;
+};
+
+async function stageSiteAudit(ctx: StageContext): Promise<StageResult> {
+  // Find site connection
+  const { data: site } = await admin
+    .from("site_connections")
+    .select("id, status, type")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("status", "connected")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!site) {
+    return { status: "blocked_dependency", message: "No connected site", nextAction: "Connect a site under /sites" };
+  }
+
+  // Existing completed audit in last 24h?
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: recent } = await admin
+    .from("audits")
+    .select("id, status, pages_count, created_at")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("site_connection_id", site.id)
+    .eq("status", "completed")
+    .gte("created_at", dayAgo)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (recent) {
+    ctx.outputs.auditId = recent.id;
+    return {
+      status: "complete",
+      message: `Recent audit reused (${recent.pages_count} pages)`,
+      outputs: { auditId: recent.id, pagesCount: recent.pages_count },
+    };
+  }
+
+  // Trigger a fresh audit
+  const { data: audit, error } = await admin
+    .from("audits")
+    .insert({
+      tenant_id: ctx.tenantId,
+      site_connection_id: site.id,
+      status: "queued",
+    })
+    .select("id")
+    .single();
+  if (error || !audit) {
+    return { status: "failed", error: error?.message ?? "Could not create audit" };
+  }
+  try {
+    await runAudit(audit.id);
+  } catch (e) {
+    return { status: "failed", error: e instanceof Error ? e.message : String(e), outputs: { auditId: audit.id } };
+  }
+  const { data: done } = await admin
+    .from("audits")
+    .select("status, pages_count, error")
+    .eq("id", audit.id)
+    .maybeSingle();
+  if (done?.status !== "completed") {
+    return {
+      status: "failed",
+      error: done?.error ?? `Audit ended in status ${done?.status}`,
+      outputs: { auditId: audit.id },
+    };
+  }
+  ctx.outputs.auditId = audit.id;
+  return {
+    status: "complete",
+    message: `Audit completed (${done.pages_count} pages)`,
+    outputs: { auditId: audit.id, pagesCount: done.pages_count },
+  };
+}
+
+async function stagePageIntelligence(ctx: StageContext): Promise<StageResult> {
+  const auditId =
+    (ctx.outputs.auditId as string | undefined) ??
+    (ctx.stages.site_audit.outputs?.auditId as string | undefined);
+  if (!auditId) {
+    return { status: "blocked_dependency", message: "Site audit not available" };
+  }
+  try {
+    const summary = await analyzePageIntelligenceForAudit({
+      tenantId: ctx.tenantId,
+      auditId,
+    });
+    const analyzed = (summary as { analyzed?: number; pagesClassified?: number } | null);
+    const pagesClassified =
+      Number(analyzed?.pagesClassified ?? analyzed?.analyzed ?? 0) || undefined;
+    return {
+      status: "complete",
+      message: pagesClassified ? `${pagesClassified} pages classified` : "Page intelligence updated",
+      outputs: { pagesClassified, auditId },
+    };
+  } catch (e) {
+    return {
+      status: "partial",
+      error: e instanceof Error ? e.message : String(e),
+      nextAction: "Retry Page Intelligence from /growth/intelligence",
+    };
+  }
+}
+
+async function stageBusinessProfile(ctx: StageContext): Promise<StageResult> {
+  const { data: existing } = await admin
+    .from("business_profiles_v2")
+    .select("id, status, updated_at")
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+
+  // If a recent (24h) draft/approved exists, reuse it.
+  if (existing) {
+    const ageHours = (Date.now() - new Date(existing.updated_at).getTime()) / 3600000;
+    if (ageHours < 24 || existing.status === "approved") {
+      return {
+        status: existing.status === "approved" ? "complete" : "partial",
+        message: `Business profile ${existing.status} (${ageHours.toFixed(0)}h old)`,
+        outputs: { businessProfileId: existing.id, profileStatus: existing.status },
+        nextAction: existing.status === "approved" ? null : "Review at /settings/business-profile",
+      };
+    }
+  }
+
+  // Trigger analyzer job (runs synchronously via runAnalyzerJob)
+  const { data: jobRow, error } = await admin
+    .from("business_profile_analyzer_jobs")
+    .insert({ tenant_id: ctx.tenantId, status: "queued", stage: "queued" })
+    .select("id")
+    .single();
+  if (error || !jobRow) {
+    return { status: "failed", error: error?.message ?? "Could not create analyzer job" };
+  }
+  try {
+    await runAnalyzerJob({ jobId: jobRow.id, tenantId: ctx.tenantId });
+  } catch (e) {
+    return {
+      status: "partial",
+      error: e instanceof Error ? e.message : String(e),
+      outputs: { analyzerJobId: jobRow.id },
+      nextAction: "Review business profile suggestions",
+    };
+  }
+  const { data: after } = await admin
+    .from("business_profiles_v2")
+    .select("id, status")
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  return {
+    status: after ? "partial" : "partial",
+    message: "Business profile draft generated — review pending",
+    outputs: { businessProfileId: after?.id, profileStatus: after?.status, analyzerJobId: jobRow.id },
+    nextAction: "Review at /settings/business-profile",
+  };
+}
+
+async function stageToneProfile(ctx: StageContext): Promise<StageResult> {
+  const { data: existing } = await admin
+    .from("brand_voice_profiles")
+    .select("id, job_status, analyzed_at")
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (existing?.analyzed_at) {
+    const ageHours = (Date.now() - new Date(existing.analyzed_at).getTime()) / 3600000;
+    if (ageHours < 24) {
+      return {
+        status: "complete",
+        message: `Tone profile reused (${ageHours.toFixed(0)}h old)`,
+        outputs: { toneProfileId: existing.id, jobStatus: existing.job_status },
+        nextAction: "Approve at /settings/tone-profile",
+      };
+    }
+  }
+  try {
+    const profile = await analyzeToneProfileForTenant(ctx.tenantId);
+    return {
+      status: "partial",
+      message: "Tone profile draft generated — approval pending",
+      outputs: { toneProfileId: (profile as { id?: string } | null)?.id ?? existing?.id ?? null },
+      nextAction: "Approve at /settings/tone-profile",
+    };
+  } catch (e) {
+    return {
+      status: "partial",
+      error: e instanceof Error ? e.message : String(e),
+      nextAction: "Retry tone analysis from /settings/tone-profile",
+    };
+  }
+}
+
+async function stageGbpIntelligence(ctx: StageContext): Promise<StageResult> {
+  const { data: gbp } = await admin
+    .from("gbp_profiles")
+    .select("id, status, last_reviewed_at, completeness_score")
+    .eq("tenant_id", ctx.tenantId)
+    .maybeSingle();
+  if (!gbp || gbp.status === "not_connected") {
+    return {
+      status: "skipped_needs_context",
+      message: "No GBP profile connected",
+      nextAction: "Add GBP details at /growth/gbp",
+    };
+  }
+  return {
+    status: gbp.last_reviewed_at ? "complete" : "partial",
+    message: `GBP profile available (completeness ${gbp.completeness_score ?? "n/a"})`,
+    outputs: { gbpProfileId: gbp.id, gbpStatus: gbp.status },
+    nextAction: gbp.last_reviewed_at ? null : "Review at /growth/gbp",
+  };
+}
+
+async function stageMarketScan(ctx: StageContext): Promise<StageResult> {
+  // Require services/locations
+  const { data: goal } = await admin
+    .from("growth_goals")
+    .select("id, service_focus, locations")
+    .eq("tenant_id", ctx.tenantId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const services: string[] = Array.isArray(goal?.service_focus) ? goal.service_focus : [];
+  const locations: string[] = Array.isArray(goal?.locations) ? goal.locations : [];
+
+  // Existing recent scan?
+  const { data: existing } = await admin
+    .from("market_scans")
+    .select("id, status, scan_completed_at")
+    .eq("tenant_id", ctx.tenantId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existing && existing.status === "completed") {
+    return {
+      status: "complete",
+      message: "Market scan available",
+      outputs: { marketScanId: existing.id },
+    };
+  }
+  if (services.length === 0 || locations.length === 0) {
+    return {
+      status: "skipped_needs_context",
+      message: "Market scan needs services + locations on growth goal",
+      nextAction: "Complete services/locations on /settings/growth-goal",
+    };
+  }
+  return {
+    status: "skipped_needs_context",
+    message: "Market scan not yet run",
+    nextAction: "Run market scan from /growth/intelligence",
+  };
+}
+
+async function stageCompetitorScan(ctx: StageContext): Promise<StageResult> {
+  const market = ctx.stages.market_scan;
+  if (market.status === "blocked_dependency" || market.status === "skipped_needs_context") {
+    // Still try to detect existing
+  }
+  const { data: existing } = await admin
+    .from("competitor_scans")
+    .select("id, status, partial")
+    .eq("tenant_id", ctx.tenantId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existing) {
+    if (existing.status === "completed" && !existing.partial) {
+      return {
+        status: "complete",
+        message: "Competitor scan available",
+        outputs: { competitorScanId: existing.id },
+      };
+    }
+    return {
+      status: "partial",
+      message: `Competitor scan ${existing.status}${existing.partial ? " (partial)" : ""}`,
+      outputs: { competitorScanId: existing.id },
+      nextAction: "Review at /growth/intelligence",
+    };
+  }
+  if (market.status !== "complete") {
+    return {
+      status: "blocked_dependency",
+      message: "Competitor scan needs a completed market scan",
+      nextAction: "Run market scan first",
+    };
+  }
+  return {
+    status: "skipped_needs_context",
+    message: "Competitor scan not yet run",
+    nextAction: "Run competitor scan from /growth/intelligence",
+  };
+}
+
+async function stageTrackingBaseline(ctx: StageContext): Promise<StageResult> {
+  // V1 placeholder — detect call/form via audit pages if available.
+  const auditId =
+    (ctx.outputs.auditId as string | undefined) ??
+    (ctx.stages.site_audit.outputs?.auditId as string | undefined);
+  if (!auditId) {
+    return {
+      status: "skipped_needs_context",
+      message: "Tracking baseline placeholder — no audit data",
+      nextAction: "Tracking integration is V1.1",
+    };
+  }
+  return {
+    status: "partial",
+    message: "Tracking baseline placeholder — manual setup pending",
+    nextAction: "Connect call/form tracking (planned V1.1)",
+  };
+}
+
+async function stageRankingPlaceholder(_ctx: StageContext): Promise<StageResult> {
+  return {
+    status: "skipped_needs_context",
+    message: "Ranking baseline placeholder",
+    nextAction: "Ranking ingestion planned V1.1",
+  };
+}
+
+async function stageGrowthSnapshot(ctx: StageContext): Promise<StageResult> {
+  try {
+    const snap = await buildGrowthIntelligenceSnapshot({
+      tenantId: ctx.tenantId,
+      growthGoalId: ctx.growthGoalId ?? undefined,
+      siteId: ctx.siteId ?? undefined,
+    });
+    return {
+      status: "complete",
+      message: `Snapshot built — readiness ${snap.status.readinessScore}/100 (${snap.status.overall})`,
+      outputs: {
+        readinessScore: snap.status.readinessScore,
+        overall: snap.status.overall,
+        nextBestAction: snap.status.nextBestAction?.type,
+      },
+    };
+  } catch (e) {
+    return { status: "failed", error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+async function stageBlueprintDraft(ctx: StageContext): Promise<StageResult> {
+  // Blueprint is view-generated from snapshot. Mark draft-ready when snapshot ok.
+  if (ctx.stages.growth_snapshot.status !== "complete") {
+    return {
+      status: "blocked_dependency",
+      message: "Blueprint needs a completed snapshot",
+    };
+  }
+  return {
+    status: "partial",
+    message: "Blueprint draft available — operator review pending",
+    nextAction: "Open /growth/blueprint to review and approve",
+  };
+}
+
+async function stageMasterplanDraft(ctx: StageContext): Promise<StageResult> {
+  // If a recent active masterplan exists, treat as complete.
+  const { data: plan } = await admin
+    .from("master_plans")
+    .select("id, status, updated_at")
+    .eq("tenant_id", ctx.tenantId)
+    .eq("status", "active")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (plan) {
+    const { data: items } = await admin
+      .from("masterplan_items")
+      .select("id", { count: "exact" })
+      .eq("master_plan_id", plan.id)
+      .limit(1);
+    return {
+      status: "complete",
+      message: "Active masterplan present",
+      outputs: { masterplanId: plan.id, itemCount: items?.length ?? 0 },
+      nextAction: "Open /growth/masterplan",
+    };
+  }
+  return {
+    status: "skipped_needs_context",
+    message: "No active masterplan",
+    nextAction: "Generate a masterplan from /growth/masterplan",
+  };
+}
+
+async function stageOperatorReviewReady(ctx: StageContext): Promise<StageResult> {
+  const gates = {
+    business_profile: ctx.stages.business_profile_draft.status,
+    tone_profile: ctx.stages.tone_profile_draft.status,
+    gbp: ctx.stages.gbp_intelligence.status,
+    blueprint: ctx.stages.blueprint_draft.status,
+    masterplan: ctx.stages.masterplan_draft.status,
+  };
+  const blocking = Object.entries(gates).filter(
+    ([, s]) => s === "failed" || s === "blocked_dependency",
+  );
+  if (blocking.length > 0) {
+    return {
+      status: "partial",
+      message: `Review blocked by: ${blocking.map(([k]) => k).join(", ")}`,
+      outputs: { gates },
+    };
+  }
+  const needsApproval = Object.entries(gates).filter(([, s]) => s !== "complete");
+  if (needsApproval.length > 0) {
+    return {
+      status: "partial",
+      message: `Awaiting review on: ${needsApproval.map(([k]) => k).join(", ")}`,
+      outputs: { gates },
+      nextAction: "Open /growth/flow",
+    };
+  }
+  return { status: "complete", message: "All gates reviewed", outputs: { gates } };
+}
+
+const STAGE_HANDLERS: Record<
+  IntelligenceStageKey,
+  (ctx: StageContext) => Promise<StageResult>
+> = {
+  site_audit: stageSiteAudit,
+  page_intelligence: stagePageIntelligence,
+  business_profile_draft: stageBusinessProfile,
+  tone_profile_draft: stageToneProfile,
+  gbp_intelligence: stageGbpIntelligence,
+  market_scan: stageMarketScan,
+  competitor_scan: stageCompetitorScan,
+  tracking_baseline: stageTrackingBaseline,
+  ranking_baseline_placeholder: stageRankingPlaceholder,
+  growth_snapshot: stageGrowthSnapshot,
+  blueprint_draft: stageBlueprintDraft,
+  masterplan_draft: stageMasterplanDraft,
+  operator_review_ready: stageOperatorReviewReady,
+};
+
+// ---------------------------------------------------------------------------
+// Public orchestrator API
+// ---------------------------------------------------------------------------
+
+export async function startIntelligenceRun(
+  input: StartIntelligenceRunInput,
+): Promise<IntelligenceRun> {
+  const stages = emptyStagesMap();
+  const { data, error } = await admin
+    .from("intelligence_runs")
+    .insert({
+      tenant_id: input.tenantId,
+      site_id: input.siteId ?? null,
+      growth_goal_id: input.growthGoalId ?? null,
+      status: "queued",
+      triggered_by: input.triggeredBy ?? "operator",
+      trigger_reason: input.triggerReason ?? null,
+      stages,
+    })
+    .select("*")
+    .single();
+  if (error || !data) throw new Error(error?.message ?? "Could not create intelligence run");
+  return rowToRun(data);
+}
+
+export async function advanceIntelligenceRun(input: {
+  tenantId: string;
+  intelligenceRunId: string;
+}): Promise<IntelligenceRun> {
+  const { data: row, error } = await admin
+    .from("intelligence_runs")
+    .select("*")
+    .eq("id", input.intelligenceRunId)
+    .eq("tenant_id", input.tenantId)
+    .maybeSingle();
+  if (error || !row) throw new Error("Intelligence run not found");
+  const run = rowToRun(row);
+
+  if (run.status === "completed" || run.status === "failed" || run.status === "cancelled") {
+    return run;
+  }
+
+  // Mark started
+  if (!run.startedAt) {
+    await admin
+      .from("intelligence_runs")
+      .update({ status: "running", started_at: new Date().toISOString() })
+      .eq("id", run.id);
+  }
+
+  const ctx: StageContext = {
+    tenantId: run.tenantId,
+    siteId: run.siteId,
+    growthGoalId: run.growthGoalId,
+    runId: run.id,
+    outputs: { ...run.outputRefs },
+    stages: { ...run.stages },
+  };
+
+  for (const key of INTELLIGENCE_STAGE_KEYS) {
+    const current = ctx.stages[key];
+    // Skip stages already in a terminal state from a prior pass — except stale.
+    if (
+      current.status === "complete" ||
+      current.status === "partial" ||
+      current.status === "failed" ||
+      current.status === "skipped_needs_context" ||
+      current.status === "blocked_dependency"
+    ) {
+      continue;
+    }
+    await persistStage(run.id, key, {
+      status: "running",
+      startedAt: new Date().toISOString(),
+      error: null,
+    });
+    let result: StageResult;
+    try {
+      result = await STAGE_HANDLERS[key](ctx);
+    } catch (e) {
+      result = { status: "failed", error: e instanceof Error ? e.message : String(e) };
+    }
+    const stageState: IntelligenceStageState = {
+      key,
+      status: result.status,
+      finishedAt: new Date().toISOString(),
+      message: result.message ?? null,
+      error: result.error ?? null,
+      nextAction: result.nextAction ?? null,
+      outputs: result.outputs ?? {},
+    };
+    ctx.stages[key] = stageState;
+    if (result.outputs) ctx.outputs = { ...ctx.outputs, ...result.outputs };
+    await persistStage(run.id, key, stageState);
+
+    // Hard-stop on foundational failures
+    if (
+      result.status === "failed" &&
+      (key === "site_audit" || key === "growth_snapshot")
+    ) {
+      await admin
+        .from("intelligence_runs")
+        .update({
+          status: "failed",
+          failed_at: new Date().toISOString(),
+          error_message: result.error ?? `${key} failed`,
+          output_refs: ctx.outputs,
+        })
+        .eq("id", run.id);
+      const { data: final } = await admin
+        .from("intelligence_runs")
+        .select("*")
+        .eq("id", run.id)
+        .single();
+      return rowToRun(final);
+    }
+  }
+
+  const finalStatus = deriveRunStatus(ctx.stages);
+  await admin
+    .from("intelligence_runs")
+    .update({
+      status: finalStatus,
+      completed_at:
+        finalStatus === "completed" || finalStatus === "partial"
+          ? new Date().toISOString()
+          : null,
+      output_refs: ctx.outputs,
+      current_stage: null,
+    })
+    .eq("id", run.id);
+
+  const { data: final } = await admin
+    .from("intelligence_runs")
+    .select("*")
+    .eq("id", run.id)
+    .single();
+  return rowToRun(final);
+}
+
+export async function getLatestIntelligenceRun(input: {
+  tenantId: string;
+  siteId?: string | null;
+  growthGoalId?: string | null;
+}): Promise<IntelligenceRun | null> {
+  let q = admin
+    .from("intelligence_runs")
+    .select("*")
+    .eq("tenant_id", input.tenantId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (input.siteId) q = q.eq("site_id", input.siteId);
+  if (input.growthGoalId) q = q.eq("growth_goal_id", input.growthGoalId);
+  const { data } = await q.maybeSingle();
+  return data ? rowToRun(data) : null;
+}
+
+export async function listIntelligenceRunsAdmin(
+  tenantId: string,
+  limit = 10,
+): Promise<IntelligenceRun[]> {
+  const { data } = await admin
+    .from("intelligence_runs")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data ?? []) as any[]).map(rowToRun);
+}
+
+/**
+ * Mark downstream stages on the latest run as `stale` when an upstream
+ * module changes. V1: detection only — does not re-run anything.
+ */
+export async function markDownstreamStagesStale(input: {
+  tenantId: string;
+  sourceModule: keyof typeof STALE_DEPENDENCY_MAP;
+}): Promise<void> {
+  const downstream = STALE_DEPENDENCY_MAP[input.sourceModule] ?? [];
+  if (downstream.length === 0) return;
+  const latest = await getLatestIntelligenceRun({ tenantId: input.tenantId });
+  if (!latest) return;
+  const stages = { ...latest.stages };
+  for (const key of downstream) {
+    if (stages[key].status === "complete" || stages[key].status === "partial") {
+      stages[key] = { ...stages[key], status: "stale" };
+    }
+  }
+  await admin
+    .from("intelligence_runs")
+    .update({ stages })
+    .eq("id", latest.id);
+}
