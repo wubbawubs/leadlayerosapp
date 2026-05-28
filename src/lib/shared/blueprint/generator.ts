@@ -1850,16 +1850,38 @@ function buildClientQuestions(input: GenerateBlueprintInput): ClientQuestion[] {
 
 function buildNextActions(input: GenerateBlueprintInput): NextAction[] {
   const phase1 = input.masterplanItems.filter((i) => i.phase === "first_30_days");
-  return phase1.slice(0, 8).map((item) => ({
-    id: `next-${item.id}`,
-    title: item.title,
-    why:
-      item.rationale ||
-      item.description ||
-      "First-30-days priority pulled from the masterplan.",
-    type: item.type ?? "execution",
-    sourceMasterplanItemId: item.id,
-  }));
+  const gs = input.gbpSummary;
+  const gbpReviewed =
+    !!gs &&
+    gs.available &&
+    (gs.status === "reviewed" || gs.status === "connected");
+  const gbpGaps = gbpReviewed ? (gs?.gaps ?? []).slice(0, 4) : [];
+
+  return phase1.slice(0, 8).map((item) => {
+    if (item.type === "gbp" && gbpReviewed) {
+      const gapText =
+        gbpGaps.length > 0
+          ? `Act on reviewed GBP gaps: ${gbpGaps.join("; ")}.`
+          : "GBP profile is reviewed — execute on the documented gaps (reviews, photos, posts, NAP, services).";
+      return {
+        id: `next-${item.id}`,
+        title: "Act on reviewed Google Business Profile gaps",
+        why: gapText,
+        type: item.type ?? "execution",
+        sourceMasterplanItemId: item.id,
+      };
+    }
+    return {
+      id: `next-${item.id}`,
+      title: item.title,
+      why:
+        item.rationale ||
+        item.description ||
+        "First-30-days priority pulled from the masterplan.",
+      type: item.type ?? "execution",
+      sourceMasterplanItemId: item.id,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
