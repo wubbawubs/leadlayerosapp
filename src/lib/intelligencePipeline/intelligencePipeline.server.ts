@@ -141,6 +141,31 @@ function isAcceptedTerminalStage(
   return completeStageMeetsMinimum(key, stage);
 }
 
+function hardenStageState(
+  key: IntelligenceStageKey,
+  stage: IntelligenceStageState,
+): IntelligenceStageState {
+  if (stage.status !== "complete" || completeStageMeetsMinimum(key, stage)) return stage;
+  const messages: Partial<Record<IntelligenceStageKey, string>> = {
+    site_audit: "Site audit did not meet minimum success conditions: auditId and pagesCount > 0 are required.",
+    page_intelligence: "Page Intelligence did not meet minimum success conditions: pagesClassified > 0 is required.",
+    business_profile_draft: "Business profile draft exists, but approval is required before this stage is complete.",
+    tone_profile_draft: "Tone profile exists, but confidence/status data is missing.",
+    gbp_intelligence: "GBP profile exists, but it has not been reviewed yet.",
+    market_scan: "Market scan exists, but no demand clusters were found.",
+    competitor_scan: "Competitor scan did not return a scan id.",
+    growth_snapshot: "Growth Intelligence Snapshot did not return a readiness score.",
+    blueprint_draft: "Blueprint draft is not available yet.",
+    masterplan_draft: "Masterplan draft is missing a masterplan id or items.",
+  };
+  return {
+    ...stage,
+    status: key === "site_audit" || key === "growth_snapshot" ? "failed" : "partial",
+    message: messages[key] ?? stage.message,
+    error: key === "site_audit" || key === "growth_snapshot" ? messages[key] ?? stage.error : stage.error,
+  };
+}
+
 function deriveCurrentStage(stages: IntelligenceStagesMap): IntelligenceStageKey | null {
   const runningOrNext = INTELLIGENCE_STAGE_KEYS.find((key) => {
     const status = stages[key].status;
