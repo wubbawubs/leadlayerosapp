@@ -223,7 +223,7 @@ async function stagePageIntelligence(ctx: StageContext): Promise<StageResult> {
     return {
       status: "complete",
       message: pagesClassified ? `${pagesClassified} pages classified` : "Page intelligence updated",
-      outputs: { pagesClassified, auditId },
+      outputs: { pagesClassified: pagesClassified ?? 0, auditId },
     };
   } catch (e) {
     return {
