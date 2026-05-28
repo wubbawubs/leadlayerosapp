@@ -818,10 +818,15 @@ export async function advanceIntelligenceRun(input: {
     };
     ctx.stages[key] = stageState;
     if (result.outputs) ctx.outputs = { ...ctx.outputs, ...result.outputs };
+    const nextCurrentStage = deriveCurrentStage(ctx.stages);
     await persistStage(run.id, key, stageState);
     await admin
       .from("intelligence_runs")
-      .update({ output_refs: ctx.outputs })
+      .update({
+        status: "running",
+        output_refs: ctx.outputs,
+        current_stage: nextCurrentStage,
+      })
       .eq("id", run.id);
 
     // Hard-stop on foundational failures
@@ -848,6 +853,7 @@ export async function advanceIntelligenceRun(input: {
   }
 
   const finalStatus = deriveRunStatus(ctx.stages);
+  const finalCurrentStage = deriveCurrentStage(ctx.stages);
   await admin
     .from("intelligence_runs")
     .update({
@@ -857,7 +863,7 @@ export async function advanceIntelligenceRun(input: {
           ? new Date().toISOString()
           : null,
       output_refs: ctx.outputs,
-      current_stage: null,
+      current_stage: finalCurrentStage,
     })
     .eq("id", run.id);
 
