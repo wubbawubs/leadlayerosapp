@@ -154,7 +154,7 @@ export function rowToGbpProfile(row: Record<string, unknown>): GbpProfile {
     secondaryCategories: arr(row.secondary_categories),
     rating: row.rating == null ? null : Number(row.rating),
     reviewCount: row.review_count == null ? null : Number(row.review_count),
-    reviewVelocity: obj(row.review_velocity),
+    reviewVelocity: numObj(row.review_velocity),
     services: arr(row.services),
     serviceArea: arr(row.service_area),
     address: (row.address as string | null) ?? null,
