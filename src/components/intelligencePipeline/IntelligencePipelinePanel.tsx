@@ -349,24 +349,6 @@ export function IntelligencePipelineSummary({ tenantId }: { tenantId: string }) 
 // Helpers
 // ---------------------------------------------------------------------------
 
-function computeProgress(run: IntelligenceRun): number {
-  const total = INTELLIGENCE_STAGE_KEYS.length;
-  let done = 0;
-  for (const key of INTELLIGENCE_STAGE_KEYS) {
-    const s = run.stages[key].status;
-    if (
-      s === "complete" ||
-      s === "partial" ||
-      s === "failed" ||
-      s === "skipped_needs_context" ||
-      s === "blocked_dependency"
-    ) {
-      done += 1;
-    }
-  }
-  return Math.round((done / total) * 100);
-}
-
 function fmt(iso: string): string {
   try {
     return new Date(iso).toLocaleString();
@@ -380,18 +362,6 @@ function formatOutput(v: unknown): string {
   if (typeof v === "string") return v.length > 24 ? `${v.slice(0, 22)}…` : v;
   if (typeof v === "number" || typeof v === "boolean") return String(v);
   return "{…}";
-}
-
-function getPartialCopy(stage: IntelligenceStageState): string | null {
-  if (stage.status === "blocked_dependency") return "Blocked — fix required before continuing.";
-  if (stage.status !== "partial") return null;
-  if (
-    stage.key === "business_profile_draft" &&
-    stage.outputs?.profileStatus === "review_ready"
-  ) {
-    return "Draft ready for operator review. Pipeline can continue, but client-facing Blueprint should wait for approval.";
-  }
-  return "Partial — pipeline can continue.";
 }
 
 function RunStatusBadge({ status }: { status: IntelligenceRunStatus }) {
@@ -412,29 +382,50 @@ function RunStatusBadge({ status }: { status: IntelligenceRunStatus }) {
   );
 }
 
-function StageStatusBadge({ status }: { status: IntelligenceStageStatus }) {
-  const map: Record<IntelligenceStageStatus, { label: string; cls: string }> = {
-    not_started: { label: "Not started", cls: "border-border bg-background/40 text-muted-foreground" },
-    running: { label: "Running", cls: "border-primary/40 bg-primary/10 text-primary" },
-    complete: { label: "Complete", cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400" },
-    partial: { label: "Partial", cls: "border-amber-500/40 bg-amber-500/10 text-amber-400" },
-    failed: { label: "Failed", cls: "border-destructive/40 bg-destructive/10 text-destructive" },
-    skipped_needs_context: {
-      label: "Needs context",
-      cls: "border-amber-500/40 bg-amber-500/10 text-amber-400",
-    },
-    blocked_dependency: {
-      label: "Blocked",
-      cls: "border-destructive/40 bg-destructive/10 text-destructive",
-    },
-    stale: { label: "Stale", cls: "border-amber-500/40 bg-amber-500/10 text-amber-400" },
-  };
-  const cfg = map[status];
+function DisplayBadge({ tone, label }: { tone: DisplayTone; label: string }) {
   return (
     <span
-      className={`rounded border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${cfg.cls}`}
+      className={`rounded border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${toneClass(tone)}`}
     >
-      {cfg.label}
+      {label}
     </span>
   );
 }
+
+function SummaryStat({
+  label,
+  value,
+  ratio,
+  barClass = "bg-primary",
+  compact = false,
+}: {
+  label: string;
+  value: string;
+  ratio?: number;
+  barClass?: string;
+  compact?: boolean;
+}) {
+  const pct = Math.max(0, Math.min(1, ratio ?? 0)) * 100;
+  return (
+    <div className="rounded-lg border border-border bg-background/40 p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={
+          compact
+            ? "mt-1 text-sm text-foreground line-clamp-2"
+            : "mt-1 font-mono text-lg text-foreground"
+        }
+      >
+        {value}
+      </p>
+      {ratio !== undefined && (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-background/60">
+          <div className={`h-full transition-all ${barClass}`} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
