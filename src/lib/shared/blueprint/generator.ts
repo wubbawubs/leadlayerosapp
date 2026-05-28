@@ -549,10 +549,22 @@ function buildDataAvailability(input: GenerateBlueprintInput): DataAvailability 
     return "missing";
   })();
 
+  const gbpState: DataAvailabilityState = (() => {
+    const s = input.gbpSummary;
+    if (s && s.available) {
+      if (s.status === "reviewed" || s.status === "connected") return "available";
+      if (s.status === "manual_review") return "partial";
+      return "placeholder";
+    }
+    if (input.gbpData?.connected) return "available";
+    if (input.gbpData) return "placeholder";
+    return "missing";
+  })();
+
   return {
     marketData: state(hasMarket, !!input.marketDemandSummary || !!input.marketData),
     competitorData: competitorState,
-    gbpData: state(input.gbpData?.connected === true, !!input.gbpData),
+    gbpData: gbpState,
     rankingData: state(
       !!input.rankingData && (input.rankingData.keywordsTracked ?? 0) > 0,
       !!input.rankingData,
