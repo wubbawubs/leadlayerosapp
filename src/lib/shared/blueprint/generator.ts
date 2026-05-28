@@ -50,6 +50,7 @@ import type {
   MarketScanSource,
 } from "@/lib/shared/marketIntelligence/schemas";
 import type { CompetitorMatrixSummary } from "@/lib/shared/competitiveIntelligence/schemas";
+import type { GbpSummary } from "@/lib/shared/gbpIntelligence/schemas";
 
 // ---------------------------------------------------------------------------
 // Input contract (intentionally loose / structural)
@@ -198,6 +199,8 @@ export interface GenerateBlueprintInput {
    */
   competitorSummary?: CompetitorMatrixSummary;
   gbpData?: GeneratorGbpData;
+  /** GBP Intelligence V1 — produced by summarizeGbpProfile(). Preferred over gbpData. */
+  gbpSummary?: GbpSummary;
   rankingData?: GeneratorRankingData;
   trackingData?: GeneratorTrackingData;
   /** Deterministic timestamp; defaults to a fixed epoch when omitted to keep snapshots stable in tests. */
@@ -268,8 +271,16 @@ function toScoringInputs(input: GenerateBlueprintInput): ScoringInputs {
   const weightedConversionReadiness = totalW > 0
     ? scored.reduce((s, p) => s + p.conversionReadiness * priorityWeight(p), 0) / totalW
     : undefined;
-  // GBP confirmation comes from gbpData when present; absence = not confirmed.
-  const gbpConfirmed = !!(input.gbpData && (input.gbpData.reviewsCount ?? 0) > 0);
+  // GBP confirmation comes from gbpSummary (reviewed/connected status with
+  // any review_count) when present, otherwise from legacy gbpData.
+  const gbpConfirmed = !!(
+    (input.gbpSummary &&
+      input.gbpSummary.available &&
+      (input.gbpSummary.profile?.reviewCount ?? 0) > 0 &&
+      (input.gbpSummary.status === "reviewed" ||
+        input.gbpSummary.status === "connected")) ||
+    (input.gbpData && (input.gbpData.reviewsCount ?? 0) > 0)
+  );
 
   const items = input.masterplanItems ?? [];
   const firstPhase = items.filter((i) => i.phase === "first_30_days").length;
@@ -377,7 +388,8 @@ function buildScores(scoring: ScoringInputs, input?: GenerateBlueprintInput): Bl
       ? (cs.partial || cs.status === "partial" ? "partial" : "available")
       : "missing";
     const pageIntel = input.pageIntelligence.length > 0;
-    const gbpConnected = input.gbpData?.connected === true;
+    const gbpConnected =
+      input.gbpSummary?.available === true || input.gbpData?.connected === true;
     const trackingOk = input.trackingData?.hasAnalytics === true;
     const auditOk = input.auditSummary?.overallScore != null;
     engine.reasoning.push({
@@ -537,10 +549,22 @@ function buildDataAvailability(input: GenerateBlueprintInput): DataAvailability 
     return "missing";
   })();
 
+  const gbpState: DataAvailabilityState = (() => {
+    const s = input.gbpSummary;
+    if (s && s.available) {
+      if (s.status === "reviewed" || s.status === "connected") return "available";
+      if (s.status === "manual_review") return "partial";
+      return "placeholder";
+    }
+    if (input.gbpData?.connected) return "available";
+    if (input.gbpData) return "placeholder";
+    return "missing";
+  })();
+
   return {
     marketData: state(hasMarket, !!input.marketDemandSummary || !!input.marketData),
     competitorData: competitorState,
-    gbpData: state(input.gbpData?.connected === true, !!input.gbpData),
+    gbpData: gbpState,
     rankingData: state(
       !!input.rankingData && (input.rankingData.keywordsTracked ?? 0) > 0,
       !!input.rankingData,

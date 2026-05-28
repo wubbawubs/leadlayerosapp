@@ -952,6 +952,105 @@ export type Database = {
           },
         ]
       }
+      gbp_profiles: {
+        Row: {
+          address: string | null
+          business_name: string | null
+          completeness_score: number | null
+          created_at: string
+          gaps: Json
+          growth_goal_id: string | null
+          id: string
+          last_reviewed_at: string | null
+          local_visibility_score: number | null
+          nap_consistency: string | null
+          notes: string | null
+          phone: string | null
+          photos_status: string | null
+          posts_status: string | null
+          primary_category: string | null
+          profile_url: string | null
+          rating: number | null
+          recommendations: Json
+          review_count: number | null
+          review_velocity: Json
+          secondary_categories: Json
+          service_area: Json
+          services: Json
+          site_id: string | null
+          source: string
+          status: string
+          tenant_id: string
+          trust_score: number | null
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          address?: string | null
+          business_name?: string | null
+          completeness_score?: number | null
+          created_at?: string
+          gaps?: Json
+          growth_goal_id?: string | null
+          id?: string
+          last_reviewed_at?: string | null
+          local_visibility_score?: number | null
+          nap_consistency?: string | null
+          notes?: string | null
+          phone?: string | null
+          photos_status?: string | null
+          posts_status?: string | null
+          primary_category?: string | null
+          profile_url?: string | null
+          rating?: number | null
+          recommendations?: Json
+          review_count?: number | null
+          review_velocity?: Json
+          secondary_categories?: Json
+          service_area?: Json
+          services?: Json
+          site_id?: string | null
+          source?: string
+          status?: string
+          tenant_id: string
+          trust_score?: number | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          address?: string | null
+          business_name?: string | null
+          completeness_score?: number | null
+          created_at?: string
+          gaps?: Json
+          growth_goal_id?: string | null
+          id?: string
+          last_reviewed_at?: string | null
+          local_visibility_score?: number | null
+          nap_consistency?: string | null
+          notes?: string | null
+          phone?: string | null
+          photos_status?: string | null
+          posts_status?: string | null
+          primary_category?: string | null
+          profile_url?: string | null
+          rating?: number | null
+          recommendations?: Json
+          review_count?: number | null
+          review_velocity?: Json
+          secondary_categories?: Json
+          service_area?: Json
+          services?: Json
+          site_id?: string | null
+          source?: string
+          status?: string
+          tenant_id?: string
+          trust_score?: number | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       growth_goals: {
         Row: {
           bad_fit_leads: Json
