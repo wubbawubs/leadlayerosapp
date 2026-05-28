@@ -48,18 +48,37 @@ function rowToRun(row: any): IntelligenceRun {
   for (const key of INTELLIGENCE_STAGE_KEYS) {
     if (stages[key]) fullStages[key] = stages[key] as IntelligenceStageState;
   }
+  const outputRefs = (row.output_refs ?? {}) as { [key: string]: import("@/lib/shared/intelligencePipeline/schemas").JsonValue };
+  if (
+    fullStages.page_intelligence.status === "complete" &&
+    asPositiveNumber(fullStages.page_intelligence.outputs?.pagesClassified) === 0
+  ) {
+    const auditPagesCount = asPositiveNumber(
+      fullStages.page_intelligence.outputs?.auditPagesCount ?? outputRefs.pagesCount,
+    );
+    fullStages.page_intelligence = {
+      ...fullStages.page_intelligence,
+      status: "partial",
+      message: auditPagesCount
+        ? `Audit found ${auditPagesCount} pages, but Page Intelligence classified 0 pages.`
+        : "Page Intelligence classified 0 pages.",
+    };
+  }
+  for (const key of INTELLIGENCE_STAGE_KEYS) {
+    fullStages[key] = hardenStageState(key, fullStages[key]);
+  }
   return {
     id: row.id,
     tenantId: row.tenant_id,
     siteId: row.site_id ?? null,
     growthGoalId: row.growth_goal_id ?? null,
     status: row.status as IntelligenceRunStatus,
-    currentStage: (row.current_stage ?? null) as IntelligenceStageKey | null,
+    currentStage: deriveCurrentStage(fullStages),
     triggeredBy: (row.triggered_by ?? "operator") as IntelligenceTriggeredBy,
     triggerReason: row.trigger_reason ?? null,
     stages: fullStages,
     inputHash: (row.input_hash ?? {}) as { [key: string]: import("@/lib/shared/intelligencePipeline/schemas").JsonValue },
-    outputRefs: (row.output_refs ?? {}) as { [key: string]: import("@/lib/shared/intelligencePipeline/schemas").JsonValue },
+    outputRefs,
     startedAt: row.started_at ?? null,
     completedAt: row.completed_at ?? null,
     failedAt: row.failed_at ?? null,
