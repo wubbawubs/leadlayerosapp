@@ -53,9 +53,14 @@ export function IntelligencePipelinePanel({ tenantId }: { tenantId: string }) {
     (sitesQuery.data?.connections ?? []).some((c) => c.status === "connected") ?? false;
   const hasGoal = !!goalQuery.data?.goal;
 
+  const [autoLoop, setAutoLoop] = useState(false);
+
   const start = useMutation({
-    mutationFn: () => startFn({ data: { tenantId, autoAdvance: true } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["intelligence-run", tenantId] }),
+    mutationFn: () => startFn({ data: { tenantId, autoAdvance: false } }),
+    onSuccess: () => {
+      setAutoLoop(true);
+      qc.invalidateQueries({ queryKey: ["intelligence-run", tenantId] });
+    },
   });
   const advance = useMutation({
     mutationFn: () =>
@@ -68,6 +73,23 @@ export function IntelligencePipelinePanel({ tenantId }: { tenantId: string }) {
   const isRunning = start.isPending || advance.isPending;
   const isTerminal =
     run?.status === "completed" || run?.status === "failed" || run?.status === "cancelled";
+
+  // Auto-loop: after starting (or while autoLoop is on), keep calling advance
+  // one stage at a time until the run reaches a terminal state. Each call is
+  // bounded to a single stage server-side to stay within worker timeout.
+  const loopGuard = useRef(0);
+  useEffect(() => {
+    if (!autoLoop || !run || isTerminal || isRunning) return;
+    if (loopGuard.current > 25) return; // hard safety
+    loopGuard.current += 1;
+    const t = setTimeout(() => advance.mutate(), 400);
+    return () => clearTimeout(t);
+  }, [autoLoop, run, isTerminal, isRunning, advance]);
+
+  useEffect(() => {
+    if (isTerminal) setAutoLoop(false);
+  }, [isTerminal]);
+
 
   const blockers: string[] = [];
   if (!hasGoal) blockers.push("growth goal");
