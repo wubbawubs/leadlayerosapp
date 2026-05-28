@@ -127,6 +127,18 @@ function AppHome() {
     try { return JSON.parse(raw) as GrowthIntelligenceSnapshot; } catch { return null; }
   })();
 
+  const fetchFlow = useServerFn(getProductFlowState);
+  const flowQuery = useQuery({
+    queryKey: ["product-flow-state", tenantId],
+    queryFn: () => fetchFlow({ data: { tenantId: tenantId! } }),
+    enabled: !!tenantId,
+  });
+  const flow: ProductFlowState | null = (() => {
+    const raw = flowQuery.data?.flowJson;
+    if (!raw) return null;
+    try { return JSON.parse(raw) as ProductFlowState; } catch { return null; }
+  })();
+
 
   async function signOut() {
     await supabase.auth.signOut();
