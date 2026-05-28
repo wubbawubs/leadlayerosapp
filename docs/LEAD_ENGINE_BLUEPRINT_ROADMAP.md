@@ -381,4 +381,12 @@ This ensures we build scoring against a fixed output contract, and the Blueprint
 
 ---
 
+## Next layer
+
+The Blueprint is now V1-validated. Product direction continues in the canonical
+architecture docs:
+
+- [`CLIENT_JOURNEY_AND_OS_ARCHITECTURE.md`](./CLIENT_JOURNEY_AND_OS_ARCHITECTURE.md) — actors, journey, automation flow, system layers, Growth Intelligence Snapshot spec
+- [`WORDPRESS_INTEGRATION_ARCHITECTURE.md`](./WORDPRESS_INTEGRATION_ARCHITECTURE.md) — staged WP delivery model that Execution will target
+
 *End of roadmap. Approved for implementation: _________*
