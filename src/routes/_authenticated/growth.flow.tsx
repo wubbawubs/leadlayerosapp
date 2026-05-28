@@ -93,6 +93,8 @@ function ProductFlowPage() {
           review, and what is blocked.
         </p>
 
+        {tenantId && <IntelligencePipelinePanel tenantId={tenantId} />}
+
         {flowQuery.isLoading && (
           <p className="mt-8 text-sm text-muted-foreground">Resolving flow…</p>
         )}
