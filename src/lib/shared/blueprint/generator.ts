@@ -1709,10 +1709,61 @@ function buildClientQuestions(input: GenerateBlueprintInput): ClientQuestion[] {
       required: true,
     });
   }
-  if (!input.gbpData?.connected) {
+  const gsQ = input.gbpSummary;
+  if (gsQ && gsQ.available && gsQ.profile) {
+    const p = gsQ.profile;
+    if (!p.primaryCategory)
+      q.push({
+        id: "gbp_primary_category",
+        question: "What is the primary GBP category for this business?",
+        why: "Drives local pack eligibility and category-driven discovery.",
+        category: "gbp",
+        required: true,
+      });
+    if (p.services.length === 0)
+      q.push({
+        id: "gbp_services",
+        question: "Which services should appear on the GBP listing?",
+        why: "GBP services map to local intent queries.",
+        category: "gbp",
+        required: true,
+      });
+    if (p.reviewCount == null)
+      q.push({
+        id: "gbp_reviews_source",
+        question: "Where are reviews currently captured (count + average)?",
+        why: "Required before we can cite review numbers in copy or ads.",
+        category: "gbp",
+        required: true,
+      });
+    if (p.photosStatus === "unknown" || p.photosStatus === "weak" || p.photosStatus === "missing")
+      q.push({
+        id: "gbp_photos",
+        question: "Do you have fresh GBP photos (team, jobs, exterior)?",
+        why: "Photos drive profile engagement and trust.",
+        category: "gbp",
+        required: false,
+      });
+    if (p.postsStatus === "unknown" || p.postsStatus === "inactive")
+      q.push({
+        id: "gbp_posts",
+        question: "Who can publish weekly GBP posts going forward?",
+        why: "Post cadence improves profile activity signals.",
+        category: "gbp",
+        required: false,
+      });
+    if (p.napConsistency === "unknown" || p.napConsistency === "inconsistent")
+      q.push({
+        id: "gbp_nap",
+        question: "Is the business name, address and phone identical everywhere it appears online?",
+        why: "Inconsistent NAP suppresses local rankings.",
+        category: "gbp",
+        required: true,
+      });
+  } else if (!input.gbpData?.connected) {
     q.push({
       id: "gbp_access",
-      question: "Can we get access to your Google Business Profile?",
+      question: "Can we get access to (or details of) your Google Business Profile?",
       why: "GBP is often the largest local lead lever.",
       category: "gbp",
       required: true,
