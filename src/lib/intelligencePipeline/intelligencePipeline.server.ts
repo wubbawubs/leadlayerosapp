@@ -487,18 +487,23 @@ async function stageBusinessProfile(ctx: StageContext): Promise<StageResult> {
 
 async function stageToneProfile(ctx: StageContext): Promise<StageResult> {
   const { data: existing } = await admin
-    .from("brand_voice_profiles")
-    .select("id, job_status, analyzed_at")
+    .from("tone_profiles")
+    .select("id, status, job_status, confidence_score, analyzed_at")
     .eq("tenant_id", ctx.tenantId)
     .maybeSingle();
   if (existing?.analyzed_at) {
     const ageHours = (Date.now() - new Date(existing.analyzed_at).getTime()) / 3600000;
     if (ageHours < 24) {
       return {
-        status: "complete",
-        message: `Tone profile reused (${ageHours.toFixed(0)}h old)`,
-        outputs: { toneProfileId: existing.id, jobStatus: existing.job_status },
-        nextAction: "Approve at /settings/tone-profile",
+        status: existing.status === "approved" || existing.status === "locked" ? "complete" : "partial",
+        message: `Tone profile ${existing.status} (${ageHours.toFixed(0)}h old)`,
+        outputs: {
+          toneProfileId: existing.id,
+          profileStatus: existing.status,
+          jobStatus: existing.job_status,
+          confidenceScore: existing.confidence_score ?? 0,
+        },
+        nextAction: existing.status === "approved" || existing.status === "locked" ? null : "Approve at /settings/tone-profile",
       };
     }
   }
@@ -507,7 +512,7 @@ async function stageToneProfile(ctx: StageContext): Promise<StageResult> {
     return {
       status: "partial",
       message: "Tone profile draft generated — approval pending",
-      outputs: { toneProfileId: (profile as { id?: string } | null)?.id ?? existing?.id ?? null },
+      outputs: { toneProfileId: existing?.id ?? null, profileStatus: "draft" },
       nextAction: "Approve at /settings/tone-profile",
     };
   } catch (e) {
