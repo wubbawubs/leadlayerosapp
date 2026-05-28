@@ -105,6 +105,18 @@ function AppHome() {
     enabled: !!tenantId && !!planId,
   });
 
+  const fetchSnapshot = useServerFn(getGrowthIntelligenceSnapshot);
+  const snapshotQuery = useQuery({
+    queryKey: ["growth-intelligence-snapshot", tenantId],
+    queryFn: () => fetchSnapshot({ data: { tenantId: tenantId! } }),
+    enabled: !!tenantId,
+  });
+  const snapshot: GrowthIntelligenceSnapshot | null = (() => {
+    const raw = snapshotQuery.data?.snapshotJson;
+    if (!raw) return null;
+    try { return JSON.parse(raw) as GrowthIntelligenceSnapshot; } catch { return null; }
+  })();
+
 
   async function signOut() {
     await supabase.auth.signOut();
