@@ -155,7 +155,7 @@ function GrowthGoalPage() {
 
   const saveMut = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("Geen tenant");
+      if (!tenantId) throw new Error("No active tenant");
       const payload = formToInput(form);
       const existing = goalQuery.data?.goal;
       if (existing) {
@@ -166,7 +166,7 @@ function GrowthGoalPage() {
       return createFn({ data: { tenantId, input: payload } });
     },
     onSuccess: () => {
-      toast.success("Growth goal opgeslagen");
+      toast.success("Growth goal saved");
       qc.invalidateQueries({ queryKey: ["active-growth-goal", tenantId] });
     },
     onError: (e) => toast.error((e as Error).message),
@@ -174,14 +174,14 @@ function GrowthGoalPage() {
 
   const syncMut = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("Geen tenant");
+      if (!tenantId) throw new Error("No active tenant");
       const existing = goalQuery.data?.goal;
-      if (!existing) throw new Error("Sla eerst de goal op");
+      if (!existing) throw new Error("Save the goal first");
       return syncFn({ data: { tenantId, goalId: existing.id } });
     },
     onSuccess: (res) => {
       toast.success(
-        `Synced ${res.applied.length} field(s) naar Business Profile. ${res.warnings.length} overgeslagen.`,
+        `Synced ${res.applied.length} field(s) to Business Profile. ${res.warnings.length} skipped.`,
       );
     },
     onError: (e) => toast.error((e as Error).message),
@@ -216,23 +216,23 @@ function GrowthGoalPage() {
         </p>
         <h1 className="font-display text-4xl text-foreground">Growth goal</h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
-          Leg het concrete groeidoel van deze klant vast. Dit wordt straks de input voor Masterplan V1.
+          Define the client's concrete growth goal. This drives the Masterplan and all downstream deliverables.
         </p>
 
         {!tenantId && (
-          <p className="mt-6 text-sm text-muted-foreground">Tenant laden…</p>
+          <p className="mt-6 text-sm text-muted-foreground">Loading…</p>
         )}
 
         {tenantId && (
           <div className="mt-8 space-y-8">
-            <Section title="Main goal" subtitle="Wat wil deze klant bereiken?">
+            <Section title="Main goal" subtitle="What does this client want to achieve?">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field label="Titel (optioneel)">
+                <Field label="Title (optional)">
                   <input
                     className="input"
                     value={form.title}
                     onChange={(e) => setForm({ ...form, title: e.target.value })}
-                    placeholder="bv. 6 extra klanten per maand"
+                    placeholder="e.g. 6 new clients per month"
                   />
                 </Field>
                 <Field label="Target type">
@@ -250,16 +250,16 @@ function GrowthGoalPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Target per maand">
+                <Field label="Target per month">
                   <input
                     className="input"
                     inputMode="decimal"
                     value={form.targetCount}
                     onChange={(e) => setForm({ ...form, targetCount: e.target.value })}
-                    placeholder="bv. 6"
+                    placeholder="e.g. 6"
                   />
                 </Field>
-                <Field label="Timeframe (maanden)">
+                <Field label="Timeframe (months)">
                   <input
                     className="input"
                     inputMode="numeric"
@@ -267,7 +267,7 @@ function GrowthGoalPage() {
                     onChange={(e) => setForm({ ...form, timeframeMonths: e.target.value })}
                   />
                 </Field>
-                <Field label="Huidige aantal per maand">
+                <Field label="Current count per month">
                   <input
                     className="input"
                     inputMode="decimal"
@@ -294,9 +294,9 @@ function GrowthGoalPage() {
               </div>
             </Section>
 
-            <Section title="Lead economics" subtitle="Voor de lead-math berekening.">
+            <Section title="Lead economics" subtitle="Used to calculate required leads per month.">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <Field label="Gem. klantwaarde (€)">
+                <Field label="Avg. lead value (€)">
                   <input
                     className="input"
                     inputMode="decimal"
@@ -310,10 +310,10 @@ function GrowthGoalPage() {
                     inputMode="decimal"
                     value={form.closeRatePct}
                     onChange={(e) => setForm({ ...form, closeRatePct: e.target.value })}
-                    placeholder="bv. 40"
+                    placeholder="e.g. 40"
                   />
                 </Field>
-                <Field label="Required leads (berekend)">
+                <Field label="Required leads (calculated)">
                   <div className="input flex items-center bg-background/40 text-muted-foreground">
                     {requiredLeads == null ? "—" : requiredLeads}
                   </div>
@@ -321,19 +321,19 @@ function GrowthGoalPage() {
               </div>
               {requiredLeads == null && (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Vul target én close rate in om required leads te berekenen.
+                  Enter target and close rate to calculate required leads.
                 </p>
               )}
             </Section>
 
-            <Section title="Focus" subtitle="Belangrijkste diensten en regio's (één per regel).">
+            <Section title="Focus" subtitle="Primary services and target areas — one per line.">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field label="Service focus">
                   <textarea
                     className="input min-h-[120px]"
                     value={form.serviceFocus}
                     onChange={(e) => setForm({ ...form, serviceFocus: e.target.value })}
-                    placeholder={"Spoed loodgieter\nLekkage\nAfvoer verstopt"}
+                    placeholder={"AC repair\nHVAC installation\nEmergency heating"}
                   />
                 </Field>
                 <Field label="Locations">
@@ -341,13 +341,13 @@ function GrowthGoalPage() {
                     className="input min-h-[120px]"
                     value={form.locations}
                     onChange={(e) => setForm({ ...form, locations: e.target.value })}
-                    placeholder={"Amsterdam\nAmsterdam + 15 km"}
+                    placeholder={"Dallas, TX\nDallas metro area"}
                   />
                 </Field>
               </div>
             </Section>
 
-            <Section title="Lead quality" subtitle="Hoe ziet een goede vs slechte lead eruit?">
+            <Section title="Lead quality" subtitle="What makes a good or bad lead for this client?">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field label="Good-fit leads">
                   <textarea
@@ -366,7 +366,7 @@ function GrowthGoalPage() {
               </div>
             </Section>
 
-            <Section title="Capacity & tracking" subtitle="Wat is de capaciteit en hoe wordt nu gemeten?">
+            <Section title="Capacity & tracking" subtitle="Service capacity and current tracking status.">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field label="Capacity notes">
                   <textarea
@@ -391,15 +391,15 @@ function GrowthGoalPage() {
                 disabled={saveMut.isPending}
                 className="rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
               >
-                {saveMut.isPending ? "Opslaan…" : goal ? "Update goal" : "Create goal"}
+                {saveMut.isPending ? "Saving…" : goal ? "Update goal" : "Create goal"}
               </button>
               <button
                 onClick={() => syncMut.mutate()}
                 disabled={syncMut.isPending || !goal}
                 className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-60"
-                title={goal ? "Sync naar Business Profile (respecteert locks)" : "Sla eerst op"}
+                title={goal ? "Sync to Business Profile (respects locked fields)" : "Save the goal first"}
               >
-                {syncMut.isPending ? "Syncen…" : "Sync naar Business Profile"}
+                {syncMut.isPending ? "Syncing…" : "Sync to Business Profile"}
               </button>
             </div>
 
@@ -407,15 +407,15 @@ function GrowthGoalPage() {
 
             {syncMut.data && (
               <div className="rounded-lg border border-border bg-card/70 p-5 text-sm">
-                <h3 className="font-semibold text-foreground">Sync resultaat</h3>
+                <h3 className="font-semibold text-foreground">Sync result</h3>
                 <p className="mt-1 text-muted-foreground">
-                  Toegepast: {syncMut.data.applied.length} · Overgeslagen: {syncMut.data.warnings.length}
+                  Applied: {syncMut.data.applied.length} · Skipped: {syncMut.data.warnings.length}
                 </p>
                 {syncMut.data.applied.length > 0 && (
                   <ul className="mt-2 list-disc pl-5 text-xs text-muted-foreground">
                     {syncMut.data.applied.map((p) => (
                       <li key={p}>
-                        <span className="text-foreground">{p}</span> · gesynct
+                        <span className="text-foreground">{p}</span> · synced
                       </li>
                     ))}
                   </ul>
@@ -426,12 +426,12 @@ function GrowthGoalPage() {
                       <li key={`${w.fieldPath}-${i}`}>
                         <span className="text-foreground">{w.fieldPath}</span> ·{" "}
                         {w.reason === "locked"
-                          ? "veld is locked — niet overschreven"
+                          ? "field is locked — not overwritten"
                           : w.reason === "already_set"
-                            ? "al ingevuld — niet overschreven"
+                            ? "already set — not overwritten"
                             : w.reason === "unchanged"
-                              ? "waarde was al gelijk"
-                              : `fout: ${w.detail ?? ""}`}
+                              ? "value was already equal"
+                              : `error: ${w.detail ?? ""}`}
                       </li>
                     ))}
                   </ul>
@@ -490,12 +490,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function computeMissingContext(f: FormState): string[] {
   const missing: string[] = [];
-  if (!num(f.targetCount)) missing.push("target count ontbreekt");
-  if (!num(f.closeRatePct)) missing.push("close rate ontbreekt");
-  if (!num(f.currentCount)) missing.push("huidige leadflow onbekend");
-  if (parseLines(f.serviceFocus).length === 0) missing.push("geen service focus");
-  if (parseLines(f.locations).length === 0) missing.push("geen regio's");
-  if (!f.trackingNotes.trim()) missing.push("trackingstatus onbekend");
+  if (!num(f.targetCount)) missing.push("target count missing");
+  if (!num(f.closeRatePct)) missing.push("close rate missing");
+  if (!num(f.currentCount)) missing.push("current lead flow unknown");
+  if (parseLines(f.serviceFocus).length === 0) missing.push("no service focus");
+  if (parseLines(f.locations).length === 0) missing.push("no target locations");
+  if (!f.trackingNotes.trim()) missing.push("tracking status unknown");
   return missing;
 }
 
@@ -517,14 +517,14 @@ function SummaryCard({
       <div className="mt-3 space-y-2 text-foreground">
         <p>
           <strong>Goal:</strong>{" "}
-          {tgt != null ? `${tgt} ${form.targetType} per maand` : "—"}
-          {tf ? ` binnen ${tf} maanden` : ""}.
+          {tgt != null ? `${tgt} ${form.targetType} per month` : "—"}
+          {tf ? ` within ${tf} months` : ""}.
         </p>
         <p>
           <strong>Lead math:</strong>{" "}
           {requiredLeads != null && pct != null
-            ? `bij ${pct}% close rate zijn ongeveer ${requiredLeads} gekwalificeerde leads per maand nodig.`
-            : "onbekend — vul target en close rate in."}
+            ? `at ${pct}% close rate, approximately ${requiredLeads} qualified leads per month needed.`
+            : "unknown — enter target and close rate."}
         </p>
         {parseLines(form.serviceFocus).length > 0 && (
           <p>
@@ -533,7 +533,7 @@ function SummaryCard({
         )}
         {parseLines(form.locations).length > 0 && (
           <p>
-            <strong>Regio:</strong> {parseLines(form.locations).join(", ")}.
+            <strong>Locations:</strong> {parseLines(form.locations).join(", ")}.
           </p>
         )}
         {missing.length > 0 && (

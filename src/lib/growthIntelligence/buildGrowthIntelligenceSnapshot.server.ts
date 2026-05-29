@@ -33,6 +33,7 @@ import {
   type ToneSlice,
   type TrackingSlice,
   type WebsiteSlice,
+  type WordpressSlice,
 } from "@/lib/shared/growthIntelligence/schemas";
 import {
   aggregateConfidence,
@@ -57,7 +58,7 @@ export async function buildGrowthIntelligenceSnapshot(
 ): Promise<GrowthIntelligenceSnapshot> {
   const { tenantId } = input;
 
-  const [goal, bpRow, toneRow, siteConnRows, audit, piStats, marketBundle, competitorBundle, gbpProfile, masterplan] =
+  const [goal, bpRow, toneRow, siteConnRows, audit, piStats, marketBundle, competitorBundle, gbpProfile, masterplan, wordpressBundle, leadCounts] =
     await Promise.all([
       loadActiveGoal(tenantId, input.growthGoalId ?? null),
       loadBusinessProfile(tenantId),
@@ -69,6 +70,8 @@ export async function buildGrowthIntelligenceSnapshot(
       loadLatestCompetitor(tenantId, input.growthGoalId ?? null),
       loadLatestGbp(tenantId, input.growthGoalId ?? null),
       loadActiveMasterplan(tenantId),
+      loadWordpressReadiness(tenantId),
+      loadLeadCounts(tenantId),
     ]);
 
   // -------- goal slice --------
@@ -95,8 +98,8 @@ export async function buildGrowthIntelligenceSnapshot(
   // -------- GBP slice --------
   const gbpSlice = buildGbpSlice(gbpProfile);
 
-  // -------- tracking slice (placeholder) --------
-  const trackingSlice = buildTrackingSlice(goal);
+  // -------- tracking slice --------
+  const trackingSlice = buildTrackingSlice(goal, leadCounts);
 
   // -------- ranking slice (placeholder) --------
   const rankingSlice: RankingSlice = {
@@ -109,6 +112,9 @@ export async function buildGrowthIntelligenceSnapshot(
 
   // -------- masterplan slice --------
   const masterplanSlice = buildMasterplanSlice(masterplan);
+
+  // -------- wordpress slice --------
+  const wordpressSlice = buildWordpressSlice(wordpressBundle);
 
   const slices = {
     goal: goalSlice,
@@ -130,6 +136,7 @@ export async function buildGrowthIntelligenceSnapshot(
   const dataAvailability = buildAvailabilityMatrix({
     ...slices,
     ranking: rankingSlice,
+    wordpress: wordpressSlice,
   });
   const missingContext = buildMissingContext(slices, rankingSlice);
   const warnings = buildWarnings(slices);
@@ -157,6 +164,7 @@ export async function buildGrowthIntelligenceSnapshot(
     tracking: trackingSlice,
     ranking: rankingSlice,
     masterplan: masterplanSlice,
+    wordpress: wordpressSlice,
     dataAvailability,
     missingContext,
     warnings,
@@ -289,6 +297,47 @@ async function loadActiveMasterplan(tenantId: string) {
   return {
     plan: planRow as Record<string, unknown>,
     items: (items as Array<Record<string, unknown>>) ?? [],
+  };
+}
+
+async function loadWordpressReadiness(tenantId: string) {
+  const { data: conn } = await admin
+    .from("wordpress_connections")
+    .select("id, status, kind, base_url, capabilities, last_checked_at")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!conn) return null;
+
+  const [invResult, mappingResult] = await Promise.all([
+    admin
+      .from("wordpress_site_inventory")
+      .select("id", { count: "exact", head: true })
+      .eq("wordpress_connection_id", conn.id),
+    admin
+      .from("wordpress_page_mappings")
+      .select("id, mapping_type", { count: "exact" })
+      .eq("wordpress_connection_id", conn.id),
+  ]);
+
+  const inventoryCount = (invResult.count as number | null) ?? 0;
+  const mappings = (mappingResult.data as Array<{ mapping_type: string }> | null) ?? [];
+  const missingPageCount = mappings.filter((m) => m.mapping_type === "missing_page").length;
+  const lastSyncedRaw = await admin
+    .from("wordpress_site_inventory")
+    .select("last_synced_at")
+    .eq("wordpress_connection_id", conn.id)
+    .order("last_synced_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return {
+    conn: conn as Record<string, unknown>,
+    inventoryCount,
+    mappingCount: mappings.length,
+    missingPageCount,
+    lastSyncedAt: (lastSyncedRaw.data?.last_synced_at as string | null) ?? null,
   };
 }
 
@@ -751,20 +800,98 @@ function buildGbpSlice(
 
 function buildTrackingSlice(
   goal: ReturnType<typeof rowToGrowthGoal> | null,
+  leadCounts: { last30Days: number; total: number },
 ): TrackingSlice {
-  // V1: tracking is a placeholder. We only honor the operator-typed
-  // trackingNotes on the goal as a "something exists" signal — never claim
-  // analytics is wired without a real integration.
-  const hasNotes = !!(goal?.trackingNotes && goal.trackingNotes.trim());
+  const hasManualLeads = leadCounts.last30Days > 0 || leadCounts.total > 0;
+  const baseline = hasManualLeads
+    ? leadCounts.last30Days
+    : (goal?.currentCount ?? null);
   return {
-    status: hasNotes ? "placeholder" : "missing",
-    confidence: hasNotes ? 0.2 : 0,
-    missing: hasNotes ? ["tracking_integration"] : ["tracking_integration", "lead_baseline"],
+    status: hasManualLeads ? "partial" : "missing",
+    confidence: hasManualLeads ? 0.4 : 0,
+    missing: hasManualLeads
+      ? ["tracking_integration"]
+      : ["tracking_integration", "lead_baseline"],
     callTracking: false,
     formTracking: false,
     analytics: false,
     attribution: false,
-    currentLeadBaseline: goal?.currentCount ?? null,
+    currentLeadBaseline: baseline,
+  };
+}
+
+async function loadLeadCounts(tenantId: string): Promise<{ last30Days: number; total: number }> {
+  const { data, error } = await admin
+    .from("leads")
+    .select("created_at")
+    .eq("tenant_id", tenantId);
+  if (error || !data) return { last30Days: 0, total: 0 };
+  const cutoff = Date.now() - 30 * 86_400_000;
+  const last30Days = (data as Array<{ created_at: string }>).filter(
+    (r) => new Date(r.created_at).getTime() >= cutoff,
+  ).length;
+  return { last30Days, total: data.length as number };
+}
+
+function buildWordpressSlice(
+  bundle: {
+    conn: Record<string, unknown>;
+    inventoryCount: number;
+    mappingCount: number;
+    missingPageCount: number;
+    lastSyncedAt: string | null;
+  } | null,
+): WordpressSlice {
+  if (!bundle) {
+    return {
+      status: "missing",
+      confidence: 0,
+      missing: ["wordpress_connection"],
+      connectionStatus: null,
+      kind: null,
+      baseUrl: null,
+      inventoryCount: 0,
+      mappingCount: 0,
+      missingPageCount: 0,
+      capabilitiesOk: null,
+      lastCheckedAt: null,
+      lastSyncedAt: null,
+    };
+  }
+  const connStatus = String(bundle.conn.status ?? "not_connected");
+  const caps = (bundle.conn.capabilities as Record<string, unknown> | null) ?? {};
+  const capOk = typeof caps.ok === "boolean" ? caps.ok : null;
+  const lastChecked = (bundle.conn.last_checked_at as string | null) ?? null;
+
+  let moduleStatus: ModuleStatus;
+  if (connStatus === "connected" && bundle.inventoryCount > 0) {
+    moduleStatus = "connected";
+  } else if (connStatus === "connected") {
+    moduleStatus = "partial";
+  } else if (connStatus === "failed" || connStatus === "revoked") {
+    moduleStatus = "placeholder";
+  } else {
+    moduleStatus = "placeholder";
+  }
+
+  const missing: string[] = [];
+  if (connStatus !== "connected") missing.push("wordpress_not_connected");
+  if (bundle.inventoryCount === 0) missing.push("inventory_not_synced");
+
+  const kind = bundle.conn.kind as "self_hosted" | "wordpress_com" | null;
+  return {
+    status: moduleStatus,
+    confidence: connStatus === "connected" && bundle.inventoryCount > 0 ? 0.9 : 0.3,
+    missing,
+    connectionStatus: connStatus,
+    kind: kind ?? null,
+    baseUrl: (bundle.conn.base_url as string | null) ?? null,
+    inventoryCount: bundle.inventoryCount,
+    mappingCount: bundle.mappingCount,
+    missingPageCount: bundle.missingPageCount,
+    capabilitiesOk: capOk,
+    lastCheckedAt: lastChecked,
+    lastSyncedAt: bundle.lastSyncedAt,
   };
 }
 
@@ -814,6 +941,7 @@ const MODULE_LABELS: Record<string, string> = {
   masterplan: "Masterplan",
   tracking: "Tracking",
   ranking: "Ranking baseline",
+  wordpress: "WordPress delivery",
 };
 
 function buildAvailabilityMatrix(
@@ -830,6 +958,7 @@ function buildAvailabilityMatrix(
     | "masterplan"
     | "tracking"
     | "ranking"
+    | "wordpress"
   >,
 ): DataAvailabilityEntry[] {
   return (Object.keys(MODULE_LABELS) as Array<keyof typeof MODULE_LABELS>).map((k) => {

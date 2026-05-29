@@ -5,11 +5,7 @@ import { useMemo, useState } from "react";
 
 import { Logo } from "@/components/brand/Logo";
 import { listMyTenants } from "@/lib/shared/db/repos/tenants.functions";
-import { getActiveGrowthGoal } from "@/lib/shared/growthGoals/repo.functions";
-import {
-  getActiveMasterplan,
-  listMasterplanItems,
-} from "@/lib/shared/masterplan/repo.functions";
+import { listMasterplanItems } from "@/lib/shared/masterplan/repo.functions";
 import {
   runDataForSeoMarketScan,
   summarizeLatestMarketScan,
@@ -21,14 +17,24 @@ import {
 import { fetchBlueprintPageDiagnostics } from "@/lib/shared/blueprint/pageDiagnostics.functions";
 import { summarizeGbpProfileFn } from "@/lib/gbpIntelligence/gbpIntelligence.functions";
 import { itemPhase } from "@/lib/shared/masterplan/schemas";
+import { getGrowthIntelligenceSnapshot } from "@/lib/growthIntelligence/growthIntelligence.functions";
+import type {
+  GrowthIntelligenceSnapshot,
+  ModuleStatus,
+} from "@/lib/shared/growthIntelligence/schemas";
 
 import {
   generateLeadEngineBlueprint,
   type GenerateBlueprintInput,
+  type GeneratorAuditSummary,
+  type GeneratorBusinessProfile,
+  type GeneratorGrowthGoal,
+  type GeneratorMasterPlan,
   type GeneratorMasterplanItem,
 } from "@/lib/shared/blueprint/generator";
 import type {
   BlueprintSection,
+  DataAvailability,
   DataAvailabilityState,
   LeadEngineBlueprint,
 } from "@/lib/shared/blueprint/schemas";
@@ -41,6 +47,7 @@ export const Route = createFileRoute("/_authenticated/growth/blueprint")({
 });
 
 // Map masterplan item → generator input shape.
+// Reads metadata.service OR metadata.linkedService (masterplan generator uses linkedService).
 function adaptItem(it: {
   id: string;
   title: string;
@@ -58,18 +65,105 @@ function adaptItem(it: {
     description: it.description,
     phase: phase === "backlog" ? "months_4_6" : phase,
     type: it.type,
-    service: typeof md.service === "string" ? md.service : null,
-    location: typeof md.location === "string" ? md.location : null,
+    service:
+      typeof md.service === "string" ? md.service :
+      typeof md.linkedService === "string" ? md.linkedService : null,
+    location:
+      typeof md.location === "string" ? md.location :
+      typeof md.linkedLocation === "string" ? md.linkedLocation : null,
     rationale: it.reason ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Snapshot adapter functions (pure, module-level — no re-creation per render)
+// ---------------------------------------------------------------------------
+
+function snapshotStatusToDAState(status: ModuleStatus): DataAvailabilityState {
+  if (status === "available" || status === "reviewed" || status === "connected") return "available";
+  if (status === "partial") return "partial";
+  if (status === "placeholder") return "placeholder";
+  return "missing";
+}
+
+function snapshotToGoal(snapshot: GrowthIntelligenceSnapshot): GeneratorGrowthGoal {
+  const g = snapshot.goal;
+  return {
+    id: snapshot.growthGoalId ?? undefined,
+    targetType: g.targetType ?? undefined,
+    targetCount: g.targetCount,
+    currentCount: g.currentLeadsPerMonth,
+    closeRate: g.closeRate,
+    leadValue: g.leadValue,
+    timeframeMonths: g.timeframeMonths,
+    serviceFocus: g.serviceFocus,
+    locations: g.locations,
+    hasTracking: snapshot.tracking.status !== "missing",
+  };
+}
+
+function snapshotToBusinessProfile(
+  snapshot: GrowthIntelligenceSnapshot,
+): GeneratorBusinessProfile | undefined {
+  const b = snapshot.business;
+  if (b.status === "missing") return undefined;
+  return {
+    businessName: b.businessName ?? b.brandName ?? null,
+    vertical: b.vertical ?? null,
+    primaryOffer: b.primaryOffer ?? null,
+    icp: b.icpSummary,
+    confidence: b.confidence,
+  };
+}
+
+function snapshotToMasterPlan(
+  snapshot: GrowthIntelligenceSnapshot,
+): GeneratorMasterPlan | null {
+  if (!snapshot.masterplan.masterplanId) return null;
+  return {
+    id: snapshot.masterplan.masterplanId,
+    confidence: snapshot.masterplan.confidence,
+  };
+}
+
+function snapshotToAuditSummary(
+  snapshot: GrowthIntelligenceSnapshot,
+): GeneratorAuditSummary | undefined {
+  const w = snapshot.website;
+  if (!w.siteAuditAvailable) return undefined;
+  return {
+    overallScore: w.auditScore ?? undefined,
+    crawledPages: w.pagesCrawled ?? undefined,
+  };
+}
+
+function snapshotToDataAvailability(snapshot: GrowthIntelligenceSnapshot): DataAvailability {
+  return {
+    audit: snapshotStatusToDAState(snapshot.website.status),
+    pageIntelligence: snapshotStatusToDAState(snapshot.pages.status),
+    trackingData: snapshotStatusToDAState(snapshot.tracking.status),
+    gbpData: snapshotStatusToDAState(snapshot.gbp.status),
+    marketData: snapshotStatusToDAState(snapshot.market.status),
+    competitorData: snapshotStatusToDAState(snapshot.competitors.status),
+    rankingData: snapshotStatusToDAState(snapshot.ranking.status),
   };
 }
 
 function BlueprintPage() {
   const fetchTenants = useServerFn(listMyTenants);
-  const fetchGoal = useServerFn(getActiveGrowthGoal);
-  const fetchPlan = useServerFn(getActiveMasterplan);
+  const fetchSnapshot = useServerFn(getGrowthIntelligenceSnapshot);
   const fetchItems = useServerFn(listMasterplanItems);
   const fetchMarketSummary = useServerFn(summarizeLatestMarketScan);
+
+  // ── Primary data source: Growth Intelligence Snapshot ─────────────────────
+  // The Snapshot is the single normalized truth layer. Goal, masterplan summary,
+  // audit summary, tracking, and module availability all come from here.
+  //
+  // Technical debt (direct fetches kept): masterplan items (Snapshot only has
+  // count), page diagnostics (Snapshot only has aggregates), market/competitor/
+  // GBP full summaries (Snapshot has slice stats; Blueprint needs full objects
+  // for content generation). These should eventually be folded in.
+  // ──────────────────────────────────────────────────────────────────────────
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
@@ -77,19 +171,27 @@ function BlueprintPage() {
   });
   const tenantId = tenantsQuery.data?.tenants[0]?.id ?? null;
 
-  const goalQuery = useQuery({
-    queryKey: ["active-growth-goal", tenantId],
-    queryFn: () =>
-      tenantId ? fetchGoal({ data: { tenantId } }) : Promise.resolve({ goal: null }),
+  const snapshotQuery = useQuery({
+    queryKey: ["growth-intelligence-snapshot", tenantId],
+    queryFn: async () =>
+      tenantId
+        ? fetchSnapshot({ data: { tenantId } })
+        : Promise.resolve({ snapshotJson: null }),
     enabled: !!tenantId,
   });
-  const planQuery = useQuery({
-    queryKey: ["active-masterplan", tenantId],
-    queryFn: () =>
-      tenantId ? fetchPlan({ data: { tenantId } }) : Promise.resolve({ plan: null }),
-    enabled: !!tenantId,
-  });
-  const planId = planQuery.data?.plan?.id ?? null;
+
+  const snapshot: GrowthIntelligenceSnapshot | null = useMemo(() => {
+    const raw = snapshotQuery.data?.snapshotJson;
+    if (!raw) return null;
+    try { return JSON.parse(raw) as GrowthIntelligenceSnapshot; }
+    catch { return null; }
+  }, [snapshotQuery.data]);
+
+  // IDs derived from Snapshot (no separate goal/plan fetches)
+  const planId = snapshot?.masterplan.masterplanId ?? null;
+  const goalId = snapshot?.growthGoalId ?? null;
+
+  // ── Detail fetches (kept as documented tech debt) ─────────────────────────
   const itemsQuery = useQuery({
     queryKey: ["masterplan-items", tenantId, planId],
     queryFn: () =>
@@ -99,7 +201,6 @@ function BlueprintPage() {
     enabled: !!tenantId && !!planId,
   });
 
-  const goalId = goalQuery.data?.goal?.id ?? null;
   const marketQuery = useQuery({
     queryKey: ["market-summary", tenantId, goalId],
     queryFn: async () => {
@@ -145,9 +246,6 @@ function BlueprintPage() {
     enabled: !!tenantId,
   });
 
-
-  const goal = goalQuery.data?.goal ?? null;
-  const plan = planQuery.data?.plan ?? null;
   const items = itemsQuery.data?.items ?? [];
   const marketSummary = marketQuery.data?.summary ?? null;
   const competitorSummary = competitorQuery.data?.summary ?? null;
@@ -156,26 +254,15 @@ function BlueprintPage() {
   const gbpSummary = gbpQuery.data?.summary ?? null;
 
   const blueprint: LeadEngineBlueprint | null = useMemo(() => {
-    if (!goal || !plan) return null;
+    if (!snapshot) return null;
+    const masterPlan = snapshotToMasterPlan(snapshot);
+    if (!masterPlan) return null;
+
     const input: GenerateBlueprintInput = {
-      tenantId: tenantId ?? undefined,
-      growthGoal: {
-        id: goal.id,
-        targetType: goal.targetType,
-        targetCount: goal.targetCount ?? null,
-        currentCount: goal.currentCount ?? null,
-        closeRate: goal.closeRate ?? null,
-        leadValue: goal.leadValue ?? null,
-        timeframeMonths: goal.timeframeMonths ?? null,
-        serviceFocus: goal.serviceFocus ?? [],
-        locations: goal.locations ?? [],
-        hasTracking: !!goal.trackingNotes,
-        trackingNotes: goal.trackingNotes ?? null,
-      },
-      masterPlan: {
-        id: plan.id,
-        confidence: plan.confidence ?? null,
-      },
+      tenantId: snapshot.tenantId,
+      growthGoal: snapshotToGoal(snapshot),
+      businessProfile: snapshotToBusinessProfile(snapshot),
+      masterPlan,
       masterplanItems: items.map((it) =>
         adaptItem({
           id: it.id,
@@ -209,15 +296,38 @@ function BlueprintPage() {
         nextAction: p.nextAction,
         isLocalRelevant: p.isLocalRelevant,
       })),
+      auditSummary: snapshotToAuditSummary(snapshot),
+      // Use market/competitor/GBP only when Snapshot says the module is not missing.
+      // This ensures Blueprint and Intelligence page agree on availability.
       marketDemandSummary:
-        marketSummary && marketSummary.available ? marketSummary : undefined,
+        marketSummary && marketSummary.available && snapshot.market.status !== "missing"
+          ? marketSummary
+          : undefined,
       competitorSummary:
-        competitorSummary && competitorSummary.available ? competitorSummary : undefined,
+        competitorSummary && competitorSummary.available && snapshot.competitors.status !== "missing"
+          ? competitorSummary
+          : undefined,
       gbpSummary: gbpSummary ?? undefined,
+      trackingData: {
+        hasAnalytics: snapshot.tracking.analytics,
+        hasCallTracking: snapshot.tracking.callTracking,
+        hasFormTracking: snapshot.tracking.formTracking,
+      },
       now: new Date(),
     };
-    return generateLeadEngineBlueprint(input);
-  }, [goal, plan, items, tenantId, marketSummary, competitorSummary, pageDiagnostics, gbpSummary]);
+
+    const generated = generateLeadEngineBlueprint(input);
+
+    // Override dataAvailability with Snapshot module statuses so Blueprint and
+    // the Intelligence page always agree on what is available / missing.
+    return {
+      ...generated,
+      dataAvailability: snapshotToDataAvailability(snapshot),
+    };
+  }, [snapshot, items, pageDiagnostics, marketSummary, competitorSummary, gbpSummary]);
+
+  const hasGoal = !!snapshot && snapshot.goal.status !== "missing";
+  const hasPlan = !!snapshot && !!snapshot.masterplan.masterplanId;
 
   return (
     <div className="min-h-screen bg-background bg-blueprint">
@@ -248,11 +358,11 @@ function BlueprintPage() {
       <main className="container mx-auto max-w-6xl px-6 pb-24 pt-6">
         {!tenantId && <p className="text-muted-foreground">Loading tenant…</p>}
 
-        {tenantId && (!goal || !plan) && (
-          <EmptyState hasGoal={!!goal} hasPlan={!!plan} />
+        {tenantId && !snapshotQuery.isLoading && !blueprint && (
+          <EmptyState hasGoal={hasGoal} hasPlan={hasPlan} />
         )}
 
-        {blueprint && <BlueprintView blueprint={blueprint} />}
+        {blueprint && <BlueprintView blueprint={blueprint} snapshot={snapshot} />}
       </main>
     </div>
   );
@@ -302,7 +412,13 @@ function EmptyState({ hasGoal, hasPlan }: { hasGoal: boolean; hasPlan: boolean }
 // Blueprint rendering
 // ---------------------------------------------------------------------------
 
-function BlueprintView({ blueprint }: { blueprint: LeadEngineBlueprint }) {
+function BlueprintView({
+  blueprint,
+  snapshot,
+}: {
+  blueprint: LeadEngineBlueprint;
+  snapshot: GrowthIntelligenceSnapshot | null;
+}) {
   const sectionByType = Object.fromEntries(
     blueprint.sections.map((s) => [s.type, s]),
   ) as Record<BlueprintSection["type"], BlueprintSection | undefined>;
@@ -341,7 +457,7 @@ function BlueprintView({ blueprint }: { blueprint: LeadEngineBlueprint }) {
       <Section section={sectionByType.risks_assumptions} />
       <NextActions section={sectionByType.next_actions} blueprint={blueprint} />
 
-      <DataAvailabilityBlock blueprint={blueprint} />
+      <DataAvailabilityBlock blueprint={blueprint} snapshot={snapshot} />
     </article>
   );
 }
@@ -1703,7 +1819,15 @@ function NextActions({
 
 // ---------- Data availability ----------
 
-function DataAvailabilityBlock({ blueprint }: { blueprint: LeadEngineBlueprint }) {
+function DataAvailabilityBlock({
+  blueprint,
+  snapshot,
+}: {
+  blueprint: LeadEngineBlueprint;
+  snapshot: GrowthIntelligenceSnapshot | null;
+}) {
+  // dataAvailability is sourced from Snapshot in the useMemo above, so these
+  // already match the Intelligence page. WordPress comes directly from Snapshot.
   const rows: { key: string; label: string; state: DataAvailabilityState }[] = [
     { key: "audit", label: "Site audit", state: blueprint.dataAvailability.audit },
     {
@@ -1720,6 +1844,15 @@ function DataAvailabilityBlock({ blueprint }: { blueprint: LeadEngineBlueprint }
       state: blueprint.dataAvailability.competitorData,
     },
     { key: "rankingData", label: "Ranking baseline", state: blueprint.dataAvailability.rankingData },
+    ...(snapshot
+      ? [
+          {
+            key: "wordpress",
+            label: "WordPress delivery",
+            state: snapshotStatusToDAState(snapshot.wordpress.status),
+          },
+        ]
+      : []),
   ];
   return (
     <section className="rounded-xl border border-border bg-card/50 p-6">

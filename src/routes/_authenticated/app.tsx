@@ -18,6 +18,9 @@ import { ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { listMyTenants } from "@/lib/shared/db/repos/tenants.functions";
 import { getActiveGrowthGoal } from "@/lib/shared/growthGoals/repo.functions";
+import { getLeadStats } from "@/lib/shared/leads/repo.functions";
+import { getLatestMonthlyReport } from "@/lib/shared/monthlyReports/monthlyReports.functions";
+import { getLatestMonthlyExecutionPlan } from "@/lib/shared/monthlyExecutionPlans/monthlyExecutionPlans.functions";
 import {
   getActiveMasterplan,
   listMasterplanItems,
@@ -48,6 +51,9 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Blueprint", to: "/growth/blueprint" },
       { label: "Masterplan", to: "/growth/masterplan" },
       { label: "Execution", to: "/growth/execution" },
+      { label: "Leads", to: "/growth/leads" },
+      { label: "Reports", to: "/growth/reports" },
+      { label: "Monthly plan", to: "/growth/monthly-plan" },
     ],
   },
   {
@@ -72,7 +78,9 @@ function AppHome() {
   const fetchPlan = useServerFn(getActiveMasterplan);
   const fetchItems = useServerFn(listMasterplanItems);
   const fetchBoard = useServerFn(getExecutionBoard);
-
+  const fetchLeadStats = useServerFn(getLeadStats);
+  const fetchLatestReport = useServerFn(getLatestMonthlyReport);
+  const fetchLatestPlan = useServerFn(getLatestMonthlyExecutionPlan);
 
   const tenantsQuery = useQuery({
     queryKey: ["my-tenants"],
@@ -115,6 +123,24 @@ function AppHome() {
     enabled: !!tenantId && !!planId,
   });
 
+  const leadStatsQuery = useQuery({
+    queryKey: ["lead-stats", tenantId],
+    queryFn: () => fetchLeadStats({ data: { tenantId: tenantId! } }),
+    enabled: !!tenantId,
+  });
+
+  const latestReportQuery = useQuery({
+    queryKey: ["latest-monthly-report", tenantId],
+    queryFn: () => fetchLatestReport({ data: { tenantId: tenantId! } }),
+    enabled: !!tenantId,
+  });
+
+  const latestPlanQuery = useQuery({
+    queryKey: ["latest-monthly-execution-plan", tenantId],
+    queryFn: () => fetchLatestPlan({ data: { tenantId: tenantId! } }),
+    enabled: !!tenantId,
+  });
+
   const fetchSnapshot = useServerFn(getGrowthIntelligenceSnapshot);
   const snapshotQuery = useQuery({
     queryKey: ["growth-intelligence-snapshot", tenantId],
@@ -154,6 +180,9 @@ function AppHome() {
   }, {});
   const execSummary = boardQuery.data?.summary;
   const execNext = boardQuery.data?.nextAction;
+  const leadStats = leadStatsQuery.data?.stats ?? null;
+  const latestReport = latestReportQuery.data?.report ?? null;
+  const latestPlan = latestPlanQuery.data?.plan ?? null;
 
 
   const nextSteps: { title: string; to: string; reason: string }[] = [];
@@ -430,6 +459,165 @@ function AppHome() {
                 )}
               </ul>
             )}
+          </Card>
+        </section>
+
+        {goal && (
+          <section className="mt-6">
+            <Card
+              title="Lead progress"
+              subtitle="Goal Progress V1 · manual leads only"
+              cta={{ label: "Open lead inbox", to: "/growth/leads" }}
+            >
+              {(() => {
+                const reqPerMonth =
+                  goal.requiredLeads != null && goal.timeframeMonths
+                    ? Math.ceil(goal.requiredLeads / goal.timeframeMonths)
+                    : null;
+                const actual = leadStats?.last30Days ?? 0;
+                const gap = reqPerMonth != null ? reqPerMonth - actual : null;
+                return (
+                  <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                    {(
+                      [
+                        { label: "Required / mo", value: reqPerMonth ?? "—" },
+                        { label: "Actual (30 d)", value: actual },
+                        {
+                          label: "Gap",
+                          value: gap != null ? (gap > 0 ? `−${gap}` : "✓ on track") : "—",
+                          highlight: gap != null && gap > 0,
+                        },
+                        { label: "Total logged", value: leadStats?.total ?? 0 },
+                      ] as Array<{ label: string; value: string | number; highlight?: boolean }>
+                    ).map(({ label, value, highlight }) => (
+                      <div key={label} className="rounded border border-border bg-background/40 p-3">
+                        <p className={`text-lg font-bold ${highlight ? "text-amber-400" : "text-foreground"}`}>
+                          {value}
+                        </p>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+              {(!leadStats || leadStats.total === 0) && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  No leads logged yet. Log your first lead to start tracking progress against the growth goal.
+                </p>
+              )}
+            </Card>
+          </section>
+        )}
+
+        <section className="mt-6">
+          <Card
+            title="Monthly report"
+            subtitle="Monthly Loop V1 · operator-generated"
+            cta={{ label: "Open reports", to: "/growth/reports" }}
+          >
+            {latestReportQuery.isLoading && (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            )}
+            {!latestReportQuery.isLoading && !latestReport && (
+              <p className="text-sm text-muted-foreground">
+                No monthly report yet. Generate one from the Reports page to close the client loop.
+              </p>
+            )}
+            {latestReport && (() => {
+              const gp = latestReport.goalProgressSummary;
+              const ws = latestReport.wordpressSummary;
+              const REPORT_STATUS_STYLE: Record<string, string> = {
+                draft: "bg-muted text-muted-foreground",
+                ready_for_review: "bg-amber-500/15 text-amber-400",
+                approved: "bg-emerald-500/15 text-emerald-400",
+                sent: "bg-primary/15 text-primary",
+                archived: "bg-muted text-muted-foreground",
+              };
+              return (
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${REPORT_STATUS_STYLE[latestReport.status] ?? "bg-muted text-muted-foreground"}`}
+                    >
+                      {latestReport.status.replace(/_/g, " ")}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {latestReport.periodStart} → {latestReport.periodEnd}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="rounded border border-border bg-background/40 p-2">
+                      <p className={`text-base font-bold ${gp.gap != null && gp.gap > 0 ? "text-amber-400" : "text-foreground"}`}>
+                        {gp.gap != null ? (gp.gap > 0 ? `−${gp.gap}` : "✓") : "—"}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">Lead gap</p>
+                    </div>
+                    <div className="rounded border border-border bg-background/40 p-2">
+                      <p className="text-base font-bold text-foreground">{gp.actualLeads}</p>
+                      <p className="text-[10px] text-muted-foreground">Leads logged</p>
+                    </div>
+                    <div className="rounded border border-border bg-background/40 p-2">
+                      <p className="text-base font-bold text-foreground">{ws.draftsCreated}</p>
+                      <p className="text-[10px] text-muted-foreground">WP drafts</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </Card>
+        </section>
+
+        <section className="mt-6">
+          <Card
+            title="Monthly execution plan"
+            subtitle="Monthly Execution Planner V1 · forward-looking"
+            cta={{ label: "Open planner", to: "/growth/monthly-plan" }}
+          >
+            {latestPlanQuery.isLoading && (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            )}
+            {!latestPlanQuery.isLoading && !latestPlan && (
+              <p className="text-sm text-muted-foreground">
+                No execution plan yet. Generate one from the Monthly Plan page to define next month's actions.
+              </p>
+            )}
+            {latestPlan && (() => {
+              const PLAN_STATUS_STYLE: Record<string, string> = {
+                draft: "bg-muted text-muted-foreground",
+                ready_for_review: "bg-amber-500/15 text-amber-400",
+                approved: "bg-emerald-500/15 text-emerald-400",
+                in_execution: "bg-primary/15 text-primary",
+                completed: "bg-emerald-500/15 text-emerald-400",
+                archived: "bg-muted text-muted-foreground",
+              };
+              const gp = latestPlan.leadGapSummary;
+              return (
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${PLAN_STATUS_STYLE[latestPlan.status] ?? "bg-muted text-muted-foreground"}`}>
+                      {latestPlan.status.replace(/_/g, " ")}
+                    </span>
+                    <span className="text-xs text-muted-foreground capitalize">{latestPlan.packageTier} · {latestPlan.periodStart} →</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="rounded border border-border bg-background/40 p-2">
+                      <p className={`text-base font-bold ${gp.gap != null && gp.gap > 0 ? "text-amber-400" : "text-foreground"}`}>
+                        {gp.gap != null ? (gp.gap > 0 ? `−${gp.gap}` : "✓") : "—"}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">Lead gap</p>
+                    </div>
+                    <div className="rounded border border-border bg-background/40 p-2">
+                      <p className="text-base font-bold text-foreground">{latestPlan.selectedActions.length}</p>
+                      <p className="text-[10px] text-muted-foreground">Actions</p>
+                    </div>
+                    <div className="rounded border border-border bg-background/40 p-2">
+                      <p className="text-base font-bold capitalize text-foreground">{latestPlan.expectedImpact.projectedLeadUplift}</p>
+                      <p className="text-[10px] text-muted-foreground">Uplift</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </Card>
         </section>
 

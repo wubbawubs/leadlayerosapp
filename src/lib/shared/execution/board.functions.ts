@@ -5,8 +5,9 @@
  *   - masterplan_items
  *   - linked proposal_v2 (latest per item)
  *   - QA review status via proposal_comparisons
+ *   - execution_artifacts (page briefs for service_page / location_page)
  *
- * No publishing. No WordPress. No mutation. Pure read/compose.
+ * No publishing. No WordPress writes. No mutation. Pure read/compose.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -55,6 +56,21 @@ export interface ExecutionBoardItem {
   qaReviewedAt: string | null;
   qaReasonTags: string[];
 
+  // Execution artifact fields (page_brief for service_page / location_page)
+  isPageBriefTarget: boolean;
+  artifactId: string | null;
+  artifactStatus: string | null;
+  artifactCreatedAt: string | null;
+  artifactDeliveryReadiness: string | null; // 'missing' | 'connected' | 'inventory_synced'
+
+  // WordPress draft fields (V1)
+  wpDraftId: string | null;
+  wpDraftStatus: string | null; // 'created' | 'published' | 'failed' | 'needs_review' | ...
+  wpEditLink: string | null;
+  wpPreviewLink: string | null;
+  wpPublishedAt: string | null;
+  wpPublishedUrl: string | null;
+
   executionStatus: ExecutionStatus;
   blockingReason: string | null;
   nextAction: string;
@@ -67,6 +83,8 @@ const UNSUPPORTED_TYPES: ReadonlySet<MasterplanItemType> = new Set([
   "reporting",
 ]);
 
+const PAGE_BRIEF_TYPES: ReadonlySet<MasterplanItemType> = new Set(["service_page", "location_page"]);
+
 function mapExecutionStatus(args: {
   item: MasterplanItem;
   proposal: {
@@ -76,8 +94,15 @@ function mapExecutionStatus(args: {
   comparison: {
     winner: string | null;
   } | null;
+  artifact: {
+    id: string;
+    status: string;
+  } | null;
+  wpDraft: {
+    status: string;
+  } | null;
 }): { executionStatus: ExecutionStatus; blockingReason: string | null; nextAction: string } {
-  const { item, proposal, comparison } = args;
+  const { item, proposal, comparison, artifact, wpDraft } = args;
 
   if (item.status === "done") {
     return { executionStatus: "done", blockingReason: null, nextAction: "Done" };
@@ -92,6 +117,60 @@ function mapExecutionStatus(args: {
       nextAction: "Handle manually for now",
     };
   }
+
+  // Page brief path (service_page / location_page)
+  if (PAGE_BRIEF_TYPES.has(item.type)) {
+    if (!artifact) {
+      return {
+        executionStatus: "planned",
+        blockingReason: null,
+        nextAction: "Generate page brief",
+      };
+    }
+    if (artifact.status === "rejected") {
+      return {
+        executionStatus: "blocked",
+        blockingReason: "Page brief rejected",
+        nextAction: "Regenerate page brief",
+      };
+    }
+    if (artifact.status === "approved") {
+      if (wpDraft?.status === "published") {
+        return {
+          executionStatus: "done",
+          blockingReason: null,
+          nextAction: "Published — page is live",
+        };
+      }
+      if (wpDraft?.status === "created") {
+        return {
+          executionStatus: "approved",
+          blockingReason: null,
+          nextAction: "WordPress draft created — review in WP admin, then mark as published",
+        };
+      }
+      if (wpDraft?.status === "failed") {
+        return {
+          executionStatus: "approved",
+          blockingReason: "WordPress draft creation failed",
+          nextAction: "Retry WordPress draft creation",
+        };
+      }
+      return {
+        executionStatus: "approved",
+        blockingReason: null,
+        nextAction: "Create WordPress draft",
+      };
+    }
+    // draft or needs_review
+    return {
+      executionStatus: "in_qa",
+      blockingReason: null,
+      nextAction: "Review page brief",
+    };
+  }
+
+  // Legacy proposal path (website_fix, conversion, content, etc.)
   if (!proposal) {
     return {
       executionStatus: "planned",
@@ -279,16 +358,94 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
       }
     }
 
+    // 4b. Latest execution_artifact per item (page_brief targets)
+    const pageBriefItemIds = items
+      .filter((i) => PAGE_BRIEF_TYPES.has(i.type))
+      .map((i) => i.id);
+
+
+    const artifactByItem = new Map<
+      string,
+      { id: string; status: string; createdAt: string; deliveryReadiness: string | null }
+    >();
+    if (pageBriefItemIds.length > 0) {
+      const { data: artRows } = await admin
+        .from("execution_artifacts")
+        .select("id, status, masterplan_item_id, created_at, delivery_readiness")
+        .eq("tenant_id", data.tenantId)
+        .in("masterplan_item_id", pageBriefItemIds)
+        .eq("artifact_type", "page_brief")
+        .order("created_at", { ascending: false });
+      for (const r of (artRows ?? []) as Array<{
+        id: string;
+        status: string;
+        masterplan_item_id: string;
+        created_at: string;
+        delivery_readiness: Record<string, unknown> | null;
+      }>) {
+        if (artifactByItem.has(r.masterplan_item_id)) continue;
+        const dr = r.delivery_readiness;
+        artifactByItem.set(r.masterplan_item_id, {
+          id: r.id,
+          status: r.status,
+          createdAt: r.created_at,
+          deliveryReadiness: typeof dr?.wordpress === "string" ? (dr.wordpress as string) : null,
+        });
+      }
+    }
+
+    // 4c. Latest wordpress_draft per artifact
+    const approvedArtifactIds = [...artifactByItem.values()]
+      .filter((a) => a.status === "approved")
+      .map((a) => a.id);
+
+    const draftByArtifact = new Map<
+      string,
+      { id: string; status: string; wpEditLink: string | null; wpPreviewLink: string | null; publishedAt: string | null; publishedUrl: string | null }
+    >();
+    if (approvedArtifactIds.length > 0) {
+      const { data: draftRows } = await admin
+        .from("wordpress_drafts")
+        .select("id, status, execution_artifact_id, wp_edit_link, wp_preview_link, published_at, published_url")
+        .eq("tenant_id", data.tenantId)
+        .in("execution_artifact_id", approvedArtifactIds)
+        .order("created_at", { ascending: false });
+      for (const r of (draftRows ?? []) as Array<{
+        id: string;
+        status: string;
+        execution_artifact_id: string;
+        wp_edit_link: string | null;
+        wp_preview_link: string | null;
+        published_at: string | null;
+        published_url: string | null;
+      }>) {
+        if (draftByArtifact.has(r.execution_artifact_id)) continue;
+        draftByArtifact.set(r.execution_artifact_id, {
+          id: r.id,
+          status: r.status,
+          wpEditLink: r.wp_edit_link,
+          wpPreviewLink: r.wp_preview_link,
+          publishedAt: r.published_at,
+          publishedUrl: r.published_url,
+        });
+      }
+    }
+
     // 5. Compose
     const board: ExecutionBoardItem[] = items.map((item) => {
       const proposal = latestByItem.get(item.id) ?? null;
       const comp = proposal ? compByProposal.get(proposal.id) ?? null : null;
+      const artifact = artifactByItem.get(item.id) ?? null;
+      const wpDraft = artifact ? draftByArtifact.get(artifact.id) ?? null : null;
+      const isPageBriefTarget = PAGE_BRIEF_TYPES.has(item.type);
       const mapped = mapExecutionStatus({
         item,
         proposal: proposal
           ? { status: proposal.status, riskFlags: proposal.riskFlags }
           : null,
         comparison: comp ? { winner: comp.winner } : null,
+        artifact: artifact ? { id: artifact.id, status: artifact.status } : null,
+        wpDraft: wpDraft ? { status: wpDraft.status } : null,
       });
       return {
         masterplanItemId: item.id,
@@ -308,6 +465,17 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
         qaStatus: comp?.winner ?? null,
         qaReviewedAt: comp?.reviewedAt ?? null,
         qaReasonTags: comp?.reasonTags ?? [],
+        isPageBriefTarget,
+        artifactId: artifact?.id ?? null,
+        artifactStatus: artifact?.status ?? null,
+        artifactCreatedAt: artifact?.createdAt ?? null,
+        artifactDeliveryReadiness: artifact?.deliveryReadiness ?? null,
+        wpDraftId: wpDraft?.id ?? null,
+        wpDraftStatus: wpDraft?.status ?? null,
+        wpEditLink: wpDraft?.wpEditLink ?? null,
+        wpPreviewLink: wpDraft?.wpPreviewLink ?? null,
+        wpPublishedAt: wpDraft?.publishedAt ?? null,
+        wpPublishedUrl: wpDraft?.publishedUrl ?? null,
         executionStatus: mapped.executionStatus,
         blockingReason: mapped.blockingReason,
         nextAction: mapped.nextAction,

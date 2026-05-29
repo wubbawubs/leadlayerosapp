@@ -14,6 +14,14 @@ import {
 import { generateProposalV2ForMasterplanItem } from "@/lib/shared/masterplan/proposalGen.functions";
 import { updateMasterplanItem } from "@/lib/shared/masterplan/repo.functions";
 import {
+  generatePageBriefArtifactFn,
+  updateExecutionArtifactStatus,
+} from "@/lib/shared/executionArtifacts/artifacts.functions";
+import {
+  createWordpressDraftFromArtifact,
+  markWordpressDraftPublished,
+} from "@/lib/shared/wordpressDrafts/wordpressDrafts.functions";
+import {
   itemTypeLabel,
   qaWinnerLabel,
   proposalStatusLabel,
@@ -43,6 +51,10 @@ function ExecutionBoardPage() {
   const fetchBoard = useServerFn(getExecutionBoard);
   const genProposal = useServerFn(generateProposalV2ForMasterplanItem);
   const updateItem = useServerFn(updateMasterplanItem);
+  const genPageBrief = useServerFn(generatePageBriefArtifactFn);
+  const updateArtifact = useServerFn(updateExecutionArtifactStatus);
+  const createDraft = useServerFn(createWordpressDraftFromArtifact);
+  const doMarkPublished = useServerFn(markWordpressDraftPublished);
   const qc = useQueryClient();
 
   const tenantsQuery = useQuery({
@@ -69,10 +81,73 @@ function ExecutionBoardPage() {
     onSuccess: (res) => {
       if ("ok" in res && res.ok) toast.success("Proposal generated");
       else toast.error("message" in res ? res.message : "Could not generate");
-      qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
+      void qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
     onSettled: () => setPendingId(null),
+  });
+
+  const generateBrief = useMutation({
+    mutationFn: async (itemId: string) => {
+      if (!tenantId) throw new Error("No tenant");
+      setPendingId(itemId);
+      return genPageBrief({ data: { tenantId, masterplanItemId: itemId } });
+    },
+    onSuccess: (res) => {
+      if (res.ok) {
+        toast.success(res.usedFallback ? "Page brief generated (fallback)" : "Page brief generated");
+      } else {
+        toast.error("message" in res ? res.message : "Page brief generation failed");
+      }
+      void qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+    onSettled: () => setPendingId(null),
+  });
+
+  const approveArtifact = useMutation({
+    mutationFn: async ({ artifactId, status }: { artifactId: string; status: "approved" | "rejected" | "needs_review" }) => {
+      if (!tenantId) throw new Error("No tenant");
+      return updateArtifact({ data: { tenantId, artifactId, status } });
+    },
+    onSuccess: (_, vars) => {
+      toast.success(vars.status === "approved" ? "Page brief approved" : "Page brief updated");
+      void qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  const [draftPendingId, setDraftPendingId] = useState<string | null>(null);
+  const [publishingDraftId, setPublishingDraftId] = useState<string | null>(null);
+
+  const createWpDraft = useMutation({
+    mutationFn: async (artifactId: string) => {
+      if (!tenantId) throw new Error("No tenant");
+      setDraftPendingId(artifactId);
+      return createDraft({ data: { tenantId, artifactId } });
+    },
+    onSuccess: (res) => {
+      if (res.ok) {
+        toast.success("WordPress draft created");
+      }
+      void qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Draft creation failed"),
+    onSettled: () => setDraftPendingId(null),
+  });
+
+  const markPublished = useMutation({
+    mutationFn: async ({ draftId, publishedUrl }: { draftId: string; publishedUrl?: string }) => {
+      if (!tenantId) throw new Error("No tenant");
+      setPublishingDraftId(draftId);
+      return doMarkPublished({ data: { tenantId, draftId, publishedUrl: publishedUrl || undefined } });
+    },
+    onSuccess: (res) => {
+      if (res.ok) toast.success("Draft marked as published");
+      void qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to mark as published"),
+    onSettled: () => setPublishingDraftId(null),
   });
 
   const markStatus = useMutation({
@@ -84,7 +159,7 @@ function ExecutionBoardPage() {
     },
     onSuccess: () => {
       toast.success("Item updated");
-      qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
+      void qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
@@ -146,9 +221,8 @@ function ExecutionBoardPage() {
         </p>
         <h1 className="font-display text-4xl text-foreground">Execution board</h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
-          Board view of Masterplan items: planned, in review, approved, done.
-          The full Execution Task Engine — artifact generation, WordPress
-          drafts, publishing gates — lands in upcoming sprints.
+          Board view of Masterplan items: planned, in QA, approved, done.
+          Approved page briefs can be pushed directly to WordPress as drafts for operator review.
         </p>
 
         {!tenantId && (
@@ -208,8 +282,26 @@ function ExecutionBoardPage() {
                       <BoardCard
                         key={it.masterplanItemId}
                         item={it}
-                        busy={pendingId === it.masterplanItemId || generate.isPending}
+                        busy={pendingId === it.masterplanItemId}
+                        draftBusy={draftPendingId === it.artifactId}
                         onGenerate={() => generate.mutate(it.masterplanItemId)}
+                        onGeneratePageBrief={() => generateBrief.mutate(it.masterplanItemId)}
+                        onApproveArtifact={() =>
+                          it.artifactId &&
+                          approveArtifact.mutate({ artifactId: it.artifactId, status: "approved" })
+                        }
+                        onRejectArtifact={() =>
+                          it.artifactId &&
+                          approveArtifact.mutate({ artifactId: it.artifactId, status: "rejected" })
+                        }
+                        onCreateDraft={() =>
+                          it.artifactId && createWpDraft.mutate(it.artifactId)
+                        }
+                        onMarkPublished={(publishedUrl) =>
+                          it.wpDraftId &&
+                          markPublished.mutate({ draftId: it.wpDraftId, publishedUrl })
+                        }
+                        publishBusy={publishingDraftId === it.wpDraftId}
                         onMarkDone={() =>
                           markStatus.mutate({ itemId: it.masterplanItemId, status: "done" })
                         }
@@ -249,30 +341,63 @@ function SummaryTile({ label, value }: { label: string; value: number }) {
   );
 }
 
+const ARTIFACT_STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  needs_review: "Needs review",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+
+const DELIVERY_LABEL: Record<string, string> = {
+  missing: "WP not connected",
+  connected: "WP connected — sync inventory",
+  inventory_synced: "WP inventory synced",
+};
+
 function BoardCard({
   item,
   busy,
+  draftBusy,
+  publishBusy,
   onGenerate,
+  onGeneratePageBrief,
+  onApproveArtifact,
+  onRejectArtifact,
+  onCreateDraft,
+  onMarkPublished,
   onMarkDone,
   onMarkInProgress,
   onSkip,
 }: {
   item: ExecutionBoardItem;
   busy: boolean;
+  draftBusy: boolean;
+  publishBusy: boolean;
   onGenerate: () => void;
+  onGeneratePageBrief: () => void;
+  onApproveArtifact: () => void;
+  onRejectArtifact: () => void;
+  onCreateDraft: () => void;
+  onMarkPublished: (publishedUrl?: string) => void;
   onMarkDone: () => void;
   onMarkInProgress: () => void;
   onSkip: () => void;
 }) {
+  const [publishUrlInput, setPublishUrlInput] = useState("");
   return (
     <article className="rounded border border-border bg-background/60 p-3">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-foreground">
           {itemTypeLabel(item.type)}
         </span>
+        {item.isPageBriefTarget && (
+          <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-primary">
+            Page brief
+          </span>
+        )}
         {isManualType(item.type) && (
           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-            Manual task for now
+            Manual task
           </span>
         )}
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -290,7 +415,27 @@ function BoardCard({
         )}
       </div>
       <h3 className="mt-1.5 text-sm font-medium text-foreground">{item.title}</h3>
-      {item.proposalStatus && (
+
+      {/* Page brief status */}
+      {item.isPageBriefTarget && item.artifactStatus && (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Page brief:{" "}
+          <span className="text-foreground">
+            {ARTIFACT_STATUS_LABEL[item.artifactStatus] ?? item.artifactStatus}
+          </span>
+          {item.artifactDeliveryReadiness && (
+            <>
+              {" · "}
+              <span className="text-muted-foreground">
+                {DELIVERY_LABEL[item.artifactDeliveryReadiness] ?? item.artifactDeliveryReadiness}
+              </span>
+            </>
+          )}
+        </p>
+      )}
+
+      {/* Legacy proposal status */}
+      {!item.isPageBriefTarget && item.proposalStatus && (
         <p className="mt-1 text-[11px] text-muted-foreground">
           Proposal:{" "}
           <span className="text-foreground">{proposalStatusLabel(item.proposalStatus)}</span>
@@ -301,6 +446,7 @@ function BoardCard({
           )}
         </p>
       )}
+
       {item.blockingReason && (
         <p className="mt-1 text-[11px] text-rose-400">{item.blockingReason}</p>
       )}
@@ -309,7 +455,173 @@ function BoardCard({
       </p>
 
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {item.executionStatus === "planned" && item.supportedForProposalGeneration && (
+        {/* Page brief target: generate / review / approve */}
+        {item.isPageBriefTarget && item.executionStatus === "planned" && (
+          <button
+            disabled={busy}
+            onClick={onGeneratePageBrief}
+            className="rounded border border-primary/40 bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
+          >
+            {busy ? "Generating…" : "Generate page brief"}
+          </button>
+        )}
+        {item.isPageBriefTarget && item.executionStatus === "in_qa" && item.artifactId && (
+          <>
+            <button
+              disabled={busy}
+              onClick={onGeneratePageBrief}
+              className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              {busy ? "Regenerating…" : "Regenerate"}
+            </button>
+            <button
+              onClick={onApproveArtifact}
+              className="rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/25"
+            >
+              Approve brief
+            </button>
+            <button
+              onClick={onRejectArtifact}
+              className="rounded border border-rose-500/40 bg-rose-500/15 px-2 py-1 text-[11px] font-medium text-rose-400 hover:bg-rose-500/25"
+            >
+              Reject
+            </button>
+          </>
+        )}
+        {item.isPageBriefTarget && item.executionStatus === "approved" && (() => {
+          const dr = item.artifactDeliveryReadiness;
+          const wpOk = dr === "connected" || dr === "inventory_synced";
+          const wpReason =
+            dr === "missing"
+              ? "Connect a WordPress site from the Sites page first"
+              : dr == null
+                ? "WordPress readiness unknown — re-generate the page brief to check"
+                : null;
+
+          if (!item.wpDraftId) {
+            return wpOk ? (
+              <button
+                disabled={draftBusy || !item.artifactId}
+                onClick={onCreateDraft}
+                className="rounded border border-primary/40 bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
+              >
+                {draftBusy ? "Creating draft…" : "Create WordPress draft"}
+              </button>
+            ) : (
+              <span
+                title={wpReason ?? undefined}
+                className="cursor-not-allowed rounded border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground"
+              >
+                {dr === "missing" ? "Connect WordPress first" : "WordPress not ready"}
+              </span>
+            );
+          }
+
+          if (item.wpDraftStatus === "published") {
+            return (
+              <div className="flex flex-wrap gap-1">
+                <span className="rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-medium text-emerald-400">
+                  Published
+                </span>
+                {item.wpPublishedAt && (
+                  <span className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] text-muted-foreground">
+                    {new Date(item.wpPublishedAt).toLocaleDateString()}
+                  </span>
+                )}
+                {item.wpPublishedUrl && (
+                  <a
+                    href={item.wpPublishedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-foreground hover:bg-secondary"
+                  >
+                    View live ↗
+                  </a>
+                )}
+                {item.wpEditLink && (
+                  <a
+                    href={item.wpEditLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    Edit in WP ↗
+                  </a>
+                )}
+              </div>
+            );
+          }
+
+          if (item.wpDraftStatus === "created") {
+            return (
+              <div className="flex flex-wrap gap-1">
+                <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-400">
+                  Draft created
+                </span>
+                {item.wpEditLink && (
+                  <a
+                    href={item.wpEditLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-foreground hover:bg-secondary"
+                  >
+                    Edit in WP ↗
+                  </a>
+                )}
+                {item.wpPreviewLink && (
+                  <a
+                    href={item.wpPreviewLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    Preview ↗
+                  </a>
+                )}
+                <div className="mt-1 flex w-full items-center gap-1.5">
+                  <input
+                    type="url"
+                    placeholder="Published URL (optional)"
+                    value={publishUrlInput}
+                    onChange={(e) => setPublishUrlInput(e.target.value)}
+                    className="flex-1 rounded border border-border bg-background/60 px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  />
+                  <button
+                    disabled={publishBusy}
+                    onClick={() => onMarkPublished(publishUrlInput || undefined)}
+                    className="rounded border border-primary/40 bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
+                  >
+                    {publishBusy ? "Saving…" : "Mark as published"}
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          if (item.wpDraftStatus === "failed") {
+            return wpOk ? (
+              <button
+                disabled={draftBusy}
+                onClick={onCreateDraft}
+                className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[11px] font-medium text-rose-400 hover:bg-rose-500/20 disabled:opacity-50"
+              >
+                {draftBusy ? "Retrying…" : "Retry draft creation"}
+              </button>
+            ) : (
+              <span
+                title={wpReason ?? undefined}
+                className="cursor-not-allowed rounded border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground"
+              >
+                {dr === "missing" ? "Connect WordPress first" : "WordPress not ready"}
+              </span>
+            );
+          }
+
+          return null;
+        })()}
+
+        {/* Legacy proposal path */}
+        {!item.isPageBriefTarget && item.executionStatus === "planned" && item.supportedForProposalGeneration && (
           <button
             disabled={busy}
             onClick={onGenerate}
@@ -318,12 +630,14 @@ function BoardCard({
             {busy ? "Generating…" : "Generate proposal"}
           </button>
         )}
+
         {item.executionStatus === "manual_task" && (
           <span className="rounded border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground">
             Handle outside LeadLayer for now
           </span>
         )}
-        {item.proposalId && (
+
+        {!item.isPageBriefTarget && item.proposalId && (
           <Link
             to="/growth/masterplan/$itemId/proposals"
             params={{ itemId: item.masterplanItemId }}
@@ -332,6 +646,7 @@ function BoardCard({
             Open proposals
           </Link>
         )}
+
         {item.executionStatus !== "done" && (
           <>
             {item.itemStatus !== "in_progress" && (

@@ -87,10 +87,14 @@ up to 4 secondary actions, in this priority order:
 
 ## Consumers
 
-- **Blueprint** (now): the dedicated `/growth/intelligence` route renders
-  the snapshot directly. Blueprint route currently still composes inputs
-  from per-module fetchers (no breaking change in V1); the next iteration
-  will swap that for a single snapshot read.
+- **Blueprint** (`/growth/blueprint`): Snapshot is now the **primary input**.
+  Goal data, masterplan summary, audit summary, tracking state, and all module
+  availability statuses come from the Snapshot. The `dataAvailability` block in
+  the Blueprint is overridden with Snapshot module statuses so Blueprint and
+  Intelligence always agree. Four detail fetches remain as documented tech debt:
+  masterplan items (full list), page diagnostics (per-page detail), market and
+  competitor full summaries (Blueprint needs the structured objects).
+- **Intelligence** (`/growth/intelligence`): renders the Snapshot directly.
 - **Dashboard** (`/app`): exposes the primary next best action + a link to
   the Intelligence overview.
 - **Intelligence Pipeline Orchestrator V1**: the snapshot is the

@@ -1,13 +1,21 @@
 /**
- * Sprint B — Masterplan Item → Proposal V2 mapping.
+ * Masterplan Item → Proposal V2 mapping.
  *
- * V1: only a handful of item types can be turned into a proposal.
- * Tracking/GBP/review/reporting remain manual tasks until their own
- * engines exist. Lying about what we can generate would defeat the
- * whole point of an objective execution engine.
+ * service_page and location_page now route to page_brief artifact generation
+ * (execution_artifacts table) instead of proposal_v2. See
+ * src/lib/shared/executionArtifacts/artifacts.functions.ts.
+ *
+ * proposal_v2 remains for: website_fix, conversion, content (micro-fixes).
+ * Tracking/GBP/review/reporting remain manual tasks.
  */
 import type { ActionType } from "@/lib/shared/growthContext/schemas";
 import type { MasterplanItemType } from "./schemas";
+
+/** Item types that produce page_brief artifacts instead of proposal_v2. */
+export const PAGE_BRIEF_ITEM_TYPES: ReadonlySet<MasterplanItemType> = new Set([
+  "service_page",
+  "location_page",
+]);
 
 export interface MasterplanActionMapping {
   supported: true;
@@ -42,16 +50,9 @@ const SUPPORTED: Partial<Record<MasterplanItemType, MasterplanActionMapping>> = 
     actionType: "propose_intro_or_content_expansion",
     intent: "Voorstel voor ondersteunende of uitbreidende content.",
   },
-  service_page: {
-    supported: true,
-    actionType: "propose_intro_or_content_expansion",
-    intent: "Page brief / content plan voor een dedicated service page.",
-  },
-  location_page: {
-    supported: true,
-    actionType: "propose_intro_or_content_expansion",
-    intent: "Page brief / content plan voor een lokale landing page.",
-  },
+  // service_page and location_page are intentionally omitted here.
+  // They produce execution_artifacts (page_brief) via generatePageBriefArtifactFn,
+  // not proposal_v2. See src/lib/shared/executionArtifacts/artifacts.functions.ts.
 };
 
 const UNSUPPORTED_MESSAGES: Partial<Record<MasterplanItemType, string>> = {
@@ -60,6 +61,10 @@ const UNSUPPORTED_MESSAGES: Partial<Record<MasterplanItemType, string>> = {
   gbp: "Google Business Profile vereist een eigen engine — voorlopig handmatige taak.",
   review: "Review-flow opzetten is operatie-werk, niet een SEO-proposal.",
   reporting: "Reporting heeft een eigen engine nodig — geen AI proposal in V1.",
+  service_page:
+    "Service pages use page_brief artifact generation — use 'Generate page brief' instead of 'Generate proposal'.",
+  location_page:
+    "Location pages use page_brief artifact generation — use 'Generate page brief' instead of 'Generate proposal'.",
 };
 
 export function mapMasterplanItemToAction(item: {

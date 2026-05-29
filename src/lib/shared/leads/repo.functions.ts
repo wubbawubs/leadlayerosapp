@@ -113,6 +113,9 @@ export interface LeadSummary {
   name: string | null;
   email: string | null;
   phone: string | null;
+  closedAmount: number | null;
+  closedAt: string | null;
+  wonNotes: string | null;
   createdAt: string;
   attribution: Record<string, any>;
 }
@@ -126,7 +129,7 @@ export const listLeads = createServerFn({ method: "POST" })
 
     let q = admin
       .from("leads")
-      .select("id, source, status, name, email, phone, created_at, attribution")
+      .select("id, source, status, name, email, phone, closed_amount, closed_at, won_notes, created_at, attribution")
       .eq("tenant_id", data.tenantId)
       .order("created_at", { ascending: false })
       .limit(data.limit ?? 50);
@@ -145,6 +148,9 @@ export const listLeads = createServerFn({ method: "POST" })
         name: r.name ?? null,
         email: r.email ?? null,
         phone: r.phone ?? null,
+        closedAmount: (r.closed_amount as number | null) ?? null,
+        closedAt: (r.closed_at as string | null) ?? null,
+        wonNotes: (r.won_notes as string | null) ?? null,
         createdAt: r.created_at,
         attribution: (r.attribution ?? {}) as Record<string, any>,
       })),
@@ -210,5 +216,60 @@ export const getLeadStats = createServerFn({ method: "POST" })
         firstSeen,
         lastSeen,
       },
+    };
+  });
+
+const MarkLeadWonInputSchema = z.object({
+  tenantId: z.string().uuid(),
+  leadId: z.string().uuid(),
+  closedAmount: z.number().nonnegative(),
+  wonNotes: z.string().max(2000).optional(),
+});
+
+export const markLeadWon = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => MarkLeadWonInputSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+
+    const { data: existing, error: checkErr } = await admin
+      .from("leads")
+      .select("id, status")
+      .eq("id", data.leadId)
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
+    if (checkErr) throw checkErr;
+    if (!existing) throw new Error("Lead not found");
+
+    const now = new Date().toISOString();
+
+    const { data: row, error } = await admin
+      .from("leads")
+      .update({
+        status: "won",
+        closed_amount: data.closedAmount,
+        closed_at: now,
+        won_notes: data.wonNotes ?? null,
+      })
+      .eq("id", data.leadId)
+      .eq("tenant_id", data.tenantId)
+      .select("id, status, closed_amount, closed_at, won_notes")
+      .single();
+    if (error) throw error;
+
+    await admin.from("lead_events").insert({
+      tenant_id: data.tenantId,
+      lead_id: data.leadId,
+      event_type: "marked_won",
+      payload: { by: userId, closed_amount: data.closedAmount, won_notes: data.wonNotes ?? null },
+    });
+
+    return {
+      ok: true,
+      leadId: row.id as string,
+      status: row.status as LeadStatus,
+      closedAmount: row.closed_amount as number,
+      closedAt: row.closed_at as string,
     };
   });
