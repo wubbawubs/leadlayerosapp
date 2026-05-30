@@ -20,6 +20,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { WebhookLeadPayloadSchema } from "@/lib/shared/leadIngestion/schemas";
+import { sendEmail, buildLeadNotificationEmail } from "@/lib/shared/notifications/email.server";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const admin = supabaseAdmin as any;
@@ -171,6 +172,46 @@ export const Route = createFileRoute("/api/public/lead-ingest")({
           console.error("[lead-ingest] insert error:", leadErr.message);
           return jsonErr("Service error", 500, origin);
         }
+
+        // Best-effort lead notification — never blocks the response
+        void (async () => {
+          try {
+            const { data: goalRow } = await admin
+              .from("growth_goals")
+              .select("notification_email, notify_on_lead, title")
+              .eq("tenant_id", tenantId)
+              .eq("status", "active")
+              .maybeSingle();
+
+            if (goalRow?.notify_on_lead && goalRow?.notification_email) {
+              const { data: tenantRow } = await admin
+                .from("tenants")
+                .select("name")
+                .eq("id", tenantId)
+                .maybeSingle();
+              const businessName = (tenantRow?.name as string | null) ?? "your business";
+              const appBaseUrl = process.env.APP_BASE_URL ?? "https://app.leadlayer.app";
+              const emailContent = buildLeadNotificationEmail({
+                businessName,
+                source: effectiveSource,
+                name: payload.name ?? null,
+                phone: payload.phone ?? null,
+                email: payload.email ?? null,
+                message: payload.message ?? null,
+                receivedAt: new Date().toISOString(),
+                appUrl: `${appBaseUrl}/growth/leads`,
+              });
+              await sendEmail({
+                to: goalRow.notification_email as string,
+                subject: emailContent.subject,
+                html: emailContent.html,
+                text: emailContent.text,
+              });
+            }
+          } catch (notifyErr) {
+            console.error("[lead-ingest] notification error:", (notifyErr as Error).message);
+          }
+        })();
 
         return jsonOk({ ok: true }, origin);
       },

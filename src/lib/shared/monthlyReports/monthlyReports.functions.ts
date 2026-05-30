@@ -7,6 +7,7 @@
  * updateMonthlyReportStatus — operator review: draft → ready_for_review → approved
  */
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { randomBytes } from "crypto";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -22,6 +23,7 @@ import {
   type MonthlyReportStatus,
 } from "./schemas";
 import { buildMonthlyReport } from "./monthlyReportBuilder.server";
+import { sendEmail, buildReportEmail } from "@/lib/shared/notifications/email.server";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const admin = supabaseAdmin as any;
@@ -282,4 +284,98 @@ export async function getReportByShareToken(
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   };
+}
+
+// ------------------------------------------------------------------
+// 8. sendMonthlyReport — email the report share link to a recipient
+// ------------------------------------------------------------------
+
+export const sendMonthlyReport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        tenantId: z.string().uuid(),
+        reportId: z.string().uuid(),
+        toEmail: z.string().email(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+
+    // Load report
+    const { data: reportRow, error: rErr } = await admin
+      .from("monthly_reports")
+      .select("*")
+      .eq("id", data.reportId)
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
+    if (rErr) throw rErr;
+    if (!reportRow) throw new Error("Report not found");
+
+    // Ensure share token exists — generate if needed
+    let shareToken = (reportRow.share_token as string | null) ?? null;
+    if (!shareToken) {
+      shareToken = randomBytes(16).toString("hex");
+      await admin
+        .from("monthly_reports")
+        .update({ share_token: shareToken, share_token_created_at: new Date().toISOString() })
+        .eq("id", data.reportId);
+    }
+
+    // Load tenant name
+    const { data: tenantRow } = await admin
+      .from("tenants")
+      .select("name")
+      .eq("id", data.tenantId)
+      .maybeSingle();
+    const businessName = (tenantRow?.name as string | null) ?? "Your business";
+
+    // Build period label
+    const ps = reportRow.period_start as string;
+    const pe = reportRow.period_end as string;
+    const periodLabel = formatPeriodLabel(ps, pe);
+
+    // Extract key stats from report
+    const ws = (reportRow.wordpress_summary ?? {}) as Record<string, unknown>;
+    const gp = (reportRow.goal_progress_summary ?? {}) as Record<string, unknown>;
+
+    const appBaseUrl = process.env.APP_BASE_URL ?? "https://app.leadlayer.app";
+    const shareUrl = `${appBaseUrl}/r/${shareToken}`;
+
+    const emailContent = buildReportEmail({
+      businessName,
+      periodLabel,
+      leadCount: typeof gp.actualLeads === "number" ? gp.actualLeads : 0,
+      revenue: typeof gp.provenRevenue === "number" ? gp.provenRevenue : 0,
+      pagesLive: typeof ws.draftsPublished === "number" ? ws.draftsPublished : 0,
+      pagesOptimized: typeof ws.pagesOptimized === "number" ? ws.pagesOptimized : 0,
+      shareUrl,
+    });
+
+    const result = await sendEmail({
+      to: data.toEmail,
+      subject: emailContent.subject,
+      html: emailContent.html,
+      text: emailContent.text,
+    });
+
+    return {
+      ok: result.ok,
+      shareToken,
+      shareUrl,
+      error: result.error ?? null,
+    };
+  });
+
+function formatPeriodLabel(start: string, end: string): string {
+  try {
+    const s = new Date(`${start}T00:00:00Z`);
+    const e = new Date(`${end}T00:00:00Z`);
+    return `${s.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}`;
+  } catch {
+    return `${start} – ${end}`;
+  }
 }

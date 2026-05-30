@@ -112,6 +112,7 @@ function formToInput(f: FormState): GrowthGoalInput {
     badFitLeads: parseLines(f.badFitLeads),
     capacityNotes: f.capacityNotes,
     trackingNotes: f.trackingNotes,
+    notifyOnLead: false,
     status: f.status,
     source: "operator",
   };

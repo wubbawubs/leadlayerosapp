@@ -1300,6 +1300,7 @@ export type Database = {
       growth_goals: {
         Row: {
           bad_fit_leads: Json
+          call_cadence: string | null
           capacity_notes: string | null
           close_rate: number | null
           confidence: number | null
@@ -1309,6 +1310,9 @@ export type Database = {
           id: string
           lead_value: number | null
           locations: Json
+          next_call_at: string | null
+          notification_email: string | null
+          notify_on_lead: boolean
           required_leads: number | null
           service_focus: Json
           source: string
@@ -1316,6 +1320,7 @@ export type Database = {
           target_count: number | null
           target_type: string
           tenant_id: string
+          tier: string | null
           timeframe_months: number | null
           title: string | null
           tracking_notes: string | null
@@ -1323,6 +1328,7 @@ export type Database = {
         }
         Insert: {
           bad_fit_leads?: Json
+          call_cadence?: string | null
           capacity_notes?: string | null
           close_rate?: number | null
           confidence?: number | null
@@ -1332,6 +1338,9 @@ export type Database = {
           id?: string
           lead_value?: number | null
           locations?: Json
+          next_call_at?: string | null
+          notification_email?: string | null
+          notify_on_lead?: boolean
           required_leads?: number | null
           service_focus?: Json
           source?: string
@@ -1339,6 +1348,7 @@ export type Database = {
           target_count?: number | null
           target_type?: string
           tenant_id: string
+          tier?: string | null
           timeframe_months?: number | null
           title?: string | null
           tracking_notes?: string | null
@@ -1346,6 +1356,7 @@ export type Database = {
         }
         Update: {
           bad_fit_leads?: Json
+          call_cadence?: string | null
           capacity_notes?: string | null
           close_rate?: number | null
           confidence?: number | null
@@ -1355,6 +1366,9 @@ export type Database = {
           id?: string
           lead_value?: number | null
           locations?: Json
+          next_call_at?: string | null
+          notification_email?: string | null
+          notify_on_lead?: boolean
           required_leads?: number | null
           service_focus?: Json
           source?: string
@@ -1362,6 +1376,7 @@ export type Database = {
           target_count?: number | null
           target_type?: string
           tenant_id?: string
+          tier?: string | null
           timeframe_months?: number | null
           title?: string | null
           tracking_notes?: string | null
