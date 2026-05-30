@@ -21,52 +21,45 @@ export function ClientCommandHeader({
   loading: boolean;
 }) {
   return (
-    <header className="border-b border-border bg-background px-6 py-5">
+    <header className="border-b border-border bg-background px-8 py-6">
       <Link
         to="/clients"
-        className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-3 w-3" />
         All clients
       </Link>
 
-      <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-3">
-            {tenant && (
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent font-display text-sm font-semibold text-accent-foreground">
-                {tenant.name.slice(0, 1).toUpperCase()}
-              </div>
-            )}
-            <div className="min-w-0">
-              <h1 className="truncate font-display text-2xl font-semibold tracking-tight text-foreground">
-                {loading ? "Loading…" : (tenant?.name ?? "Unknown client")}
-              </h1>
-              {tenant && (
-                <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  {tenant.geo && (
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      {tenant.geo}
-                    </span>
-                  )}
-                  {tenant.vertical && (
-                    <span className="inline-flex items-center gap-1">
-                      <Briefcase className="h-3 w-3" />
-                      {tenant.vertical}
-                    </span>
-                  )}
-                  <span className="inline-flex items-center gap-1.5">
-                    <StatusDot tone="neutral" />
-                    Health pending wiring
-                  </span>
-                </div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">
+            § Client · Command center
+          </p>
+          <h1 className="mt-2 truncate font-display text-3xl font-bold tracking-tight text-foreground">
+            {loading ? "Loading…" : (tenant?.name ?? "Unknown client")}
+          </h1>
+          {tenant && (
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+              {tenant.geo && (
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin className="h-3 w-3" />
+                  {tenant.geo}
+                </span>
               )}
+              {tenant.vertical && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Briefcase className="h-3 w-3" />
+                  {tenant.vertical}
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5">
+                <StatusDot tone="neutral" />
+                Health pending wiring
+              </span>
             </div>
-          </div>
-          <p className="mt-3 max-w-2xl text-xs text-muted-foreground">
-            Tenant ID:{" "}
-            <span className="font-mono text-foreground/70">{tenantId}</span>
+          )}
+          <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+            Tenant ID · <span className="text-foreground/70">{tenantId}</span>
           </p>
         </div>
       </div>
