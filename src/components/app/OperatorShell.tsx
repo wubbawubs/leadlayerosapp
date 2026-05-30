@@ -50,15 +50,20 @@ function NavItems() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
     <SidebarMenu>
-      {NAV.map((item) => {
+      {NAV.map((item, i) => {
         const active =
           pathname === item.to || pathname.startsWith(`${item.to}/`);
         return (
           <SidebarMenuItem key={item.to}>
             <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
-              <Link to={item.to} className="flex items-center gap-2">
+              <Link to={item.to} className="flex items-center gap-3">
+                <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                  §{String(i + 1).padStart(2, "0")}
+                </span>
                 <item.icon className="h-4 w-4" />
-                <span>{item.label}</span>
+                <span className="font-mono text-[11px] uppercase tracking-[0.16em]">
+                  {item.label}
+                </span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
