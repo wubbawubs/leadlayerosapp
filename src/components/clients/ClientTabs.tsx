@@ -22,9 +22,9 @@ export function ClientTabs({ tenantId }: { tenantId: string }) {
               <Link
                 to={t.to}
                 params={{ tenantId }}
-                className={`inline-block border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+                className={`inline-block border-b-2 px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.16em] transition-colors ${
                   active
-                    ? "border-[color:var(--status-info)] text-foreground"
+                    ? "border-accent text-foreground"
                     : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
                 }`}
               >
