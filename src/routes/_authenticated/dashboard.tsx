@@ -19,18 +19,20 @@ function DashboardPage() {
   const tenants = tenantsQuery.data?.tenants ?? [];
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-10">
-      <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[color:var(--status-info)]">
-        § Operator home
-      </p>
-      <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-foreground">
-        What needs your attention.
-      </h1>
-      <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-        Action queue, client health, and reports — surfaced here as soon as each module is wired in.
-      </p>
+    <div className="mx-auto max-w-7xl px-8 py-12">
+      <div className="border-b border-border pb-8">
+        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+          § Operator home · {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long" })}
+        </p>
+        <h1 className="mt-3 font-display text-4xl font-bold tracking-tight text-foreground">
+          What needs your attention.
+        </h1>
+        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
+          Action queue, client health, and reports — surfaced here as soon as each module is wired in.
+        </p>
+      </div>
 
-      <section className="mt-10 grid gap-5 lg:grid-cols-3">
+      <section className="mt-10 grid gap-0 border border-border bg-card lg:grid-cols-3 lg:divide-x lg:divide-border">
         <DashCard
           eyebrow="§ 01 · Needs attention"
           title="Action queue"
@@ -46,13 +48,13 @@ function DashboardPage() {
               No clients yet. Add a tenant from onboarding.
             </p>
           ) : (
-            <ul className="space-y-1.5">
+            <ul className="-mx-2 space-y-0.5">
               {tenants.slice(0, 6).map((t) => (
                 <li key={t.id}>
                   <Link
                     to="/clients/$tenantId"
                     params={{ tenantId: t.id }}
-                    className="group flex items-center justify-between gap-3 rounded px-2 py-1.5 text-sm hover:bg-muted"
+                    className="group flex items-center justify-between gap-3 px-2 py-1.5 text-sm hover:bg-muted"
                   >
                     <span className="flex items-center gap-2 min-w-0">
                       <StatusDot tone="neutral" />
@@ -63,7 +65,7 @@ function DashboardPage() {
                         {t.geo}
                       </span>
                     </span>
-                    <span className="text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
                       Open →
                     </span>
                   </Link>
@@ -73,7 +75,7 @@ function DashboardPage() {
           )}
           <Link
             to="/clients"
-            className="mt-3 inline-block text-xs font-medium text-[color:var(--status-info)] hover:underline"
+            className="mt-4 inline-block border-b border-accent pb-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-foreground hover:text-accent"
           >
             All clients →
           </Link>
@@ -101,15 +103,15 @@ function DashCard({
   children?: React.ReactNode;
 }) {
   return (
-    <article className="rounded-xl border border-border bg-card p-5">
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+    <article className="p-6">
+      <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">
         {eyebrow}
       </p>
-      <h2 className="mt-1 font-display text-lg font-semibold tracking-tight text-foreground">
+      <h2 className="mt-2 font-display text-xl font-semibold tracking-tight text-foreground">
         {title}
       </h2>
-      <div className="mt-3">
-        {body ? <p className="text-sm text-muted-foreground">{body}</p> : children}
+      <div className="mt-4">
+        {body ? <p className="text-sm leading-relaxed text-muted-foreground">{body}</p> : children}
       </div>
     </article>
   );
