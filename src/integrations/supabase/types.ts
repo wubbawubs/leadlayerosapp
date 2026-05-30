@@ -857,6 +857,252 @@ export type Database = {
           },
         ]
       }
+      execution_artifacts: {
+        Row: {
+          artifact_type: string
+          before_snapshot_ref: string | null
+          created_at: string
+          delivered_at: string | null
+          delivered_by: string | null
+          delivered_url: string | null
+          delivery_readiness: Json
+          delivery_status: string | null
+          generated_from: Json
+          growth_goal_id: string | null
+          id: string
+          masterplan_item_id: string
+          missing_context: Json
+          payload: Json
+          quality_gates: Json
+          risk_flags: Json
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          artifact_type: string
+          before_snapshot_ref?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivered_by?: string | null
+          delivered_url?: string | null
+          delivery_readiness?: Json
+          delivery_status?: string | null
+          generated_from?: Json
+          growth_goal_id?: string | null
+          id?: string
+          masterplan_item_id: string
+          missing_context?: Json
+          payload?: Json
+          quality_gates?: Json
+          risk_flags?: Json
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          artifact_type?: string
+          before_snapshot_ref?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivered_by?: string | null
+          delivered_url?: string | null
+          delivery_readiness?: Json
+          delivery_status?: string | null
+          generated_from?: Json
+          growth_goal_id?: string | null
+          id?: string
+          masterplan_item_id?: string
+          missing_context?: Json
+          payload?: Json
+          quality_gates?: Json
+          risk_flags?: Json
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "execution_artifacts_growth_goal_id_fkey"
+            columns: ["growth_goal_id"]
+            isOneToOne: false
+            referencedRelation: "growth_goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "execution_artifacts_masterplan_item_id_fkey"
+            columns: ["masterplan_item_id"]
+            isOneToOne: false
+            referencedRelation: "masterplan_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "execution_artifacts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      page_optimization_snapshots: {
+        Row: {
+          id: string
+          tenant_id: string
+          wordpress_connection_id: string
+          wp_post_id: number
+          wp_post_type: string
+          wp_status: string | null
+          title: string | null
+          slug: string | null
+          link: string | null
+          excerpt: string | null
+          raw_content: string | null
+          rendered_content: string | null
+          detected_builder: string | null
+          eligibility_status: string
+          content_hash: string
+          fetched_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          wordpress_connection_id: string
+          wp_post_id: number
+          wp_post_type?: string
+          wp_status?: string | null
+          title?: string | null
+          slug?: string | null
+          link?: string | null
+          excerpt?: string | null
+          raw_content?: string | null
+          rendered_content?: string | null
+          detected_builder?: string | null
+          eligibility_status: string
+          content_hash: string
+          fetched_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          wordpress_connection_id?: string
+          wp_post_id?: number
+          wp_post_type?: string
+          wp_status?: string | null
+          title?: string | null
+          slug?: string | null
+          link?: string | null
+          excerpt?: string | null
+          raw_content?: string | null
+          rendered_content?: string | null
+          detected_builder?: string | null
+          eligibility_status?: string
+          content_hash?: string
+          fetched_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_wordpress_connection_id_fkey"
+            columns: ["wordpress_connection_id"]
+            isOneToOne: false
+            referencedRelation: "wordpress_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wordpress_page_updates: {
+        Row: {
+          id: string
+          tenant_id: string
+          execution_artifact_id: string | null
+          snapshot_id: string | null
+          wordpress_connection_id: string
+          wp_post_id: number
+          status: string
+          applied_at: string | null
+          applied_by: string | null
+          update_source: string
+          fields_updated: Json
+          error_message: string | null
+          raw_response: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          execution_artifact_id?: string | null
+          snapshot_id?: string | null
+          wordpress_connection_id: string
+          wp_post_id: number
+          status?: string
+          applied_at?: string | null
+          applied_by?: string | null
+          update_source?: string
+          fields_updated?: Json
+          error_message?: string | null
+          raw_response?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          execution_artifact_id?: string | null
+          snapshot_id?: string | null
+          wordpress_connection_id?: string
+          wp_post_id?: number
+          status?: string
+          applied_at?: string | null
+          applied_by?: string | null
+          update_source?: string
+          fields_updated?: Json
+          error_message?: string | null
+          raw_response?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wpu_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wpu_wordpress_connection_id_fkey"
+            columns: ["wordpress_connection_id"]
+            isOneToOne: false
+            referencedRelation: "wordpress_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wpu_execution_artifact_id_fkey"
+            columns: ["execution_artifact_id"]
+            isOneToOne: false
+            referencedRelation: "execution_artifacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wpu_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "page_optimization_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fix_proposal_groups: {
         Row: {
           audit_id: string
@@ -1054,6 +1300,7 @@ export type Database = {
       growth_goals: {
         Row: {
           bad_fit_leads: Json
+          call_cadence: string | null
           capacity_notes: string | null
           close_rate: number | null
           confidence: number | null
@@ -1063,6 +1310,9 @@ export type Database = {
           id: string
           lead_value: number | null
           locations: Json
+          next_call_at: string | null
+          notification_email: string | null
+          notify_on_lead: boolean
           required_leads: number | null
           service_focus: Json
           source: string
@@ -1070,6 +1320,7 @@ export type Database = {
           target_count: number | null
           target_type: string
           tenant_id: string
+          tier: string | null
           timeframe_months: number | null
           title: string | null
           tracking_notes: string | null
@@ -1077,6 +1328,7 @@ export type Database = {
         }
         Insert: {
           bad_fit_leads?: Json
+          call_cadence?: string | null
           capacity_notes?: string | null
           close_rate?: number | null
           confidence?: number | null
@@ -1086,6 +1338,9 @@ export type Database = {
           id?: string
           lead_value?: number | null
           locations?: Json
+          next_call_at?: string | null
+          notification_email?: string | null
+          notify_on_lead?: boolean
           required_leads?: number | null
           service_focus?: Json
           source?: string
@@ -1093,6 +1348,7 @@ export type Database = {
           target_count?: number | null
           target_type?: string
           tenant_id: string
+          tier?: string | null
           timeframe_months?: number | null
           title?: string | null
           tracking_notes?: string | null
@@ -1100,6 +1356,7 @@ export type Database = {
         }
         Update: {
           bad_fit_leads?: Json
+          call_cadence?: string | null
           capacity_notes?: string | null
           close_rate?: number | null
           confidence?: number | null
@@ -1109,6 +1366,9 @@ export type Database = {
           id?: string
           lead_value?: number | null
           locations?: Json
+          next_call_at?: string | null
+          notification_email?: string | null
+          notify_on_lead?: boolean
           required_leads?: number | null
           service_focus?: Json
           source?: string
@@ -1116,6 +1376,7 @@ export type Database = {
           target_count?: number | null
           target_type?: string
           tenant_id?: string
+          tier?: string | null
           timeframe_months?: number | null
           title?: string | null
           tracking_notes?: string | null
@@ -1326,6 +1587,10 @@ export type Database = {
       leads: {
         Row: {
           attribution: Json | null
+          closed_amount: number | null
+          close_probability: number | null
+          closed_at: string | null
+          won_notes: string | null
           created_at: string
           email: string | null
           id: string
@@ -1340,6 +1605,10 @@ export type Database = {
         }
         Insert: {
           attribution?: Json | null
+          closed_amount?: number | null
+          close_probability?: number | null
+          closed_at?: string | null
+          won_notes?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -1354,6 +1623,10 @@ export type Database = {
         }
         Update: {
           attribution?: Json | null
+          closed_amount?: number | null
+          close_probability?: number | null
+          closed_at?: string | null
+          won_notes?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -2819,6 +3092,588 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wordpress_connections: {
+        Row: {
+          base_url: string
+          capabilities: Json
+          created_at: string
+          error_message: string | null
+          id: string
+          kind: string
+          last_checked_at: string | null
+          rest_base_url: string | null
+          site_connection_id: string
+          site_id: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          base_url: string
+          capabilities?: Json
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          kind?: string
+          last_checked_at?: string | null
+          rest_base_url?: string | null
+          site_connection_id: string
+          site_id?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          base_url?: string
+          capabilities?: Json
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          kind?: string
+          last_checked_at?: string | null
+          rest_base_url?: string | null
+          site_connection_id?: string
+          site_id?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wordpress_connections_site_connection_id_fkey"
+            columns: ["site_connection_id"]
+            isOneToOne: true
+            referencedRelation: "site_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wordpress_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wordpress_page_mappings: {
+        Row: {
+          confidence: number
+          created_at: string
+          id: string
+          inventory_id: string | null
+          mapping_type: string
+          masterplan_item_id: string | null
+          page_intelligence_id: string | null
+          reasons: Json
+          target_location: string | null
+          target_service: string | null
+          tenant_id: string
+          updated_at: string
+          wordpress_connection_id: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          inventory_id?: string | null
+          mapping_type: string
+          masterplan_item_id?: string | null
+          page_intelligence_id?: string | null
+          reasons?: Json
+          target_location?: string | null
+          target_service?: string | null
+          tenant_id: string
+          updated_at?: string
+          wordpress_connection_id: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          inventory_id?: string | null
+          mapping_type?: string
+          masterplan_item_id?: string | null
+          page_intelligence_id?: string | null
+          reasons?: Json
+          target_location?: string | null
+          target_service?: string | null
+          tenant_id?: string
+          updated_at?: string
+          wordpress_connection_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wordpress_page_mappings_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "wordpress_site_inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wordpress_page_mappings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wordpress_page_mappings_wordpress_connection_id_fkey"
+            columns: ["wordpress_connection_id"]
+            isOneToOne: false
+            referencedRelation: "wordpress_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wordpress_site_inventory: {
+        Row: {
+          content_hash: string | null
+          created_at: string
+          id: string
+          last_optimized_at: string | null
+          last_optimized_by: string | null
+          last_synced_at: string
+          link: string | null
+          mapped_page_role: string | null
+          modified_at: string | null
+          parent_id: number | null
+          post_type: string
+          raw: Json
+          site_connection_id: string
+          site_id: string | null
+          slug: string | null
+          status: string | null
+          template: string | null
+          tenant_id: string
+          title: string | null
+          updated_at: string
+          wordpress_connection_id: string
+          wp_post_id: number
+        }
+        Insert: {
+          content_hash?: string | null
+          created_at?: string
+          id?: string
+          last_optimized_at?: string | null
+          last_optimized_by?: string | null
+          last_synced_at?: string
+          link?: string | null
+          mapped_page_role?: string | null
+          modified_at?: string | null
+          parent_id?: number | null
+          post_type: string
+          raw?: Json
+          site_connection_id: string
+          site_id?: string | null
+          slug?: string | null
+          status?: string | null
+          template?: string | null
+          tenant_id: string
+          title?: string | null
+          updated_at?: string
+          wordpress_connection_id: string
+          wp_post_id: number
+        }
+        Update: {
+          content_hash?: string | null
+          created_at?: string
+          id?: string
+          last_optimized_at?: string | null
+          last_optimized_by?: string | null
+          last_synced_at?: string
+          link?: string | null
+          mapped_page_role?: string | null
+          modified_at?: string | null
+          parent_id?: number | null
+          post_type?: string
+          raw?: Json
+          site_connection_id?: string
+          site_id?: string | null
+          slug?: string | null
+          status?: string | null
+          template?: string | null
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+          wordpress_connection_id?: string
+          wp_post_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wordpress_site_inventory_site_connection_id_fkey"
+            columns: ["site_connection_id"]
+            isOneToOne: false
+            referencedRelation: "site_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wordpress_site_inventory_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wordpress_site_inventory_wordpress_connection_id_fkey"
+            columns: ["wordpress_connection_id"]
+            isOneToOne: false
+            referencedRelation: "wordpress_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_ingestion_sources: {
+        Row: {
+          id: string
+          tenant_id: string
+          site_connection_id: string | null
+          name: string
+          source_type: string
+          public_key: string
+          status: string
+          allowed_origins: string[]
+          default_source: string
+          default_status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          site_connection_id?: string | null
+          name: string
+          source_type?: string
+          public_key: string
+          status?: string
+          allowed_origins?: string[]
+          default_source?: string
+          default_status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          site_connection_id?: string | null
+          name?: string
+          source_type?: string
+          public_key?: string
+          status?: string
+          allowed_origins?: string[]
+          default_source?: string
+          default_status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_ingestion_sources_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_execution_plans: {
+        Row: {
+          id: string
+          tenant_id: string
+          growth_goal_id: string | null
+          monthly_report_id: string | null
+          period_start: string
+          period_end: string
+          package_tier: string
+          status: string
+          lead_gap_summary: Json
+          selected_actions: Json
+          rationale: string | null
+          expected_impact: Json
+          required_inputs: Json
+          risks: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          growth_goal_id?: string | null
+          monthly_report_id?: string | null
+          period_start: string
+          period_end: string
+          package_tier?: string
+          status?: string
+          lead_gap_summary?: Json
+          selected_actions?: Json
+          rationale?: string | null
+          expected_impact?: Json
+          required_inputs?: Json
+          risks?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          growth_goal_id?: string | null
+          monthly_report_id?: string | null
+          period_start?: string
+          period_end?: string
+          package_tier?: string
+          status?: string
+          lead_gap_summary?: Json
+          selected_actions?: Json
+          rationale?: string | null
+          expected_impact?: Json
+          required_inputs?: Json
+          risks?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_execution_plans_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_reports: {
+        Row: {
+          id: string
+          tenant_id: string
+          growth_goal_id: string | null
+          period_start: string
+          period_end: string
+          status: string
+          lead_summary: Json
+          execution_summary: Json
+          wordpress_summary: Json
+          goal_progress_summary: Json
+          next_actions: Json
+          risks: Json
+          narrative: string | null
+          share_token: string | null
+          share_token_created_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          growth_goal_id?: string | null
+          period_start: string
+          period_end: string
+          status?: string
+          lead_summary?: Json
+          execution_summary?: Json
+          wordpress_summary?: Json
+          goal_progress_summary?: Json
+          next_actions?: Json
+          risks?: Json
+          narrative?: string | null
+          share_token?: string | null
+          share_token_created_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          growth_goal_id?: string | null
+          period_start?: string
+          period_end?: string
+          status?: string
+          lead_summary?: Json
+          execution_summary?: Json
+          wordpress_summary?: Json
+          goal_progress_summary?: Json
+          next_actions?: Json
+          risks?: Json
+          narrative?: string | null
+          share_token?: string | null
+          share_token_created_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_reports_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publishing_bundles: {
+        Row: {
+          id: string
+          tenant_id: string
+          execution_artifact_id: string
+          masterplan_item_id: string | null
+          wordpress_connection_id: string | null
+          status: string
+          bundle_type: string
+          payload: Json
+          safety_checks: Json | null
+          error_message: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          execution_artifact_id: string
+          masterplan_item_id?: string | null
+          wordpress_connection_id?: string | null
+          status?: string
+          bundle_type?: string
+          payload?: Json
+          safety_checks?: Json | null
+          error_message?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          execution_artifact_id?: string
+          masterplan_item_id?: string | null
+          wordpress_connection_id?: string | null
+          status?: string
+          bundle_type?: string
+          payload?: Json
+          safety_checks?: Json | null
+          error_message?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publishing_bundles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publishing_bundles_execution_artifact_id_fkey"
+            columns: ["execution_artifact_id"]
+            isOneToOne: false
+            referencedRelation: "execution_artifacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wordpress_drafts: {
+        Row: {
+          id: string
+          tenant_id: string
+          publishing_bundle_id: string
+          wordpress_connection_id: string
+          execution_artifact_id: string
+          wp_post_id: number | null
+          wp_post_type: string
+          wp_status: string
+          wp_edit_link: string | null
+          wp_preview_link: string | null
+          target_slug: string | null
+          title: string | null
+          status: string
+          error_message: string | null
+          raw_response: Json | null
+          published_at: string | null
+          published_by: string | null
+          published_url: string | null
+          publication_notes: string | null
+          seo_meta_status: string | null
+          meta_title: string | null
+          meta_description: string | null
+          publish_source: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          publishing_bundle_id: string
+          wordpress_connection_id: string
+          execution_artifact_id: string
+          wp_post_id?: number | null
+          wp_post_type?: string
+          wp_status?: string
+          wp_edit_link?: string | null
+          wp_preview_link?: string | null
+          target_slug?: string | null
+          title?: string | null
+          status?: string
+          error_message?: string | null
+          raw_response?: Json | null
+          published_at?: string | null
+          published_by?: string | null
+          published_url?: string | null
+          publication_notes?: string | null
+          seo_meta_status?: string | null
+          meta_title?: string | null
+          meta_description?: string | null
+          publish_source?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          publishing_bundle_id?: string
+          wordpress_connection_id?: string
+          execution_artifact_id?: string
+          wp_post_id?: number | null
+          wp_post_type?: string
+          wp_status?: string
+          wp_edit_link?: string | null
+          wp_preview_link?: string | null
+          target_slug?: string | null
+          title?: string | null
+          status?: string
+          error_message?: string | null
+          raw_response?: Json | null
+          published_at?: string | null
+          published_by?: string | null
+          published_url?: string | null
+          publication_notes?: string | null
+          seo_meta_status?: string | null
+          meta_title?: string | null
+          meta_description?: string | null
+          publish_source?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wordpress_drafts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wordpress_drafts_publishing_bundle_id_fkey"
+            columns: ["publishing_bundle_id"]
+            isOneToOne: false
+            referencedRelation: "publishing_bundles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wordpress_drafts_execution_artifact_id_fkey"
+            columns: ["execution_artifact_id"]
+            isOneToOne: false
+            referencedRelation: "execution_artifacts"
             referencedColumns: ["id"]
           },
         ]

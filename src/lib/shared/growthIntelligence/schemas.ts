@@ -190,6 +190,18 @@ export interface MasterplanSlice extends ModuleBase {
   activeItems: number;
 }
 
+export interface WordpressSlice extends ModuleBase {
+  connectionStatus: string | null;
+  kind: "self_hosted" | "wordpress_com" | null;
+  baseUrl: string | null;
+  inventoryCount: number;
+  mappingCount: number;
+  missingPageCount: number;
+  capabilitiesOk: boolean | null;
+  lastCheckedAt: string | null;
+  lastSyncedAt: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Snapshot
 // ---------------------------------------------------------------------------
@@ -219,6 +231,7 @@ export interface GrowthIntelligenceSnapshot {
   tracking: TrackingSlice;
   ranking: RankingSlice;
   masterplan: MasterplanSlice;
+  wordpress: WordpressSlice;
 
   dataAvailability: DataAvailabilityEntry[];
   missingContext: MissingContextItem[];

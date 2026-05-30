@@ -40,6 +40,7 @@ function inputToRow(input: GrowthGoalInput, tenantId: string) {
   return {
     tenant_id: tenantId,
     title: input.title || null,
+    tier: input.tier ?? null,
     target_type: input.targetType,
     target_count: input.targetCount ?? null,
     current_count: input.currentCount ?? null,
@@ -53,6 +54,10 @@ function inputToRow(input: GrowthGoalInput, tenantId: string) {
     bad_fit_leads: input.badFitLeads ?? [],
     capacity_notes: input.capacityNotes || null,
     tracking_notes: input.trackingNotes || null,
+    notification_email: input.notificationEmail ?? null,
+    notify_on_lead: input.notifyOnLead ?? false,
+    next_call_at: input.nextCallAt ?? null,
+    call_cadence: input.callCadence ?? null,
     status: input.status,
     source: input.source,
   };

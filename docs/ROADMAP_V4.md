@@ -48,12 +48,18 @@ The product only matters if it can answer:
 4. ✅ End-to-End System Validation (Sprint D)
 5. ✅ Pre-Publishing Cleanup (Sprint E0) — labels, manual-task badges, partial unique indexes on active goal / active masterplan
 6. ✅ Intelligence Pipeline Orchestrator V1 — `intelligence_runs` + `/growth/flow` panel (see `docs/INTELLIGENCE_PIPELINE_ORCHESTRATOR_V1.md`)
-7. ⬜ Audit Issue → Masterplan Priority Mapping
-7. ⬜ Approval / Ready-for-Publishing Gate (Sprint E1)
-8. ⬜ Safe Publishing V1 (Sprint F) — **blocked** until E1 lands and live operator validation passes
-9. ⬜ Tracking / Lead Inbox V1
-10. ⬜ GBP / Reviews / Local Visibility
-11. ⬜ Reporting / Monthly Growth Loop
+7. ✅ **Execution Artifact Foundation V1** — `execution_artifacts` table, page_brief for service/location_page, gates, ProductFlow WP fix (see `docs/EXECUTION_ARTIFACT_FOUNDATION_V1.md`)
+8. ✅ **Blueprint ← Snapshot Cleanup** — Snapshot is now the primary Blueprint input; goal/plan fetches removed; data availability sourced from Snapshot; WordPress row added; `adaptItem` metadata keys fixed
+9. ✅ **WordPress Draft Creation V1** — `publishing_bundles` + `wordpress_drafts`, draft from approved page_brief (see `docs/WORDPRESS_DRAFT_CREATION_V1.md`)
+10. ✅ **Lead Inbox + Tracking V1** — `logLeadManually`/`listLeads`/`getGoalProgress`, webhook ingestion, goal progress card (see `docs/LEAD_INBOX_GOAL_PROGRESS_V1.md`)
+11. ✅ **Monthly Reports V1** — `monthly_reports` table, builder, operator UI, public share link `/r/:token` (see `docs/MONTHLY_REPORTS_V1.md`)
+12. ✅ **Monthly Execution Planner V1** — `monthly_execution_plans`, auto-plan from reports (see `docs/MONTHLY_EXECUTION_PLANNER_V1.md`)
+13. ✅ **WordPress Connection + Inventory V1** — `wordpress_connections`, inventory scan, connection health (see `docs/WORDPRESS_CONNECTION_INVENTORY_V1.md`)
+14. ✅ **Basic Lead Ingestion Webhook V1** — `lead_ingestion_sources`, public `/api/public/lead-ingest` endpoint (see `docs/BASIC_LEAD_INGESTION_WEBHOOK_V1.md`)
+15. ✅ **Delivery Proof + Revenue Chain V1** — `wordpress_drafts.published_at/url`, `leads.closed_amount/closed_at`, `markWordpressDraftPublished`, `markLeadWon`, `provenRevenue` in monthly reports and public share page
+16. ⬜ Publishing Gate — formal operator approval, safety envelope
+17. ⬜ Locale/Bilingual hardening — language param in artifact generators, report templates
+18. ⬜ Branches V1 — location scoping on artifacts, drafts, leads
 
 Safe Publishing remains blocked. The execution spine is stable and labelled,
 but no client website is touched until the approval gate exists and an
@@ -122,3 +128,28 @@ then migrate or drop in a dedicated cleanup sprint.
 - Any publishing code
 - Tracking / reporting
 - Removing audit/proposal/QA functionality
+
+## New Tables — Existing Page Optimization V1 (2026-05-29)
+
+| Table | Status | Notes |
+|---|---|---|
+| `page_optimization_snapshots` | **live** | Immutable before-snapshots of existing WP pages |
+| `wordpress_page_updates` | **live** | Per-update PATCH delivery proof |
+
+### Extended tables
+
+| Table | Changes |
+|---|---|
+| `execution_artifacts` | Added `delivery_status`, `delivered_at`, `delivered_by`, `delivered_url`, `before_snapshot_ref` |
+| `wordpress_site_inventory` | Added `last_optimized_at`, `last_optimized_by` |
+
+### New server functions
+
+| Function | Location |
+|---|---|
+| `fetchAndSnapshotExistingWordpressPage` | `src/lib/shared/existingPageOptimization/existingPageOptimization.functions.ts` |
+| `generateExistingPageOptimizationBrief` | same |
+| `applyExistingPageOptimization` | same |
+| `getOptimizationSnapshot` | same |
+| `fetchSelfHostedWordpressPage` | `src/lib/shared/wpcom/wp-rest.server.ts` |
+| `updateSelfHostedWordpressPage` | same |

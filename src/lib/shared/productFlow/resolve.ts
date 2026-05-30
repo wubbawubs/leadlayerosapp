@@ -57,6 +57,7 @@ export function resolveProductFlowState(
     tracking,
     ranking,
     masterplan,
+    wordpress,
   } = snapshot;
 
   // ---------- Lifecycle derivation ----------
@@ -213,9 +214,15 @@ export function resolveProductFlowState(
     {
       key: "wordpress",
       label: "WordPress connection",
-      status: "not_started",
+      status: moduleToAutomation(wordpress.status),
       sourceModule: "wordpress",
-      reason: "Upcoming sprint — required before safe publishing.",
+      href: "/sites",
+      reason:
+        wordpress.status === "missing" || wordpress.status === "placeholder"
+          ? "Connect a WordPress site to enable delivery."
+          : wordpress.inventoryCount > 0
+            ? `Inventory synced (${wordpress.inventoryCount} items) — ready for delivery.`
+            : "Connected — sync inventory from the Sites page to enable delivery.",
     },
   ];
 

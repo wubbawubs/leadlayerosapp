@@ -257,8 +257,9 @@ without going through this gate.
 
 ## Build order (after this sprint)
 
-1. Growth Intelligence Snapshot builder
-2. **WordPress Connection + Inventory** (this doc → schema + server functions)
+1. Growth Intelligence Snapshot builder — ✅ done
+2. **WordPress Connection + Inventory** — ✅ done (branch `wordpress-connection-inventory-v1`)
+   - See `docs/WORDPRESS_CONNECTION_INVENTORY_V1.md` for full spec
 3. Navigation cleanup
 4. Execution Task Engine + Artifacts (targeting WP draft bundles)
 5. **WordPress Draft Publishing** (this doc → draft creation + mapping resolver)

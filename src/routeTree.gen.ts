@@ -14,10 +14,12 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RShareTokenRouteImport } from './routes/r.$shareToken'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedSitesIndexRouteImport } from './routes/_authenticated/sites.index'
 import { Route as ApiPublicRunAnalyzerJobRouteImport } from './routes/api/public/run-analyzer-job'
+import { Route as ApiPublicLeadIngestRouteImport } from './routes/api/public/lead-ingest'
 import { Route as AuthenticatedSitesNewRouteImport } from './routes/_authenticated/sites.new'
 import { Route as AuthenticatedSettingsToneProfileRouteImport } from './routes/_authenticated/settings.tone-profile'
 import { Route as AuthenticatedSettingsGrowthGoalRouteImport } from './routes/_authenticated/settings.growth-goal'
@@ -26,7 +28,10 @@ import { Route as AuthenticatedOnboardingWelcomeRouteImport } from './routes/_au
 import { Route as AuthenticatedOnboardingSiteRouteImport } from './routes/_authenticated/onboarding.site'
 import { Route as AuthenticatedOnboardingDoneRouteImport } from './routes/_authenticated/onboarding.done'
 import { Route as AuthenticatedOnboardingBusinessRouteImport } from './routes/_authenticated/onboarding.business'
+import { Route as AuthenticatedGrowthReportsRouteImport } from './routes/_authenticated/growth.reports'
+import { Route as AuthenticatedGrowthMonthlyPlanRouteImport } from './routes/_authenticated/growth.monthly-plan'
 import { Route as AuthenticatedGrowthMasterplanRouteImport } from './routes/_authenticated/growth.masterplan'
+import { Route as AuthenticatedGrowthLeadsRouteImport } from './routes/_authenticated/growth.leads'
 import { Route as AuthenticatedGrowthIntelligenceRouteImport } from './routes/_authenticated/growth.intelligence'
 import { Route as AuthenticatedGrowthGbpRouteImport } from './routes/_authenticated/growth.gbp'
 import { Route as AuthenticatedGrowthFlowRouteImport } from './routes/_authenticated/growth.flow'
@@ -34,6 +39,7 @@ import { Route as AuthenticatedGrowthExecutionRouteImport } from './routes/_auth
 import { Route as AuthenticatedGrowthBlueprintRouteImport } from './routes/_authenticated/growth.blueprint'
 import { Route as AuthenticatedAuditsAuditIdRouteImport } from './routes/_authenticated/audits.$auditId'
 import { Route as ApiPublicWpcomCallbackRouteImport } from './routes/api/public/wpcom/callback'
+import { Route as AuthenticatedSitesSiteIdInventoryRouteImport } from './routes/_authenticated/sites.$siteId.inventory'
 import { Route as AuthenticatedSitesSiteIdAuditsRouteImport } from './routes/_authenticated/sites.$siteId.audits'
 import { Route as AuthenticatedAuditsAuditIdProposalsRouteImport } from './routes/_authenticated/audits.$auditId_.proposals'
 import { Route as AuthenticatedAuditsAuditIdCompareRouteImport } from './routes/_authenticated/audits.$auditId_.compare'
@@ -63,6 +69,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RShareTokenRoute = RShareTokenRouteImport.update({
+  id: '/r/$shareToken',
+  path: '/r/$shareToken',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -81,6 +92,11 @@ const AuthenticatedSitesIndexRoute = AuthenticatedSitesIndexRouteImport.update({
 const ApiPublicRunAnalyzerJobRoute = ApiPublicRunAnalyzerJobRouteImport.update({
   id: '/api/public/run-analyzer-job',
   path: '/api/public/run-analyzer-job',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicLeadIngestRoute = ApiPublicLeadIngestRouteImport.update({
+  id: '/api/public/lead-ingest',
+  path: '/api/public/lead-ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedSitesNewRoute = AuthenticatedSitesNewRouteImport.update({
@@ -130,10 +146,28 @@ const AuthenticatedOnboardingBusinessRoute =
     path: '/business',
     getParentRoute: () => AuthenticatedOnboardingRoute,
   } as any)
+const AuthenticatedGrowthReportsRoute =
+  AuthenticatedGrowthReportsRouteImport.update({
+    id: '/growth/reports',
+    path: '/growth/reports',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedGrowthMonthlyPlanRoute =
+  AuthenticatedGrowthMonthlyPlanRouteImport.update({
+    id: '/growth/monthly-plan',
+    path: '/growth/monthly-plan',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedGrowthMasterplanRoute =
   AuthenticatedGrowthMasterplanRouteImport.update({
     id: '/growth/masterplan',
     path: '/growth/masterplan',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedGrowthLeadsRoute =
+  AuthenticatedGrowthLeadsRouteImport.update({
+    id: '/growth/leads',
+    path: '/growth/leads',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedGrowthIntelligenceRoute =
@@ -175,6 +209,12 @@ const ApiPublicWpcomCallbackRoute = ApiPublicWpcomCallbackRouteImport.update({
   path: '/api/public/wpcom/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSitesSiteIdInventoryRoute =
+  AuthenticatedSitesSiteIdInventoryRouteImport.update({
+    id: '/sites/$siteId/inventory',
+    path: '/sites/$siteId/inventory',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedSitesSiteIdAuditsRoute =
   AuthenticatedSitesSiteIdAuditsRouteImport.update({
     id: '/sites/$siteId/audits',
@@ -207,13 +247,17 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
+  '/r/$shareToken': typeof RShareTokenRoute
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
   '/growth/execution': typeof AuthenticatedGrowthExecutionRoute
   '/growth/flow': typeof AuthenticatedGrowthFlowRoute
   '/growth/gbp': typeof AuthenticatedGrowthGbpRoute
   '/growth/intelligence': typeof AuthenticatedGrowthIntelligenceRoute
+  '/growth/leads': typeof AuthenticatedGrowthLeadsRoute
   '/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
+  '/growth/monthly-plan': typeof AuthenticatedGrowthMonthlyPlanRoute
+  '/growth/reports': typeof AuthenticatedGrowthReportsRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
@@ -222,11 +266,13 @@ export interface FileRoutesByFullPath {
   '/settings/growth-goal': typeof AuthenticatedSettingsGrowthGoalRoute
   '/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
+  '/api/public/lead-ingest': typeof ApiPublicLeadIngestRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
   '/sites/': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
+  '/sites/$siteId/inventory': typeof AuthenticatedSitesSiteIdInventoryRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
   '/growth/masterplan/$itemId/proposals': typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
 }
@@ -237,13 +283,17 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
+  '/r/$shareToken': typeof RShareTokenRoute
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
   '/growth/execution': typeof AuthenticatedGrowthExecutionRoute
   '/growth/flow': typeof AuthenticatedGrowthFlowRoute
   '/growth/gbp': typeof AuthenticatedGrowthGbpRoute
   '/growth/intelligence': typeof AuthenticatedGrowthIntelligenceRoute
+  '/growth/leads': typeof AuthenticatedGrowthLeadsRoute
   '/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
+  '/growth/monthly-plan': typeof AuthenticatedGrowthMonthlyPlanRoute
+  '/growth/reports': typeof AuthenticatedGrowthReportsRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
@@ -252,11 +302,13 @@ export interface FileRoutesByTo {
   '/settings/growth-goal': typeof AuthenticatedSettingsGrowthGoalRoute
   '/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
   '/sites/new': typeof AuthenticatedSitesNewRoute
+  '/api/public/lead-ingest': typeof ApiPublicLeadIngestRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
   '/sites': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
+  '/sites/$siteId/inventory': typeof AuthenticatedSitesSiteIdInventoryRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
   '/growth/masterplan/$itemId/proposals': typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
 }
@@ -269,13 +321,17 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
+  '/r/$shareToken': typeof RShareTokenRoute
   '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/_authenticated/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
   '/_authenticated/growth/execution': typeof AuthenticatedGrowthExecutionRoute
   '/_authenticated/growth/flow': typeof AuthenticatedGrowthFlowRoute
   '/_authenticated/growth/gbp': typeof AuthenticatedGrowthGbpRoute
   '/_authenticated/growth/intelligence': typeof AuthenticatedGrowthIntelligenceRoute
+  '/_authenticated/growth/leads': typeof AuthenticatedGrowthLeadsRoute
   '/_authenticated/growth/masterplan': typeof AuthenticatedGrowthMasterplanRoute
+  '/_authenticated/growth/monthly-plan': typeof AuthenticatedGrowthMonthlyPlanRoute
+  '/_authenticated/growth/reports': typeof AuthenticatedGrowthReportsRoute
   '/_authenticated/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/_authenticated/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
@@ -284,11 +340,13 @@ export interface FileRoutesById {
   '/_authenticated/settings/growth-goal': typeof AuthenticatedSettingsGrowthGoalRoute
   '/_authenticated/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
+  '/api/public/lead-ingest': typeof ApiPublicLeadIngestRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
   '/_authenticated/sites/': typeof AuthenticatedSitesIndexRoute
   '/_authenticated/audits/$auditId_/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
   '/_authenticated/audits/$auditId_/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
   '/_authenticated/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
+  '/_authenticated/sites/$siteId/inventory': typeof AuthenticatedSitesSiteIdInventoryRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
   '/_authenticated/growth/masterplan_/$itemId/proposals': typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
 }
@@ -301,13 +359,17 @@ export interface FileRouteTypes {
     | '/signup'
     | '/app'
     | '/onboarding'
+    | '/r/$shareToken'
     | '/audits/$auditId'
     | '/growth/blueprint'
     | '/growth/execution'
     | '/growth/flow'
     | '/growth/gbp'
     | '/growth/intelligence'
+    | '/growth/leads'
     | '/growth/masterplan'
+    | '/growth/monthly-plan'
+    | '/growth/reports'
     | '/onboarding/business'
     | '/onboarding/done'
     | '/onboarding/site'
@@ -316,11 +378,13 @@ export interface FileRouteTypes {
     | '/settings/growth-goal'
     | '/settings/tone-profile'
     | '/sites/new'
+    | '/api/public/lead-ingest'
     | '/api/public/run-analyzer-job'
     | '/sites/'
     | '/audits/$auditId/compare'
     | '/audits/$auditId/proposals'
     | '/sites/$siteId/audits'
+    | '/sites/$siteId/inventory'
     | '/api/public/wpcom/callback'
     | '/growth/masterplan/$itemId/proposals'
   fileRoutesByTo: FileRoutesByTo
@@ -331,13 +395,17 @@ export interface FileRouteTypes {
     | '/signup'
     | '/app'
     | '/onboarding'
+    | '/r/$shareToken'
     | '/audits/$auditId'
     | '/growth/blueprint'
     | '/growth/execution'
     | '/growth/flow'
     | '/growth/gbp'
     | '/growth/intelligence'
+    | '/growth/leads'
     | '/growth/masterplan'
+    | '/growth/monthly-plan'
+    | '/growth/reports'
     | '/onboarding/business'
     | '/onboarding/done'
     | '/onboarding/site'
@@ -346,11 +414,13 @@ export interface FileRouteTypes {
     | '/settings/growth-goal'
     | '/settings/tone-profile'
     | '/sites/new'
+    | '/api/public/lead-ingest'
     | '/api/public/run-analyzer-job'
     | '/sites'
     | '/audits/$auditId/compare'
     | '/audits/$auditId/proposals'
     | '/sites/$siteId/audits'
+    | '/sites/$siteId/inventory'
     | '/api/public/wpcom/callback'
     | '/growth/masterplan/$itemId/proposals'
   id:
@@ -362,13 +432,17 @@ export interface FileRouteTypes {
     | '/signup'
     | '/_authenticated/app'
     | '/_authenticated/onboarding'
+    | '/r/$shareToken'
     | '/_authenticated/audits/$auditId'
     | '/_authenticated/growth/blueprint'
     | '/_authenticated/growth/execution'
     | '/_authenticated/growth/flow'
     | '/_authenticated/growth/gbp'
     | '/_authenticated/growth/intelligence'
+    | '/_authenticated/growth/leads'
     | '/_authenticated/growth/masterplan'
+    | '/_authenticated/growth/monthly-plan'
+    | '/_authenticated/growth/reports'
     | '/_authenticated/onboarding/business'
     | '/_authenticated/onboarding/done'
     | '/_authenticated/onboarding/site'
@@ -377,11 +451,13 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/growth-goal'
     | '/_authenticated/settings/tone-profile'
     | '/_authenticated/sites/new'
+    | '/api/public/lead-ingest'
     | '/api/public/run-analyzer-job'
     | '/_authenticated/sites/'
     | '/_authenticated/audits/$auditId_/compare'
     | '/_authenticated/audits/$auditId_/proposals'
     | '/_authenticated/sites/$siteId/audits'
+    | '/_authenticated/sites/$siteId/inventory'
     | '/api/public/wpcom/callback'
     | '/_authenticated/growth/masterplan_/$itemId/proposals'
   fileRoutesById: FileRoutesById
@@ -392,6 +468,8 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  RShareTokenRoute: typeof RShareTokenRoute
+  ApiPublicLeadIngestRoute: typeof ApiPublicLeadIngestRoute
   ApiPublicRunAnalyzerJobRoute: typeof ApiPublicRunAnalyzerJobRoute
   ApiPublicWpcomCallbackRoute: typeof ApiPublicWpcomCallbackRoute
 }
@@ -433,6 +511,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/r/$shareToken': {
+      id: '/r/$shareToken'
+      path: '/r/$shareToken'
+      fullPath: '/r/$shareToken'
+      preLoaderRoute: typeof RShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/onboarding': {
       id: '/_authenticated/onboarding'
       path: '/onboarding'
@@ -459,6 +544,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/run-analyzer-job'
       fullPath: '/api/public/run-analyzer-job'
       preLoaderRoute: typeof ApiPublicRunAnalyzerJobRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/lead-ingest': {
+      id: '/api/public/lead-ingest'
+      path: '/api/public/lead-ingest'
+      fullPath: '/api/public/lead-ingest'
+      preLoaderRoute: typeof ApiPublicLeadIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/sites/new': {
@@ -517,11 +609,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingBusinessRouteImport
       parentRoute: typeof AuthenticatedOnboardingRoute
     }
+    '/_authenticated/growth/reports': {
+      id: '/_authenticated/growth/reports'
+      path: '/growth/reports'
+      fullPath: '/growth/reports'
+      preLoaderRoute: typeof AuthenticatedGrowthReportsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/growth/monthly-plan': {
+      id: '/_authenticated/growth/monthly-plan'
+      path: '/growth/monthly-plan'
+      fullPath: '/growth/monthly-plan'
+      preLoaderRoute: typeof AuthenticatedGrowthMonthlyPlanRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/growth/masterplan': {
       id: '/_authenticated/growth/masterplan'
       path: '/growth/masterplan'
       fullPath: '/growth/masterplan'
       preLoaderRoute: typeof AuthenticatedGrowthMasterplanRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/growth/leads': {
+      id: '/_authenticated/growth/leads'
+      path: '/growth/leads'
+      fullPath: '/growth/leads'
+      preLoaderRoute: typeof AuthenticatedGrowthLeadsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/growth/intelligence': {
@@ -572,6 +685,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/public/wpcom/callback'
       preLoaderRoute: typeof ApiPublicWpcomCallbackRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/sites/$siteId/inventory': {
+      id: '/_authenticated/sites/$siteId/inventory'
+      path: '/sites/$siteId/inventory'
+      fullPath: '/sites/$siteId/inventory'
+      preLoaderRoute: typeof AuthenticatedSitesSiteIdInventoryRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/sites/$siteId/audits': {
       id: '/_authenticated/sites/$siteId/audits'
@@ -633,7 +753,10 @@ interface AuthenticatedRouteChildren {
   AuthenticatedGrowthFlowRoute: typeof AuthenticatedGrowthFlowRoute
   AuthenticatedGrowthGbpRoute: typeof AuthenticatedGrowthGbpRoute
   AuthenticatedGrowthIntelligenceRoute: typeof AuthenticatedGrowthIntelligenceRoute
+  AuthenticatedGrowthLeadsRoute: typeof AuthenticatedGrowthLeadsRoute
   AuthenticatedGrowthMasterplanRoute: typeof AuthenticatedGrowthMasterplanRoute
+  AuthenticatedGrowthMonthlyPlanRoute: typeof AuthenticatedGrowthMonthlyPlanRoute
+  AuthenticatedGrowthReportsRoute: typeof AuthenticatedGrowthReportsRoute
   AuthenticatedSettingsBusinessProfileRoute: typeof AuthenticatedSettingsBusinessProfileRoute
   AuthenticatedSettingsGrowthGoalRoute: typeof AuthenticatedSettingsGrowthGoalRoute
   AuthenticatedSettingsToneProfileRoute: typeof AuthenticatedSettingsToneProfileRoute
@@ -642,6 +765,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAuditsAuditIdCompareRoute: typeof AuthenticatedAuditsAuditIdCompareRoute
   AuthenticatedAuditsAuditIdProposalsRoute: typeof AuthenticatedAuditsAuditIdProposalsRoute
   AuthenticatedSitesSiteIdAuditsRoute: typeof AuthenticatedSitesSiteIdAuditsRoute
+  AuthenticatedSitesSiteIdInventoryRoute: typeof AuthenticatedSitesSiteIdInventoryRoute
   AuthenticatedGrowthMasterplanItemIdProposalsRoute: typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
 }
 
@@ -654,7 +778,10 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedGrowthFlowRoute: AuthenticatedGrowthFlowRoute,
   AuthenticatedGrowthGbpRoute: AuthenticatedGrowthGbpRoute,
   AuthenticatedGrowthIntelligenceRoute: AuthenticatedGrowthIntelligenceRoute,
+  AuthenticatedGrowthLeadsRoute: AuthenticatedGrowthLeadsRoute,
   AuthenticatedGrowthMasterplanRoute: AuthenticatedGrowthMasterplanRoute,
+  AuthenticatedGrowthMonthlyPlanRoute: AuthenticatedGrowthMonthlyPlanRoute,
+  AuthenticatedGrowthReportsRoute: AuthenticatedGrowthReportsRoute,
   AuthenticatedSettingsBusinessProfileRoute:
     AuthenticatedSettingsBusinessProfileRoute,
   AuthenticatedSettingsGrowthGoalRoute: AuthenticatedSettingsGrowthGoalRoute,
@@ -666,6 +793,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditsAuditIdProposalsRoute:
     AuthenticatedAuditsAuditIdProposalsRoute,
   AuthenticatedSitesSiteIdAuditsRoute: AuthenticatedSitesSiteIdAuditsRoute,
+  AuthenticatedSitesSiteIdInventoryRoute:
+    AuthenticatedSitesSiteIdInventoryRoute,
   AuthenticatedGrowthMasterplanItemIdProposalsRoute:
     AuthenticatedGrowthMasterplanItemIdProposalsRoute,
 }
@@ -680,9 +809,21 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  RShareTokenRoute: RShareTokenRoute,
+  ApiPublicLeadIngestRoute: ApiPublicLeadIngestRoute,
   ApiPublicRunAnalyzerJobRoute: ApiPublicRunAnalyzerJobRoute,
   ApiPublicWpcomCallbackRoute: ApiPublicWpcomCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

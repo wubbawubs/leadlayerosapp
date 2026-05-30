@@ -125,11 +125,11 @@ function BusinessProfilePage() {
 
   const saveMutation = useMutation({
     mutationFn: async (newStatus?: Status) => {
-      if (!tenantId) throw new Error("Geen tenant");
+      if (!tenantId) throw new Error("No active tenant");
       return save({ data: { tenantId, patch: profile, status: newStatus } });
     },
     onSuccess: () => {
-      setMsg("Opgeslagen.");
+      setMsg("Saved.");
       qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] });
       setTimeout(() => setMsg(null), 2000);
     },
@@ -138,7 +138,7 @@ function BusinessProfilePage() {
 
   const statusMutation = useMutation({
     mutationFn: async (s: Status) => {
-      if (!tenantId) throw new Error("Geen tenant");
+      if (!tenantId) throw new Error("No active tenant");
       return setStatus({ data: { tenantId, status: s } });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] }),
@@ -146,7 +146,7 @@ function BusinessProfilePage() {
 
   const lockMutation = useMutation({
     mutationFn: async (input: { fieldPath: string; lock: boolean }) => {
-      if (!tenantId) throw new Error("Geen tenant");
+      if (!tenantId) throw new Error("No active tenant");
       return lockField({ data: { tenantId, ...input } });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] }),
@@ -187,25 +187,25 @@ function BusinessProfilePage() {
     if (!job || !jobStorageKey) return;
     if (job.status === "succeeded") {
       setMsg(
-        `Analyzer klaar: ${job.result.suggestionsCreated} suggesties uit ${job.result.observedPages} pagina's.`,
+        `Analysis complete: ${job.result.suggestionsCreated} suggestions from ${job.result.observedPages} pages.`,
       );
       qc.invalidateQueries({ queryKey: ["bp-suggestions", tenantId] });
       qc.invalidateQueries({ queryKey: ["business-profile-v2", tenantId] });
       sessionStorage.removeItem(jobStorageKey);
     } else if (job.status === "failed") {
-      setMsg(`Analyzer fout: ${job.errorMessage ?? "onbekende fout"}`);
+      setMsg(`Analysis failed: ${job.errorMessage ?? "unknown error"}`);
       sessionStorage.removeItem(jobStorageKey);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.status]);
 
   const stageCopy: Record<string, string> = {
-    queued: "Analyse klaarzetten…",
-    crawl: "Pagina's ophalen…",
-    stage_a: "Feiten extraheren…",
-    stage_b: "Strategie bepalen…",
-    persist: "Suggesties opslaan…",
-    done: "Afronden…",
+    queued: "Queuing analysis…",
+    crawl: "Fetching pages…",
+    stage_a: "Extracting facts…",
+    stage_b: "Determining strategy…",
+    persist: "Saving suggestions…",
+    done: "Finishing…",
   };
 
   const stuck =
@@ -215,23 +215,23 @@ function BusinessProfilePage() {
 
   const analyzeMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("Geen tenant");
+      if (!tenantId) throw new Error("No active tenant");
       return startJob({ data: { tenantId } });
     },
     onSuccess: (r) => {
       if (!jobStorageKey) return;
       sessionStorage.setItem(jobStorageKey, r.jobId);
       setJobId(r.jobId);
-      setMsg(r.reused ? "Bestaande analyse hervat…" : "Analyse gestart…");
+      setMsg(r.reused ? "Resuming existing analysis…" : "Analysis started…");
     },
-    onError: (e) => setMsg(`Analyzer fout: ${(e as Error).message}`),
+    onError: (e) => setMsg(`Analysis failed: ${(e as Error).message}`),
   });
 
 
 
   const acceptMutation = useMutation({
     mutationFn: async (input: { suggestionId: string; lockAfter?: boolean }) => {
-      if (!tenantId) throw new Error("Geen tenant");
+      if (!tenantId) throw new Error("No active tenant");
       return acceptSuggestion({ data: { tenantId, ...input } });
     },
     onSuccess: () => {
@@ -243,7 +243,7 @@ function BusinessProfilePage() {
 
   const rejectMutation = useMutation({
     mutationFn: async (suggestionId: string) => {
-      if (!tenantId) throw new Error("Geen tenant");
+      if (!tenantId) throw new Error("No active tenant");
       return rejectSuggestion({ data: { tenantId, suggestionId } });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["bp-suggestions", tenantId] }),
@@ -251,7 +251,7 @@ function BusinessProfilePage() {
 
   const editAcceptMutation = useMutation({
     mutationFn: async (input: { suggestionId: string; editedValue: unknown }) => {
-      if (!tenantId) throw new Error("Geen tenant");
+      if (!tenantId) throw new Error("No active tenant");
       return editAcceptSuggestion({ data: { tenantId, ...input } });
     },
     onSuccess: () => {
@@ -366,8 +366,8 @@ function BusinessProfilePage() {
         </p>
         <h1 className="font-display text-4xl text-foreground">Business profile</h1>
         <p className="mt-2 text-muted-foreground">
-          De centrale strategielaag waar proposals, landingspagina&apos;s, CTA&apos;s en
-          reports straks op draaien. Vul in, laat AI aanvullen, lock wat zeker is.
+          The central strategy layer that drives proposals, landing pages, CTAs and reports.
+          Fill in what you know, use AI to suggest the rest, lock what is confirmed.
         </p>
 
         {/* Top status bar */}
@@ -382,17 +382,17 @@ function BusinessProfilePage() {
                 onClick={() => analyzeMutation.mutate()}
                 disabled={analyzeMutation.isPending || jobActive || !tenantId}
                 className="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
-                title="AI analyseert geauditeerde pagina's en stelt invullingen voor"
+                title="AI analyses your audited pages and suggests field values"
               >
                 {jobActive
-                  ? (stageCopy[job!.stage] ?? "Analyseren…")
+                  ? (stageCopy[job!.stage] ?? "Analysing…")
                   : analyzeMutation.isPending
-                    ? "Analyse starten…"
+                    ? "Starting analysis…"
                     : "Generate from website"}
               </button>
               {stuck && (
                 <span className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive">
-                  Analyse lijkt vast te lopen — probeer opnieuw
+                  Analysis appears stuck — try again
                 </span>
               )}
 
@@ -401,7 +401,7 @@ function BusinessProfilePage() {
                 disabled={saveMutation.isPending || !tenantId}
                 className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
               >
-                {saveMutation.isPending ? "Opslaan…" : "Save profile"}
+                {saveMutation.isPending ? "Saving…" : "Save profile"}
               </button>
               <button
                 onClick={() => statusMutation.mutate("review_ready")}
@@ -519,13 +519,13 @@ function BusinessProfilePage() {
           <Field label="Primair aanbod (1 zin)" path="offer_profile.primaryOffer" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Input value={offer.primaryOffer ?? ""} onChange={(v) => patchOffer("primaryOffer", v)} />
           </Field>
-          <Field label="Secundair aanbod" hint="Eén per regel" path="offer_profile.secondaryOffers" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Secondary offers" hint="One per line" path="offer_profile.secondaryOffers" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(offer.secondaryOffers)} onChange={(v) => patchOffer("secondaryOffers", splitLines(v))} rows={3} />
           </Field>
-          <Field label="High-value offers" hint="Eén per regel" path="offer_profile.highValueOffers" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="High-value offers" hint="One per line" path="offer_profile.highValueOffers" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(offer.highValueOffers)} onChange={(v) => patchOffer("highValueOffers", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Low-priority offers" hint="Eén per regel" path="offer_profile.lowPriorityOffers" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Low-priority offers" hint="One per line" path="offer_profile.lowPriorityOffers" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(offer.lowPriorityOffers)} onChange={(v) => patchOffer("lowPriorityOffers", splitLines(v))} rows={2} />
           </Field>
           <Field label="Offer mechanism (hoe werkt het?)" path="offer_profile.offerMechanism" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
@@ -561,44 +561,44 @@ function BusinessProfilePage() {
 
         {/* 3. ICP */}
         <Section title="3. ICP profile" desc="Voor wie optimaliseren we — en voor wie juist niet.">
-          <Field label="Ideale klanten" hint="Eén per regel" path="icp_profile.idealCustomers" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Ideal customers" hint="One per line" path="icp_profile.idealCustomers" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(icp.idealCustomers)} onChange={(v) => patchIcp("idealCustomers", splitLines(v))} rows={3} />
           </Field>
-          <Field label="Best-fit segmenten" hint="Eén per regel" path="icp_profile.bestFitSegments" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Best-fit segments" hint="One per line" path="icp_profile.bestFitSegments" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(icp.bestFitSegments)} onChange={(v) => patchIcp("bestFitSegments", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Bad-fit segmenten" hint="Eén per regel" path="icp_profile.badFitSegments" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Bad-fit segments" hint="One per line" path="icp_profile.badFitSegments" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(icp.badFitSegments)} onChange={(v) => patchIcp("badFitSegments", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Pijnpunten" hint="Eén per regel" path="icp_profile.painPoints" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Pain points" hint="One per line" path="icp_profile.painPoints" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(icp.painPoints)} onChange={(v) => patchIcp("painPoints", splitLines(v))} rows={3} />
           </Field>
-          <Field label="Buying triggers" hint="Eén per regel" path="icp_profile.buyingTriggers" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Buying triggers" hint="One per line" path="icp_profile.buyingTriggers" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(icp.buyingTriggers)} onChange={(v) => patchIcp("buyingTriggers", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Bezwaren" hint="Eén per regel" path="icp_profile.objections" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Objections" hint="One per line" path="icp_profile.objections" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(icp.objections)} onChange={(v) => patchIcp("objections", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Beslissingscriteria" hint="Eén per regel" path="icp_profile.decisionCriteria" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Decision criteria" hint="One per line" path="icp_profile.decisionCriteria" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(icp.decisionCriteria)} onChange={(v) => patchIcp("decisionCriteria", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Gewenste lead-types" hint="Eén per regel" path="icp_profile.desiredLeadTypes" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Desired lead types" hint="One per line" path="icp_profile.desiredLeadTypes" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(icp.desiredLeadTypes)} onChange={(v) => patchIcp("desiredLeadTypes", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Ongewenste lead-types" hint="Eén per regel" path="icp_profile.undesiredLeadTypes" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Undesired lead types" hint="One per line" path="icp_profile.undesiredLeadTypes" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(icp.undesiredLeadTypes)} onChange={(v) => patchIcp("undesiredLeadTypes", splitLines(v))} rows={2} />
           </Field>
         </Section>
 
         {/* 4. Location */}
-        <Section title="4. Location profile" desc="Werkgebieden en lokale kansen — gebruikt door schema en local SEO.">
+        <Section title="4. Location profile" desc="Service areas and local opportunities — used for schema and local SEO.">
           <Field label="Hoofdvestiging / primaire locatie" path="location_profile.primaryLocation" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Input value={loc.primaryLocation ?? ""} onChange={(v) => patchLocation("primaryLocation", v)} />
           </Field>
-          <Field label="Werkgebieden" hint="Eén per regel" path="location_profile.serviceAreas" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Service areas" hint="One per line" path="location_profile.serviceAreas" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(loc.serviceAreas)} onChange={(v) => patchLocation("serviceAreas", splitLines(v))} rows={3} />
           </Field>
-          <Field label="Uitgesloten gebieden" hint="Eén per regel" path="location_profile.excludedAreas" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Excluded areas" hint="One per line" path="location_profile.excludedAreas" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(loc.excludedAreas)} onChange={(v) => patchLocation("excludedAreas", splitLines(v))} rows={2} />
           </Field>
           <Field label="Region type" path="location_profile.regionType" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
@@ -615,10 +615,10 @@ function BusinessProfilePage() {
               ]}
             />
           </Field>
-          <Field label="Local search patterns" hint='Bv. "kapper amsterdam", "near me"' path="location_profile.localSearchPatterns" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Local search patterns" hint='e.g. "ac repair dallas", "near me"' path="location_profile.localSearchPatterns" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(loc.localSearchPatterns)} onChange={(v) => patchLocation("localSearchPatterns", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Location page opportunities" hint="Eén per regel" path="location_profile.locationPageOpportunities" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Location page opportunities" hint="One per line" path="location_profile.locationPageOpportunities" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(loc.locationPageOpportunities)} onChange={(v) => patchLocation("locationPageOpportunities", splitLines(v))} rows={2} />
           </Field>
         </Section>
@@ -628,10 +628,10 @@ function BusinessProfilePage() {
           <Field label="Primaire CTA" path="conversion_profile.primaryCta" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Input value={conv.primaryCta ?? ""} onChange={(v) => patchConversion("primaryCta", v)} />
           </Field>
-          <Field label="Secundaire CTA" path="conversion_profile.secondaryCta" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Secondary CTA" path="conversion_profile.secondaryCta" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Input value={conv.secondaryCta ?? ""} onChange={(v) => patchConversion("secondaryCta", v)} />
           </Field>
-          <Field label="Voorkeurs-contactmethode" path="conversion_profile.preferredContactMethod" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Preferred contact method" path="conversion_profile.preferredContactMethod" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Input value={conv.preferredContactMethod ?? ""} onChange={(v) => patchConversion("preferredContactMethod", v)} />
           </Field>
           <div className="grid grid-cols-3 gap-3">
@@ -648,32 +648,32 @@ function BusinessProfilePage() {
           <Field label="Sales process" path="conversion_profile.salesProcess" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={conv.salesProcess ?? ""} onChange={(v) => patchConversion("salesProcess", v)} rows={2} />
           </Field>
-          <Field label="Conversion barriers" hint="Eén per regel" path="conversion_profile.conversionBarriers" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Conversion barriers" hint="One per line" path="conversion_profile.conversionBarriers" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(conv.conversionBarriers)} onChange={(v) => patchConversion("conversionBarriers", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Trust-elementen die nog ontbreken" hint="Eén per regel" path="conversion_profile.trustElementsNeeded" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Missing trust elements" hint="One per line" path="conversion_profile.trustElementsNeeded" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(conv.trustElementsNeeded)} onChange={(v) => patchConversion("trustElementsNeeded", splitLines(v))} rows={2} />
           </Field>
         </Section>
 
         {/* 6. Proof */}
         <Section title="6. Proof profile" desc="Verified vs unverified bewijs. Unverified mag de proposal engine niet hard claimen.">
-          <Field label="Verified proof points" hint="Eén per regel — cijfers, cases, certificeringen mét bron" path="proof_profile.verifiedProofPoints" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Verified proof points" hint="One per line — figures, cases, certifications with source" path="proof_profile.verifiedProofPoints" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(proof.verifiedProofPoints)} onChange={(v) => patchProof("verifiedProofPoints", splitLines(v))} rows={3} />
           </Field>
-          <Field label="Unverified proof points" hint="Eén per regel — claims zonder bron" path="proof_profile.unverifiedProofPoints" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Unverified proof points" hint="One per line — claims without source" path="proof_profile.unverifiedProofPoints" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(proof.unverifiedProofPoints)} onChange={(v) => patchProof("unverifiedProofPoints", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Proof gaps" hint="Eén per regel — waar mist bewijs?" path="proof_profile.proofGaps" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Proof gaps" hint="One per line — where is proof missing?" path="proof_profile.proofGaps" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(proof.proofGaps)} onChange={(v) => patchProof("proofGaps", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Reviews / signalen" hint="Eén per regel" path="proof_profile.reviewSignals" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Reviews / signals" hint="One per line" path="proof_profile.reviewSignals" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(proof.reviewSignals)} onChange={(v) => patchProof("reviewSignals", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Case studies" hint="Eén per regel" path="proof_profile.caseStudySignals" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Case studies" hint="One per line" path="proof_profile.caseStudySignals" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(proof.caseStudySignals)} onChange={(v) => patchProof("caseStudySignals", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Certificeringen" hint="Eén per regel" path="proof_profile.certifications" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Certifications" hint="One per line" path="proof_profile.certifications" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(proof.certifications)} onChange={(v) => patchProof("certifications", splitLines(v))} rows={2} />
           </Field>
           <Field label="Jaren ervaring" path="proof_profile.yearsExperience" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
@@ -683,22 +683,22 @@ function BusinessProfilePage() {
 
         {/* 7. Claim guardrails */}
         <Section title="7. Claim guardrails" desc="Welke claims mogen wel, welke niet. Forbidden claims blokkeren proposals.">
-          <Field label="Allowed claims" hint="Eén per regel" path="claim_guardrails.allowedClaims" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Allowed claims" hint="One per line" path="claim_guardrails.allowedClaims" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(guard.allowedClaims)} onChange={(v) => patchGuard("allowedClaims", splitLines(v))} rows={3} />
           </Field>
-          <Field label="Risky claims" hint="Eén per regel" path="claim_guardrails.riskyClaims" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Risky claims" hint="One per line" path="claim_guardrails.riskyClaims" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(guard.riskyClaims)} onChange={(v) => patchGuard("riskyClaims", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Forbidden claims" hint='Bv. "gegarandeerd #1 in Google"' path="claim_guardrails.forbiddenClaims" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Forbidden claims" hint='e.g. "guaranteed #1 in Google"' path="claim_guardrails.forbiddenClaims" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(guard.forbiddenClaims)} onChange={(v) => patchGuard("forbiddenClaims", splitLines(v))} rows={2} />
           </Field>
-          <Field label="Compliance / juridische notes" hint="Eén per regel" path="claim_guardrails.complianceNotes" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
+          <Field label="Compliance / legal notes" hint="One per line" path="claim_guardrails.complianceNotes" isLocked={isLocked} onLock={(p, l) => lockMutation.mutate({ fieldPath: p, lock: l })}>
             <Textarea value={joinLines(guard.complianceNotes)} onChange={(v) => patchGuard("complianceNotes", splitLines(v))} rows={2} />
           </Field>
         </Section>
 
         {/* 8. Strategy angles */}
-        <Section title="8. Strategy angles" desc="Commerciële invalshoeken die de Proposal Engine en Monthly Planner gebruiken.">
+        <Section title="8. Strategy angles" desc="Commercial angles used by the Proposal Engine and Monthly Planner.">
           <StrategyAngles
             angles={profile.strategy_angles}
             onChange={(angles) => setProfile((p) => ({ ...p, strategy_angles: angles }))}
@@ -706,7 +706,7 @@ function BusinessProfilePage() {
         </Section>
 
         {/* 9. Missing context */}
-        <Section title="9. Missing context" desc="Eerlijk: wat weet het systeem niet? Wordt later AI-gevuld; nu handmatig.">
+        <Section title="9. Missing context" desc="What does the system not yet know? Add manually now; AI will help fill gaps later.">
           <MissingContext
             items={profile.missing_context}
             onChange={(items) => setProfile((p) => ({ ...p, missing_context: items }))}
@@ -719,7 +719,7 @@ function BusinessProfilePage() {
             disabled={saveMutation.isPending || !tenantId}
             className="rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
           >
-            {saveMutation.isPending ? "Opslaan…" : "Save profile"}
+            {saveMutation.isPending ? "Saving…" : "Save profile"}
           </button>
           {msg && <span className="text-sm text-muted-foreground">{msg}</span>}
         </div>
@@ -991,12 +991,12 @@ function MissingContext({
   return (
     <div className="space-y-3">
       {items.length === 0 && (
-        <p className="text-sm text-muted-foreground">Geen open vragen. AI (BP-2) zal hier gaps detecteren.</p>
+        <p className="text-sm text-muted-foreground">No open questions. AI will detect gaps here during the next analysis run.</p>
       )}
       {items.map((x, i) => (
         <div key={i} className="rounded-md border border-border bg-background p-3 space-y-2">
           <div className="grid grid-cols-[1fr_140px_auto] items-start gap-2">
-            <Input value={x.missing} onChange={(v) => update(i, { missing: v })} placeholder="Wat ontbreekt?" />
+            <Input value={x.missing} onChange={(v) => update(i, { missing: v })} placeholder="What is missing?" />
             <Select
               value={x.priority ?? "medium"}
               onChange={(v) => update(i, { priority: v as MissingContextItem["priority"] })}
@@ -1018,7 +1018,7 @@ function MissingContext({
           <Input
             value={x.recommendedQuestion ?? ""}
             onChange={(v) => update(i, { recommendedQuestion: v })}
-            placeholder="Vraag aan operator/klant"
+            placeholder="Question for operator / client"
           />
         </div>
       ))}
@@ -1067,8 +1067,8 @@ function SuggestionsPanel({
     <section className="mt-6 rounded-lg border border-primary/30 bg-primary/5 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-lg text-foreground">
-          AI suggesties ({visible.length}
-          {genericCount > 0 && !showGeneric ? ` · ${genericCount} generiek verborgen` : ""})
+          AI suggestions ({visible.length}
+          {genericCount > 0 && !showGeneric ? ` · ${genericCount} generic hidden` : ""})
         </h2>
         <div className="flex items-center gap-3">
           {genericCount > 0 && (
@@ -1079,11 +1079,11 @@ function SuggestionsPanel({
                 onChange={(e) => setShowGeneric(e.target.checked)}
                 className="h-3.5 w-3.5"
               />
-              Toon generieke aanbevelingen ({genericCount})
+              Show generic recommendations ({genericCount})
             </label>
           )}
           <span className="text-xs text-muted-foreground">
-            Niets wordt automatisch overschreven.
+            Nothing is overwritten automatically.
           </span>
         </div>
       </div>
@@ -1109,7 +1109,7 @@ function SuggestionsPanel({
         ))}
         {visible.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Alleen generieke aanbevelingen beschikbaar — toggle aanzetten om ze te bekijken.
+            Only generic recommendations available — enable the toggle above to view them.
           </p>
         )}
       </div>

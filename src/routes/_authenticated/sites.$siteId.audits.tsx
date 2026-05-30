@@ -72,10 +72,19 @@ function AuditsListPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <div className="mb-6">
+      <div className="mb-6 flex items-center gap-4">
         <Link to="/sites" className="text-sm text-muted-foreground hover:text-foreground">
           ← Back to sites
         </Link>
+        {(site?.type === "wordpress" || site?.type === "wordpress_com") && (
+          <Link
+            to="/sites/$siteId/inventory"
+            params={{ siteId }}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Inventory →
+          </Link>
+        )}
       </div>
       <div className="mb-8 flex items-end justify-between gap-4">
         <div>
