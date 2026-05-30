@@ -128,3 +128,28 @@ then migrate or drop in a dedicated cleanup sprint.
 - Any publishing code
 - Tracking / reporting
 - Removing audit/proposal/QA functionality
+
+## New Tables — Existing Page Optimization V1 (2026-05-29)
+
+| Table | Status | Notes |
+|---|---|---|
+| `page_optimization_snapshots` | **live** | Immutable before-snapshots of existing WP pages |
+| `wordpress_page_updates` | **live** | Per-update PATCH delivery proof |
+
+### Extended tables
+
+| Table | Changes |
+|---|---|
+| `execution_artifacts` | Added `delivery_status`, `delivered_at`, `delivered_by`, `delivered_url`, `before_snapshot_ref` |
+| `wordpress_site_inventory` | Added `last_optimized_at`, `last_optimized_by` |
+
+### New server functions
+
+| Function | Location |
+|---|---|
+| `fetchAndSnapshotExistingWordpressPage` | `src/lib/shared/existingPageOptimization/existingPageOptimization.functions.ts` |
+| `generateExistingPageOptimizationBrief` | same |
+| `applyExistingPageOptimization` | same |
+| `getOptimizationSnapshot` | same |
+| `fetchSelfHostedWordpressPage` | `src/lib/shared/wpcom/wp-rest.server.ts` |
+| `updateSelfHostedWordpressPage` | same |

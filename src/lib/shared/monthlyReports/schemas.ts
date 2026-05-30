@@ -19,7 +19,7 @@ export const LeadSummarySchema = z.object({
   won: z.number().int(),
   lost: z.number().int(),
   new: z.number().int(),
-  unqualified: z.number().int(),
+  junk: z.number().int(),
   sources: z.record(z.string(), z.number().int()),
 });
 export type LeadSummary = z.infer<typeof LeadSummarySchema>;
@@ -47,6 +47,7 @@ export type ExecutionSummary = z.infer<typeof ExecutionSummarySchema>;
 export const WordpressSummarySchema = z.object({
   draftsCreated: z.number().int(),
   draftsPublished: z.number().int(),
+  pagesOptimized: z.number().int().default(0),
   drafts: z.array(
     z.object({
       title: z.string().nullable(),
@@ -57,6 +58,15 @@ export const WordpressSummarySchema = z.object({
       publishedAt: z.string().nullable(),
     }),
   ),
+  optimizedPages: z
+    .array(
+      z.object({
+        title: z.string().nullable(),
+        url: z.string().nullable(),
+        appliedAt: z.string().nullable(),
+      }),
+    )
+    .optional(),
 });
 export type WordpressSummary = z.infer<typeof WordpressSummarySchema>;
 

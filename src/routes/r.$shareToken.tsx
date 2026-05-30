@@ -145,13 +145,13 @@ function PublicReportView({ report }: { report: MonthlyReport }) {
               <Stat label="Qualified" value={ls.qualified} />
               <Stat label="Won" value={ls.won} />
               <Stat label="Lost" value={ls.lost} />
-              <Stat label="Unqualified" value={ls.unqualified} />
+              <Stat label="Unqualified" value={ls.junk} />
             </div>
           </section>
         )}
 
         {/* Delivery — only show if something was delivered */}
-        {(es.artifactsApproved > 0 || ws.draftsCreated > 0 || ws.draftsPublished > 0 || es.masterplanItemsDone > 0) && (
+        {(es.artifactsApproved > 0 || ws.draftsCreated > 0 || ws.draftsPublished > 0 || es.masterplanItemsDone > 0 || (ws.pagesOptimized ?? 0) > 0) && (
           <section>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               Delivery
@@ -159,6 +159,9 @@ function PublicReportView({ report }: { report: MonthlyReport }) {
             <div className="grid grid-cols-3 gap-3 text-sm">
               {ws.draftsPublished > 0 && (
                 <Stat label="Pages published" value={ws.draftsPublished} />
+              )}
+              {(ws.pagesOptimized ?? 0) > 0 && (
+                <Stat label="Existing pages improved" value={ws.pagesOptimized ?? 0} />
               )}
               {ws.draftsCreated > 0 && ws.draftsPublished < ws.draftsCreated && (
                 <Stat label="Drafts pending" value={ws.draftsCreated - ws.draftsPublished} />

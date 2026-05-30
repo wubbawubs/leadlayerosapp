@@ -40,7 +40,7 @@ export type WordpressDeliveryState = (typeof WORDPRESS_DELIVERY_STATES)[number];
 
 export const PageBriefSectionSchema = z.object({
   heading: z.string().max(160),
-  body: z.string().max(800),
+  body: z.string().max(1500),
 });
 export type PageBriefSection = z.infer<typeof PageBriefSectionSchema>;
 
@@ -99,14 +99,20 @@ export const PageBriefArtifactPayloadSchema = z.object({
   pageType: z.enum(["service_page", "location_page"]),
   targetService: z.string().nullable(),
   targetLocation: z.string().nullable(),
+  // Primary keyword targeted in H1, meta title, and introBlock first paragraph
+  primaryKeyword: z.string().max(120).nullable().default(null),
+  // Full keyword cluster from DataForSEO — secondary terms for natural language coverage
+  keywordCluster: z.array(z.string().max(120)).max(20).default([]),
+  keywordVolume: z.number().int().nullable().default(null),
+  keywordDifficulty: z.number().nullable().default(null),
   targetSlug: z.string().max(150),
   parentSlug: z.string().max(150).nullable(),
   h1: z.string().max(120),
   metaTitle: z.string().max(70),
   metaDescription: z.string().max(160),
-  introBlock: z.string().max(1200),
-  serviceSections: z.array(PageBriefSectionSchema).max(6),
-  faqBlock: z.array(PageBriefFaqItemSchema).max(6),
+  introBlock: z.string().max(2000),
+  serviceSections: z.array(PageBriefSectionSchema).max(8),
+  faqBlock: z.array(PageBriefFaqItemSchema).max(8),
   proofBlock: PageBriefProofBlockSchema,
   ctaBlock: PageBriefCtaBlockSchema,
   schemaRecommendation: PageBriefSchemaRecommendationSchema,

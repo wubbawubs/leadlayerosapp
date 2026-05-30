@@ -860,8 +860,13 @@ export type Database = {
       execution_artifacts: {
         Row: {
           artifact_type: string
+          before_snapshot_ref: string | null
           created_at: string
+          delivered_at: string | null
+          delivered_by: string | null
+          delivered_url: string | null
           delivery_readiness: Json
+          delivery_status: string | null
           generated_from: Json
           growth_goal_id: string | null
           id: string
@@ -876,8 +881,13 @@ export type Database = {
         }
         Insert: {
           artifact_type: string
+          before_snapshot_ref?: string | null
           created_at?: string
+          delivered_at?: string | null
+          delivered_by?: string | null
+          delivered_url?: string | null
           delivery_readiness?: Json
+          delivery_status?: string | null
           generated_from?: Json
           growth_goal_id?: string | null
           id?: string
@@ -892,8 +902,13 @@ export type Database = {
         }
         Update: {
           artifact_type?: string
+          before_snapshot_ref?: string | null
           created_at?: string
+          delivered_at?: string | null
+          delivered_by?: string | null
+          delivered_url?: string | null
           delivery_readiness?: Json
+          delivery_status?: string | null
           generated_from?: Json
           growth_goal_id?: string | null
           id?: string
@@ -926,6 +941,164 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      page_optimization_snapshots: {
+        Row: {
+          id: string
+          tenant_id: string
+          wordpress_connection_id: string
+          wp_post_id: number
+          wp_post_type: string
+          wp_status: string | null
+          title: string | null
+          slug: string | null
+          link: string | null
+          excerpt: string | null
+          raw_content: string | null
+          rendered_content: string | null
+          detected_builder: string | null
+          eligibility_status: string
+          content_hash: string
+          fetched_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          wordpress_connection_id: string
+          wp_post_id: number
+          wp_post_type?: string
+          wp_status?: string | null
+          title?: string | null
+          slug?: string | null
+          link?: string | null
+          excerpt?: string | null
+          raw_content?: string | null
+          rendered_content?: string | null
+          detected_builder?: string | null
+          eligibility_status: string
+          content_hash: string
+          fetched_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          wordpress_connection_id?: string
+          wp_post_id?: number
+          wp_post_type?: string
+          wp_status?: string | null
+          title?: string | null
+          slug?: string | null
+          link?: string | null
+          excerpt?: string | null
+          raw_content?: string | null
+          rendered_content?: string | null
+          detected_builder?: string | null
+          eligibility_status?: string
+          content_hash?: string
+          fetched_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_wordpress_connection_id_fkey"
+            columns: ["wordpress_connection_id"]
+            isOneToOne: false
+            referencedRelation: "wordpress_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wordpress_page_updates: {
+        Row: {
+          id: string
+          tenant_id: string
+          execution_artifact_id: string | null
+          snapshot_id: string | null
+          wordpress_connection_id: string
+          wp_post_id: number
+          status: string
+          applied_at: string | null
+          applied_by: string | null
+          update_source: string
+          fields_updated: Json
+          error_message: string | null
+          raw_response: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          execution_artifact_id?: string | null
+          snapshot_id?: string | null
+          wordpress_connection_id: string
+          wp_post_id: number
+          status?: string
+          applied_at?: string | null
+          applied_by?: string | null
+          update_source?: string
+          fields_updated?: Json
+          error_message?: string | null
+          raw_response?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          execution_artifact_id?: string | null
+          snapshot_id?: string | null
+          wordpress_connection_id?: string
+          wp_post_id?: number
+          status?: string
+          applied_at?: string | null
+          applied_by?: string | null
+          update_source?: string
+          fields_updated?: Json
+          error_message?: string | null
+          raw_response?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wpu_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wpu_wordpress_connection_id_fkey"
+            columns: ["wordpress_connection_id"]
+            isOneToOne: false
+            referencedRelation: "wordpress_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wpu_execution_artifact_id_fkey"
+            columns: ["execution_artifact_id"]
+            isOneToOne: false
+            referencedRelation: "execution_artifacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wpu_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "page_optimization_snapshots"
             referencedColumns: ["id"]
           },
         ]
@@ -3046,6 +3219,8 @@ export type Database = {
           content_hash: string | null
           created_at: string
           id: string
+          last_optimized_at: string | null
+          last_optimized_by: string | null
           last_synced_at: string
           link: string | null
           mapped_page_role: string | null
@@ -3068,6 +3243,8 @@ export type Database = {
           content_hash?: string | null
           created_at?: string
           id?: string
+          last_optimized_at?: string | null
+          last_optimized_by?: string | null
           last_synced_at?: string
           link?: string | null
           mapped_page_role?: string | null
@@ -3090,6 +3267,8 @@ export type Database = {
           content_hash?: string | null
           created_at?: string
           id?: string
+          last_optimized_at?: string | null
+          last_optimized_by?: string | null
           last_synced_at?: string
           link?: string | null
           mapped_page_role?: string | null
@@ -3399,6 +3578,10 @@ export type Database = {
           published_by: string | null
           published_url: string | null
           publication_notes: string | null
+          seo_meta_status: string | null
+          meta_title: string | null
+          meta_description: string | null
+          publish_source: string | null
           created_at: string
           updated_at: string
         }
@@ -3422,6 +3605,10 @@ export type Database = {
           published_by?: string | null
           published_url?: string | null
           publication_notes?: string | null
+          seo_meta_status?: string | null
+          meta_title?: string | null
+          meta_description?: string | null
+          publish_source?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -3445,6 +3632,10 @@ export type Database = {
           published_by?: string | null
           published_url?: string | null
           publication_notes?: string | null
+          seo_meta_status?: string | null
+          meta_title?: string | null
+          meta_description?: string | null
+          publish_source?: string | null
           created_at?: string
           updated_at?: string
         }

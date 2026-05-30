@@ -19,13 +19,17 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { decrypt } from "@/lib/shared/secrets/crypto.server";
-import { createSelfHostedWordpressDraft } from "@/lib/shared/wpcom/wp-rest.server";
+import {
+  createSelfHostedWordpressDraft,
+  publishSelfHostedWordpressDraft,
+} from "@/lib/shared/wpcom/wp-rest.server";
 import { pageBriefToGutenbergContent } from "./gutenberg.server";
 import {
   CreateWordpressDraftInputSchema,
   GetWordpressDraftForArtifactInputSchema,
   ListWordpressDraftsInputSchema,
   MarkWordpressDraftPublishedInputSchema,
+  PublishWordpressDraftInputSchema,
   type DraftSafetyChecks,
   type WordpressDraftPayload,
 } from "./schemas";
@@ -171,6 +175,9 @@ export const createWordpressDraftFromArtifact = createServerFn({ method: "POST" 
       );
     }
 
+    // Read detected SEO plugin (stored at capability-check time)
+    const seoPlugin = (caps.seoPlugin as "yoast" | "rankmath" | "none" | undefined) ?? "none";
+
     // 3. Build safety checks (stored on bundle, checked before API call)
     const safetyChecks: DraftSafetyChecks = {
       artifactApproved: artRow.status === "approved",
@@ -218,7 +225,7 @@ export const createWordpressDraftFromArtifact = createServerFn({ method: "POST" 
       );
       if (!username) throw new Error("WordPress username not found in site connection");
 
-      // 7. Call WP REST API — draft only
+      // 7. Call WP REST API — draft only, with SEO meta push
       wpResult = await createSelfHostedWordpressDraft({
         baseUrl: connRow.base_url as string,
         username,
@@ -227,6 +234,9 @@ export const createWordpressDraftFromArtifact = createServerFn({ method: "POST" 
         slug: draftPayload.slug,
         content: draftPayload.content,
         excerpt: draftPayload.excerpt,
+        metaTitle: draftPayload.metaTitle ?? null,
+        metaDescription: draftPayload.metaDescription ?? null,
+        seoPlugin,
       });
     } catch (credErr) {
       // Credential / network failure — record the failed draft row, update bundle
@@ -239,6 +249,9 @@ export const createWordpressDraftFromArtifact = createServerFn({ method: "POST" 
         status: "failed",
         error_message: errMsg,
         raw_response: {},
+        seo_meta_status: "skipped",
+        meta_title: draftPayload.metaTitle ?? null,
+        meta_description: draftPayload.metaDescription ?? null,
       });
       await admin
         .from("publishing_bundles")
@@ -268,6 +281,9 @@ export const createWordpressDraftFromArtifact = createServerFn({ method: "POST" 
         status: draftStatus,
         error_message: wpResult.ok ? null : (wpResult.error ?? "WP API error"),
         raw_response: wpResult.rawResponse,
+        seo_meta_status: wpResult.seoMetaStatus,
+        meta_title: draftPayload.metaTitle ?? null,
+        meta_description: draftPayload.metaDescription ?? null,
       })
       .select("id")
       .single();
@@ -308,7 +324,7 @@ export const getWordpressDraftForArtifact = createServerFn({ method: "POST" })
 
     const { data: row, error } = await admin
       .from("wordpress_drafts")
-      .select("id, status, wp_post_id, wp_edit_link, wp_preview_link, target_slug, title, error_message, published_at, published_by, published_url, publication_notes, created_at")
+      .select("id, status, wp_post_id, wp_edit_link, wp_preview_link, target_slug, title, error_message, seo_meta_status, meta_title, meta_description, publish_source, published_at, published_by, published_url, publication_notes, created_at")
       .eq("tenant_id", data.tenantId)
       .eq("execution_artifact_id", data.artifactId)
       .order("created_at", { ascending: false })
@@ -328,6 +344,10 @@ export const getWordpressDraftForArtifact = createServerFn({ method: "POST" })
         targetSlug: row.target_slug as string | null,
         title: row.title as string | null,
         errorMessage: row.error_message as string | null,
+        seoMetaStatus: (row.seo_meta_status as string | null) ?? null,
+        metaTitle: (row.meta_title as string | null) ?? null,
+        metaDescription: (row.meta_description as string | null) ?? null,
+        publishSource: (row.publish_source as string | null) ?? null,
         publishedAt: (row.published_at as string | null) ?? null,
         publishedBy: (row.published_by as string | null) ?? null,
         publishedUrl: (row.published_url as string | null) ?? null,
@@ -351,7 +371,7 @@ export const listWordpressDraftsForTenant = createServerFn({ method: "POST" })
 
     const { data: rows, error } = await admin
       .from("wordpress_drafts")
-      .select("id, status, wp_post_id, wp_edit_link, wp_preview_link, target_slug, title, error_message, published_at, published_by, published_url, publication_notes, created_at")
+      .select("id, status, wp_post_id, wp_edit_link, wp_preview_link, target_slug, title, error_message, seo_meta_status, meta_title, meta_description, publish_source, published_at, published_by, published_url, publication_notes, created_at")
       .eq("tenant_id", data.tenantId)
       .order("created_at", { ascending: false })
       .limit(data.limit ?? 50);
@@ -367,6 +387,10 @@ export const listWordpressDraftsForTenant = createServerFn({ method: "POST" })
         targetSlug: r.target_slug as string | null,
         title: r.title as string | null,
         errorMessage: r.error_message as string | null,
+        seoMetaStatus: (r.seo_meta_status as string | null) ?? null,
+        metaTitle: (r.meta_title as string | null) ?? null,
+        metaDescription: (r.meta_description as string | null) ?? null,
+        publishSource: (r.publish_source as string | null) ?? null,
         publishedAt: (r.published_at as string | null) ?? null,
         publishedBy: (r.published_by as string | null) ?? null,
         publishedUrl: (r.published_url as string | null) ?? null,
@@ -391,7 +415,7 @@ export const markWordpressDraftPublished = createServerFn({ method: "POST" })
 
     const { data: existing, error: checkErr } = await admin
       .from("wordpress_drafts")
-      .select("id, status, published_at")
+      .select("id, status, published_at, publishing_bundle_id")
       .eq("id", data.draftId)
       .eq("tenant_id", data.tenantId)
       .maybeSingle();
@@ -399,20 +423,30 @@ export const markWordpressDraftPublished = createServerFn({ method: "POST" })
     if (!existing) throw new Error("WordPress draft not found");
     if (existing.published_at) throw new Error("Draft is already marked as published");
 
+    const now = new Date().toISOString();
     const { data: row, error } = await admin
       .from("wordpress_drafts")
       .update({
         status: "published",
-        published_at: new Date().toISOString(),
+        published_at: now,
         published_by: userId,
         published_url: data.publishedUrl ?? null,
         publication_notes: data.notes ?? null,
+        publish_source: "operator_manual",
       })
       .eq("id", data.draftId)
       .eq("tenant_id", data.tenantId)
       .select("id, status, published_at, published_url, publication_notes, wp_edit_link, wp_preview_link, target_slug, title")
       .single();
     if (error) throw error;
+
+    // Keep publishing_bundle in sync
+    if (existing.publishing_bundle_id) {
+      await admin
+        .from("publishing_bundles")
+        .update({ status: "approved_for_publish" })
+        .eq("id", existing.publishing_bundle_id as string);
+    }
 
     return {
       ok: true,
@@ -422,5 +456,112 @@ export const markWordpressDraftPublished = createServerFn({ method: "POST" })
       publishedUrl: (row.published_url as string | null) ?? null,
       title: (row.title as string | null) ?? null,
       targetSlug: (row.target_slug as string | null) ?? null,
+    };
+  });
+// ------------------------------------------------------------------
+// 5. publishWordpressDraftFromLeadLayer
+//    Operator-initiated publish via WP REST API PATCH.
+//    Gates: draft exists, status=created, wp_post_id not null,
+//           WP connection connected, canCreateDraft, self-hosted only.
+//    No auto-publish — operator must explicitly confirm in the UI.
+// ------------------------------------------------------------------
+
+export const publishWordpressDraftFromLeadLayer = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => PublishWordpressDraftInputSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+
+    // 1. Load the draft — verify ownership and eligibility
+    const { data: draft, error: draftErr } = await admin
+      .from("wordpress_drafts")
+      .select("id, status, wp_post_id, wordpress_connection_id, publishing_bundle_id, published_at, title, target_slug")
+      .eq("id", data.draftId)
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
+    if (draftErr) throw draftErr;
+    if (!draft) throw new Error("WordPress draft not found");
+    if (draft.published_at) throw new Error("Draft is already published");
+    if (draft.status !== "created") {
+      throw new Error(`Draft must be in 'created' state to publish (current: ${draft.status as string})`);
+    }
+    if (!draft.wp_post_id) {
+      throw new Error("Draft has no WordPress post ID — cannot publish");
+    }
+
+    // 2. Load the WP connection
+    const { data: conn, error: connErr } = await admin
+      .from("wordpress_connections")
+      .select("id, site_connection_id, kind, base_url, status, capabilities")
+      .eq("id", draft.wordpress_connection_id as string)
+      .maybeSingle();
+    if (connErr) throw connErr;
+    if (!conn) throw new Error("WordPress connection not found");
+    if (conn.status !== "connected") throw new Error("WordPress site is not connected — re-check the connection from the Sites page");
+    if ((conn.kind as string) === "wordpress_com") {
+      throw new Error("Publishing from LeadLayer is not supported for WordPress.com sites in V2");
+    }
+
+    const caps = (conn.capabilities ?? {}) as Record<string, unknown>;
+    if (!caps.canCreateDraft) {
+      throw new Error("The WordPress connection does not have publish access — re-check capabilities");
+    }
+
+    // 3. Load credentials
+    const { username, secret } = await loadCredentials(
+      conn.site_connection_id as string,
+      data.tenantId,
+      conn.kind as string,
+    );
+    if (!username) throw new Error("WordPress username not found on site connection");
+
+    // 4. Call WP REST API to publish
+    const wpResult = await publishSelfHostedWordpressDraft({
+      baseUrl: conn.base_url as string,
+      username,
+      appPassword: secret,
+      wpPostId: draft.wp_post_id as number,
+    });
+
+    if (!wpResult.ok) {
+      // Record the error but do not change draft status — operator can retry
+      await admin
+        .from("wordpress_drafts")
+        .update({ error_message: wpResult.error ?? "Publish failed" })
+        .eq("id", data.draftId);
+      throw new Error(wpResult.error ?? "WordPress publish failed");
+    }
+
+    // 5. Record successful publish
+    const now = new Date().toISOString();
+    await admin
+      .from("wordpress_drafts")
+      .update({
+        status: "published",
+        wp_status: "publish",
+        published_at: now,
+        published_by: userId,
+        published_url: wpResult.publishedUrl ?? null,
+        publish_source: "leadlayer_publish",
+        error_message: null,
+      })
+      .eq("id", data.draftId);
+
+    // 6. Keep publishing_bundle in sync
+    if (draft.publishing_bundle_id) {
+      await admin
+        .from("publishing_bundles")
+        .update({ status: "approved_for_publish" })
+        .eq("id", draft.publishing_bundle_id as string);
+    }
+
+    return {
+      ok: true,
+      draftId: data.draftId,
+      publishedUrl: wpResult.publishedUrl,
+      publishedAt: now,
+      title: (draft.title as string | null) ?? null,
+      targetSlug: (draft.target_slug as string | null) ?? null,
     };
   });

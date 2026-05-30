@@ -39,7 +39,7 @@ async function assertOperator(supabase: any, userId: string, tenantId: string) {
   }
 }
 
-export const LEAD_STATUSES = ["new", "qualified", "unqualified", "won", "lost"] as const;
+export const LEAD_STATUSES = ["new", "qualified", "junk", "won", "lost"] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
 const LogLeadInputSchema = z.object({
@@ -184,7 +184,7 @@ export const getLeadStats = createServerFn({ method: "POST" })
     const byStatus: Record<LeadStatus, number> = {
       new: 0,
       qualified: 0,
-      unqualified: 0,
+      junk: 0,
       won: 0,
       lost: 0,
     };

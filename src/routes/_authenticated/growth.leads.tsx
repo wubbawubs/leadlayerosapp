@@ -49,8 +49,7 @@ const STATUS_STYLE: Record<string, string> = {
   qualified: "bg-primary/15 text-primary",
   won: "bg-emerald-500/15 text-emerald-400",
   lost: "bg-muted text-muted-foreground",
-  unqualified: "bg-amber-500/15 text-amber-400",
-  junk: "bg-muted text-muted-foreground",
+  junk: "bg-amber-500/15 text-amber-400",
 };
 
 function emptyForm() {

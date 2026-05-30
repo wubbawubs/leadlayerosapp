@@ -73,8 +73,31 @@ async function wpFetch<T>(
 }
 
 // ------------------------------------------------------------------
+// SEO plugin detection
+//
+// Calls the public /wp-json root endpoint (no auth required) and inspects
+// the namespaces array. Yoast registers "yoast/v1"; Rank Math "rankmath/v1".
+// Returns "none" if neither is found or the endpoint is unreachable.
+// ------------------------------------------------------------------
+
+export async function detectSeoPlugin(baseUrl: string): Promise<SeoPlugin> {
+  const result = await wpFetch<{ namespaces?: string[] }>(
+    `${normalizeWordpressBaseUrl(baseUrl)}/wp-json`,
+    {},
+  );
+  if (!result.ok || !Array.isArray(result.data?.namespaces)) return "none";
+  const ns = result.data.namespaces;
+  if (ns.includes("yoast/v1")) return "yoast";
+  if (ns.includes("rankmath/v1")) return "rankmath";
+  return "none";
+}
+
+// ------------------------------------------------------------------
 // Capability result shape
 // ------------------------------------------------------------------
+
+export type SeoPlugin = "yoast" | "rankmath" | "none";
+export type SeoMetaStatus = "pushed_yoast" | "pushed_rankmath" | "manual_required" | "skipped";
 
 export interface WpCapabilityResult {
   ok: boolean;
@@ -85,6 +108,7 @@ export interface WpCapabilityResult {
   canReadTaxonomies: boolean;
   roles: string[];
   wpVersion: string | null;
+  seoPlugin: SeoPlugin;
   error?: string;
   httpStatus?: number;
   elapsedMs: number;
@@ -103,11 +127,15 @@ export async function checkSelfHostedCapabilities(opts: {
   const restBase = getSelfHostedRestBaseUrl(opts.baseUrl);
   const auth = "Basic " + btoa(`${opts.username}:${opts.appPassword}`);
 
-  const result = await wpFetch<{
-    id?: number;
-    roles?: string[];
-    capabilities?: Record<string, boolean>;
-  }>(`${restBase}/users/me?context=edit`, { Authorization: auth });
+  // Run user-auth check and SEO plugin detection in parallel
+  const [result, seoPlugin] = await Promise.all([
+    wpFetch<{
+      id?: number;
+      roles?: string[];
+      capabilities?: Record<string, boolean>;
+    }>(`${restBase}/users/me?context=edit`, { Authorization: auth }),
+    detectSeoPlugin(opts.baseUrl),
+  ]);
 
   const elapsed = Date.now() - start;
 
@@ -121,6 +149,7 @@ export async function checkSelfHostedCapabilities(opts: {
       canReadTaxonomies: false,
       roles: [],
       wpVersion: null,
+      seoPlugin,
       error: result.error ?? "Unknown error",
       httpStatus: result.status,
       elapsedMs: elapsed,
@@ -144,6 +173,7 @@ export async function checkSelfHostedCapabilities(opts: {
     canReadTaxonomies: true,
     roles,
     wpVersion: null,
+    seoPlugin,
     httpStatus: result.status,
     elapsedMs: elapsed,
   };
@@ -279,6 +309,7 @@ export async function checkWpcomCapabilities(opts: {
       canReadTaxonomies: false,
       roles: [],
       wpVersion: null,
+      seoPlugin: "none",
       error: result.error ?? "WPCOM API error",
       httpStatus: result.status,
       elapsedMs: elapsed,
@@ -294,6 +325,7 @@ export async function checkWpcomCapabilities(opts: {
     canReadTaxonomies: true,
     roles: ["wpcom_authenticated"],
     wpVersion: null,
+    seoPlugin: "none",
     httpStatus: result.status,
     elapsedMs: elapsed,
   };
@@ -378,6 +410,7 @@ export interface WpDraftResult {
   wpEditLink: string | null;
   wpPreviewLink: string | null;
   slug: string | null;
+  seoMetaStatus: SeoMetaStatus;
   error?: string;
   httpStatus?: number;
   rawResponse: Record<string, unknown>;
@@ -386,11 +419,11 @@ export interface WpDraftResult {
 // ------------------------------------------------------------------
 // Self-hosted: create a draft page (status=draft, no live publish)
 //
-// V1 scope: self-hosted WordPress only.
-// WordPress.com draft creation is NOT supported in V1:
-//   The WPCOM REST v1.1 posts endpoint requires a different payload shape
-//   and the OAuth token scope granted via the current flow may not include
-//   write access to posts. Mark unsupported until explicitly tested and scoped.
+// V2: also attempts to push SEO meta (Yoast / Rank Math) in the same
+// POST request. If the plugin-specific meta causes a 400, the draft is
+// retried without meta and seoMetaStatus is set to "manual_required".
+//
+// WordPress.com draft creation is NOT supported (token scope uncertain).
 // ------------------------------------------------------------------
 
 export async function createSelfHostedWordpressDraft(opts: {
@@ -401,31 +434,100 @@ export async function createSelfHostedWordpressDraft(opts: {
   slug: string;
   content: string;
   excerpt?: string;
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  seoPlugin?: SeoPlugin;
 }): Promise<WpDraftResult> {
   const restBase = getSelfHostedRestBaseUrl(opts.baseUrl);
   const auth = "Basic " + btoa(`${opts.username}:${opts.appPassword}`);
+  const baseUrlClean = opts.baseUrl.replace(/\/+$/, "");
 
-  const body = JSON.stringify({
+  const hasMeta = !!(opts.metaTitle || opts.metaDescription);
+  const plugin = opts.seoPlugin ?? "none";
+
+  // Build SEO meta fields object and derive expected status
+  let seoMetaStatus: SeoMetaStatus = hasMeta ? "manual_required" : "skipped";
+  const metaFields: Record<string, string> = {};
+
+  if (hasMeta && plugin !== "none") {
+    if (plugin === "yoast") {
+      if (opts.metaTitle) metaFields["_yoast_wpseo_title"] = opts.metaTitle;
+      if (opts.metaDescription) metaFields["_yoast_wpseo_metadesc"] = opts.metaDescription;
+      seoMetaStatus = "pushed_yoast";
+    } else if (plugin === "rankmath") {
+      if (opts.metaTitle) metaFields["rank_math_title"] = opts.metaTitle;
+      if (opts.metaDescription) metaFields["rank_math_description"] = opts.metaDescription;
+      seoMetaStatus = "pushed_rankmath";
+    }
+  }
+
+  type DraftBody = {
+    title: string;
+    slug: string;
+    content: string;
+    excerpt: string;
+    status: "draft";
+    type: "page";
+    meta?: Record<string, string>;
+  };
+
+  const basePayload: DraftBody = {
     title: opts.title,
     slug: opts.slug,
     content: opts.content,
     excerpt: opts.excerpt ?? "",
     status: "draft",
     type: "page",
-  });
+  };
 
-  const result = await wpFetch<{
-    id?: number;
-    status?: string;
-    slug?: string;
-    link?: string;
-  }>(
+  const payloadWithMeta: DraftBody =
+    Object.keys(metaFields).length > 0
+      ? { ...basePayload, meta: metaFields }
+      : basePayload;
+
+  function buildResult(
+    raw: Record<string, unknown>,
+    httpStatus: number,
+    resolvedSeoStatus: SeoMetaStatus,
+  ): WpDraftResult {
+    const postId = typeof raw.id === "number" ? raw.id : null;
+    return {
+      ok: true,
+      wpPostId: postId,
+      wpStatus: typeof raw.status === "string" ? raw.status : "draft",
+      wpEditLink: postId ? `${baseUrlClean}/wp-admin/post.php?post=${postId}&action=edit` : null,
+      wpPreviewLink: postId ? `${baseUrlClean}/?p=${postId}&preview=true` : null,
+      slug: typeof raw.slug === "string" ? raw.slug : opts.slug,
+      seoMetaStatus: resolvedSeoStatus,
+      rawResponse: raw,
+      httpStatus,
+    };
+  }
+
+  // First attempt: with meta (if any)
+  const result = await wpFetch<Record<string, unknown>>(
     `${restBase}/pages`,
     { Authorization: auth },
-    { method: "POST", body },
+    { method: "POST", body: JSON.stringify(payloadWithMeta) },
   );
 
-  if (!result.ok || !result.data) {
+  if (result.ok && result.data) {
+    return buildResult(result.data, result.status, seoMetaStatus);
+  }
+
+  // If the request failed with 400 and we included plugin meta, the meta fields
+  // may have been rejected (e.g. plugin not enabled, version too old).
+  // Retry without meta — draft creation must not be blocked by SEO plugin state.
+  if (result.status === 400 && Object.keys(metaFields).length > 0) {
+    const retry = await wpFetch<Record<string, unknown>>(
+      `${restBase}/pages`,
+      { Authorization: auth },
+      { method: "POST", body: JSON.stringify(basePayload) },
+    );
+    if (retry.ok && retry.data) {
+      // Meta push failed — operator must enter manually
+      return buildResult(retry.data, retry.status, "manual_required");
+    }
     return {
       ok: false,
       wpPostId: null,
@@ -433,30 +535,238 @@ export async function createSelfHostedWordpressDraft(opts: {
       wpEditLink: null,
       wpPreviewLink: null,
       slug: null,
-      error: result.error ?? "WP API error",
+      seoMetaStatus: "manual_required",
+      error: retry.error ?? result.error ?? "WP API error",
+      httpStatus: retry.status,
+      rawResponse: {},
+    };
+  }
+
+  return {
+    ok: false,
+    wpPostId: null,
+    wpStatus: null,
+    wpEditLink: null,
+    wpPreviewLink: null,
+    slug: null,
+    seoMetaStatus,
+    error: result.error ?? "WP API error",
+    httpStatus: result.status,
+    rawResponse: {},
+  };
+}
+
+// ------------------------------------------------------------------
+// Fetch an existing page with edit context (raw content available).
+//
+// Self-hosted WordPress only. WP.com not supported.
+// ------------------------------------------------------------------
+
+export interface WpPageFetchResult {
+  ok: boolean;
+  wpPostId: number;
+  title: { raw: string; rendered: string } | null;
+  content: { raw: string; rendered: string } | null;
+  excerpt: { raw: string; rendered: string } | null;
+  status: string | null;
+  slug: string | null;
+  link: string | null;
+  meta: Record<string, unknown>;
+  error?: string;
+  httpStatus?: number;
+  rawResponse: Record<string, unknown>;
+}
+
+export async function fetchSelfHostedWordpressPage(opts: {
+  baseUrl: string;
+  username: string;
+  appPassword: string;
+  wpPostId: number;
+}): Promise<WpPageFetchResult> {
+  const restBase = getSelfHostedRestBaseUrl(opts.baseUrl);
+  const auth = "Basic " + btoa(`${opts.username}:${opts.appPassword}`);
+
+  const result = await wpFetch<Record<string, unknown>>(
+    `${restBase}/pages/${opts.wpPostId}?context=edit`,
+    { Authorization: auth },
+  );
+
+  if (!result.ok || !result.data) {
+    return {
+      ok: false,
+      wpPostId: opts.wpPostId,
+      title: null,
+      content: null,
+      excerpt: null,
+      status: null,
+      slug: null,
+      link: null,
+      meta: {},
+      error: result.error ?? "WP API error fetching page",
       httpStatus: result.status,
       rawResponse: {},
     };
   }
 
   const raw = result.data;
-  const postId = typeof raw.id === "number" ? raw.id : null;
-  const baseUrlClean = opts.baseUrl.replace(/\/+$/, "");
-  const wpEditLink = postId
-    ? `${baseUrlClean}/wp-admin/post.php?post=${postId}&action=edit`
-    : null;
-  const wpPreviewLink = postId
-    ? `${baseUrlClean}/?p=${postId}&preview=true`
-    : null;
+
+  function extractRenderable(field: unknown): { raw: string; rendered: string } | null {
+    if (!field || typeof field !== "object") return null;
+    const f = field as Record<string, unknown>;
+    return {
+      raw: typeof f.raw === "string" ? f.raw : "",
+      rendered: typeof f.rendered === "string" ? f.rendered : "",
+    };
+  }
 
   return {
     ok: true,
-    wpPostId: postId,
-    wpStatus: raw.status ?? "draft",
-    wpEditLink,
-    wpPreviewLink,
-    slug: raw.slug ?? opts.slug,
-    rawResponse: raw as Record<string, unknown>,
+    wpPostId: opts.wpPostId,
+    title: extractRenderable(raw.title),
+    content: extractRenderable(raw.content),
+    excerpt: extractRenderable(raw.excerpt),
+    status: typeof raw.status === "string" ? raw.status : null,
+    slug: typeof raw.slug === "string" ? raw.slug : null,
+    link: typeof raw.link === "string" ? raw.link : null,
+    meta: (raw.meta && typeof raw.meta === "object" ? raw.meta : {}) as Record<string, unknown>,
     httpStatus: result.status,
+    rawResponse: raw,
+  };
+}
+
+// ------------------------------------------------------------------
+// Update (PATCH) an existing page — approved fields only.
+//
+// Only sends explicitly provided fields. Does NOT touch status/publish.
+// Self-hosted WordPress only. WP.com not supported.
+// ------------------------------------------------------------------
+
+export interface WpPageUpdatePatch {
+  title?: string;
+  content?: string;
+  excerpt?: string;
+  meta?: Record<string, string>;
+}
+
+export interface WpPageUpdateResult {
+  ok: boolean;
+  wpPostId: number;
+  wpStatus: string | null;
+  link: string | null;
+  error?: string;
+  httpStatus?: number;
+  rawResponse: Record<string, unknown>;
+}
+
+export async function updateSelfHostedWordpressPage(opts: {
+  baseUrl: string;
+  username: string;
+  appPassword: string;
+  wpPostId: number;
+  patch: WpPageUpdatePatch;
+}): Promise<WpPageUpdateResult> {
+  const restBase = getSelfHostedRestBaseUrl(opts.baseUrl);
+  const auth = "Basic " + btoa(`${opts.username}:${opts.appPassword}`);
+
+  const body: Record<string, unknown> = {};
+  if (opts.patch.title !== undefined) body.title = opts.patch.title;
+  if (opts.patch.content !== undefined) body.content = opts.patch.content;
+  if (opts.patch.excerpt !== undefined) body.excerpt = opts.patch.excerpt;
+  if (opts.patch.meta && Object.keys(opts.patch.meta).length > 0) body.meta = opts.patch.meta;
+
+  if (Object.keys(body).length === 0) {
+    return {
+      ok: false,
+      wpPostId: opts.wpPostId,
+      wpStatus: null,
+      link: null,
+      error: "No patch fields provided",
+      httpStatus: 0,
+      rawResponse: {},
+    };
+  }
+
+  const result = await wpFetch<Record<string, unknown>>(
+    `${restBase}/pages/${opts.wpPostId}`,
+    { Authorization: auth },
+    { method: "POST", body: JSON.stringify(body) },
+  );
+
+  if (!result.ok || !result.data) {
+    return {
+      ok: false,
+      wpPostId: opts.wpPostId,
+      wpStatus: null,
+      link: null,
+      error: result.error ?? "WP API error on page update",
+      httpStatus: result.status,
+      rawResponse: {},
+    };
+  }
+
+  const raw = result.data;
+  return {
+    ok: true,
+    wpPostId: opts.wpPostId,
+    wpStatus: typeof raw.status === "string" ? raw.status : null,
+    link: typeof raw.link === "string" ? raw.link : null,
+    httpStatus: result.status,
+    rawResponse: raw,
+  };
+}
+
+// ------------------------------------------------------------------
+// Publish an existing draft — PATCH status to "publish".
+//
+// V2C: operator-confirmed only. Never called automatically.
+// Self-hosted WordPress only (WordPress.com unsupported).
+// The WP REST API accepts POST /pages/{id} for updates.
+// ------------------------------------------------------------------
+
+export interface WpPublishResult {
+  ok: boolean;
+  wpPostId: number;
+  wpStatus: string | null;
+  publishedUrl: string | null;
+  error?: string;
+  httpStatus?: number;
+  rawResponse: Record<string, unknown>;
+}
+
+export async function publishSelfHostedWordpressDraft(opts: {
+  baseUrl: string;
+  username: string;
+  appPassword: string;
+  wpPostId: number;
+}): Promise<WpPublishResult> {
+  const restBase = getSelfHostedRestBaseUrl(opts.baseUrl);
+  const auth = "Basic " + btoa(`${opts.username}:${opts.appPassword}`);
+
+  const result = await wpFetch<Record<string, unknown>>(
+    `${restBase}/pages/${opts.wpPostId}`,
+    { Authorization: auth },
+    { method: "POST", body: JSON.stringify({ status: "publish" }) },
+  );
+
+  if (!result.ok || !result.data) {
+    return {
+      ok: false,
+      wpPostId: opts.wpPostId,
+      wpStatus: null,
+      publishedUrl: null,
+      error: result.error ?? "WP API error on publish",
+      httpStatus: result.status,
+      rawResponse: {},
+    };
+  }
+
+  const raw = result.data;
+  return {
+    ok: true,
+    wpPostId: opts.wpPostId,
+    wpStatus: typeof raw.status === "string" ? raw.status : null,
+    publishedUrl: typeof raw.link === "string" ? raw.link : null,
+    httpStatus: result.status,
+    rawResponse: raw,
   };
 }

@@ -145,3 +145,16 @@ Domain types: `MonthlyReport`, `LeadSummary`, `GoalProgressSummary`, `ExecutionS
 - Automatic lead attribution (GA4, form webhooks, call tracking)
 - Monthly report email to client with share link embedded
 - ProductFlow `monthly_review` lifecycle stage unlocked when report exists for current period
+---
+
+## V1 Extension: Existing Pages Optimized (2026-05-29)
+
+WordpressSummary extended with:
+
+| Field | Type | Source |
+|---|---|---|
+| `pagesOptimized` | number | `wordpress_page_updates` with `status=applied` and `applied_at` in period |
+| `optimizedPages[]` | array (optional) | Per-update url + appliedAt for report display |
+
+Narrative line added: "Improved X existing pages this period."
+Public share page: shows "Existing pages improved" stat when > 0.

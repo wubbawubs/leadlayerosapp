@@ -55,6 +55,13 @@ export type DraftSafetyChecks = z.infer<typeof DraftSafetyChecksSchema>;
 // Payload stored on publishing_bundle.payload
 // ------------------------------------------------------------------
 
+export const DRAFT_TEMPLATE_TYPES = [
+  "service_page",
+  "local_landing_page",
+  "emergency_service_page",
+] as const;
+export type DraftTemplateType = (typeof DRAFT_TEMPLATE_TYPES)[number];
+
 export const WordpressDraftPayloadSchema = z.object({
   title: z.string(),
   slug: z.string(),
@@ -63,6 +70,7 @@ export const WordpressDraftPayloadSchema = z.object({
   metaTitle: z.string().optional(),
   metaDescription: z.string().optional(),
   pageType: z.string(),
+  templateType: z.enum(DRAFT_TEMPLATE_TYPES).optional(),
   targetService: z.string().nullable(),
   targetLocation: z.string().nullable(),
 });
@@ -92,6 +100,14 @@ export type PublishingBundle = z.infer<typeof PublishingBundleSchema>;
 // Domain object: WordpressDraft
 // ------------------------------------------------------------------
 
+export const SEO_META_STATUSES = [
+  "pushed_yoast",
+  "pushed_rankmath",
+  "manual_required",
+  "skipped",
+] as const;
+export type SeoMetaStatus = (typeof SEO_META_STATUSES)[number];
+
 export const WordpressDraftSchema = z.object({
   id: z.string().uuid(),
   tenantId: z.string().uuid(),
@@ -107,6 +123,10 @@ export const WordpressDraftSchema = z.object({
   title: z.string().nullable(),
   status: z.enum(WORDPRESS_DRAFT_STATUSES),
   errorMessage: z.string().nullable(),
+  seoMetaStatus: z.enum(SEO_META_STATUSES).nullable(),
+  metaTitle: z.string().nullable(),
+  metaDescription: z.string().nullable(),
+  publishSource: z.enum(["leadlayer_publish", "operator_manual"]).nullable(),
   publishedAt: z.string().nullable(),
   publishedBy: z.string().uuid().nullable(),
   publishedUrl: z.string().nullable(),
@@ -143,3 +163,9 @@ export const MarkWordpressDraftPublishedInputSchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 export type MarkWordpressDraftPublishedInput = z.infer<typeof MarkWordpressDraftPublishedInputSchema>;
+
+export const PublishWordpressDraftInputSchema = z.object({
+  tenantId: z.string().uuid(),
+  draftId: z.string().uuid(),
+});
+export type PublishWordpressDraftInput = z.infer<typeof PublishWordpressDraftInputSchema>;

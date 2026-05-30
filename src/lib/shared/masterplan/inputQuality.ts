@@ -1,10 +1,10 @@
 /**
- * Input Quality Analyzer — Sprint E (Masterplan Intelligence V2).
+ * Input Quality Analyzer -- Sprint E (Masterplan Intelligence V2).
  *
  * Two layers:
- *  1. `analyzeGoalInputQuality({ goal, bp })` — overall goal/BP report used by
+ *  1. `analyzeGoalInputQuality({ goal, bp })` -- overall goal/BP report used by
  *     the masterplan generator to decide which items to create.
- *  2. `evaluateInputQuality({ goal, bp, itemTitle })` — per-item readiness
+ *  2. `evaluateInputQuality({ goal, bp, itemTitle })` -- per-item readiness
  *     check used by proposal generation to refuse vague masterplan items.
  *
  * Both share the same broad-term dictionaries so behavior is consistent.
@@ -121,7 +121,7 @@ export function evaluateInputQuality(args: {
     issues.push({
       field: "service_focus",
       value: null,
-      message: "Geen service focus gedefinieerd op het groeidoel.",
+      message: "No service focus defined on the growth goal.",
     });
     riskFlags.push("input:service_missing");
   } else {
@@ -130,7 +130,7 @@ export function evaluateInputQuality(args: {
       issues.push({
         field: "service_focus",
         value: broadHits.join(", "),
-        message: `Service focus is te breed: ${broadHits.join(", ")}. Specificeer de concrete dienst (bv. "AC repair", "noodloodgieter", "HVAC maintenance").`,
+        message: `Service focus is too broad: ${broadHits.join(", ")}. Specify a concrete service (e.g. "AC repair", "emergency plumber", "HVAC maintenance").`,
       });
       riskFlags.push("input:service_too_broad");
     }
@@ -140,7 +140,7 @@ export function evaluateInputQuality(args: {
     issues.push({
       field: "locations",
       value: null,
-      message: "Geen locaties gedefinieerd op het groeidoel.",
+      message: "No locations defined on the growth goal.",
     });
     riskFlags.push("input:location_missing");
   } else {
@@ -149,7 +149,7 @@ export function evaluateInputQuality(args: {
       issues.push({
         field: "locations",
         value: broadHits.join(", "),
-        message: `Locatie is te breed: ${broadHits.join(", ")}. Kies 2–5 concrete steden of staten (bv. "Dallas, TX").`,
+        message: `Location is too broad: ${broadHits.join(", ")}. Choose 2-5 specific cities or states (e.g. "Dallas, TX").`,
       });
       riskFlags.push("input:location_too_broad");
     }
@@ -161,7 +161,7 @@ export function evaluateInputQuality(args: {
     issues.push({
       field: "vertical",
       value: null,
-      message: "Branche / vertical ontbreekt in het Business Profile.",
+      message: "Industry / vertical is missing from the Business Profile.",
     });
     riskFlags.push("input:vertical_missing");
   }
@@ -169,11 +169,11 @@ export function evaluateInputQuality(args: {
   const checklist =
     issues.length > 0
       ? [
-          "Bepaal één concrete hoofdservice (geen brede categorie zoals 'leadgen' of 'marketing').",
-          "Kies 2–5 concrete steden of staten i.p.v. een heel land.",
-          "Bevestig de branche / vertical in het Business Profile.",
-          "Koppel de actie aan één bestaande of geplande servicepagina.",
-          "Definieer welke CTA meetbaar wordt gebruikt: aanvraag, call, formulier of scan.",
+          "Set one concrete primary service -- avoid broad categories like 'marketing' or 'leadgen'.",
+          "Choose 2-5 specific cities or states instead of a whole country.",
+          "Confirm the industry / vertical in the Business Profile.",
+          "Link the item to one existing or planned service page.",
+          "Define which CTA is tracked: quote request, call, form, or scan.",
         ]
       : [];
 
@@ -186,21 +186,21 @@ export function buildNeedsContextRecommendation(
 ): string {
   const lines: string[] = [];
   lines.push(
-    `Dit item is nog niet klaar voor uitvoering. De huidige input is te breed om “${itemTitle}” concreet uit te werken.`,
+    `This item is not ready for execution. The current input is too broad to generate concrete output for "${itemTitle}".`,
   );
   lines.push("");
   if (report.issues.length > 0) {
-    lines.push("Wat ontbreekt of te breed is:");
+    lines.push("What is missing or too broad:");
     for (const issue of report.issues) lines.push(`- ${issue.message}`);
     lines.push("");
   }
   if (report.checklist.length > 0) {
-    lines.push("Doe dit eerst voordat we content/proposals genereren:");
+    lines.push("Complete these steps before generating content:");
     for (const item of report.checklist) lines.push(`- ${item}`);
     lines.push("");
   }
   lines.push(
-    "Suggested next action: werk groeidoel en business profile aan zodat service, doelgroep en locatie scherp zijn — dan opnieuw 'Generate proposal'.",
+    "Suggested next action: update the growth goal and business profile so service, audience, and location are specific -- then regenerate.",
   );
   return lines.join("\n");
 }
@@ -265,8 +265,8 @@ export function analyzeGoalInputQuality(args: {
     warnings.push({
       code: "service_focus_missing",
       severity: "high",
-      message: "Service focus ontbreekt op het groeidoel.",
-      suggestedFix: "Voeg 1–5 concrete diensten toe (geen brede labels als 'marketing' of 'leadgen').",
+      message: "Service focus is missing from the growth goal.",
+      suggestedFix: "Add 1-5 specific services (avoid broad labels like 'marketing' or 'leadgen').",
     });
     riskFlags.push("input:service_missing");
   } else if (specificServices.length === 0) {
@@ -274,8 +274,8 @@ export function analyzeGoalInputQuality(args: {
     warnings.push({
       code: "service_focus_generic",
       severity: "high",
-      message: `Service focus is te breed: ${broadServices.join(", ")}.`,
-      suggestedFix: "Specificeer concrete diensten (bv. 'AC repair', 'Emergency HVAC', 'noodloodgieter').",
+      message: `Service focus is too broad: ${broadServices.join(", ")}.`,
+      suggestedFix: "Specify concrete services (e.g. 'AC repair', 'Emergency HVAC', 'drain unblocking').",
     });
     riskFlags.push("input:service_too_broad");
   } else {
@@ -284,8 +284,8 @@ export function analyzeGoalInputQuality(args: {
       warnings.push({
         code: "service_focus_partial_generic",
         severity: "low",
-        message: `Sommige services zijn te breed: ${broadServices.join(", ")}.`,
-        suggestedFix: "Verwijder of vervang brede labels.",
+        message: `Some services are too broad: ${broadServices.join(", ")}.`,
+        suggestedFix: "Remove or replace broad labels with specific service names.",
       });
     }
   }
@@ -296,8 +296,8 @@ export function analyzeGoalInputQuality(args: {
     warnings.push({
       code: "locations_missing",
       severity: "high",
-      message: "Geen locaties gedefinieerd op het groeidoel.",
-      suggestedFix: "Voeg 2–5 concrete steden, staten of metro areas toe.",
+      message: "No locations defined on the growth goal.",
+      suggestedFix: "Add 2-5 specific cities, states, or metro areas.",
     });
     riskFlags.push("input:location_missing");
   } else if (specificLocations.length === 0) {
@@ -305,8 +305,8 @@ export function analyzeGoalInputQuality(args: {
     warnings.push({
       code: "locations_broad",
       severity: "high",
-      message: `Locatie is te breed: ${broadLocations.join(", ")}.`,
-      suggestedFix: "Vervang door 2–5 concrete steden of staten (bv. 'Dallas, TX', 'Amsterdam').",
+      message: `Location is too broad: ${broadLocations.join(", ")}.`,
+      suggestedFix: "Replace with 2-5 specific cities or states (e.g. 'Dallas, TX', 'Amsterdam').",
     });
     riskFlags.push("input:location_too_broad");
   } else {
@@ -315,7 +315,7 @@ export function analyzeGoalInputQuality(args: {
       warnings.push({
         code: "locations_partial_broad",
         severity: "low",
-        message: `Sommige locaties zijn brede markten: ${broadLocations.join(", ")}.`,
+        message: `Some locations are broad markets: ${broadLocations.join(", ")}.`,
       });
     }
   }
@@ -327,8 +327,8 @@ export function analyzeGoalInputQuality(args: {
     warnings.push({
       code: "close_rate_missing",
       severity: "high",
-      message: "Close rate ontbreekt of is 0.",
-      suggestedFix: "Vul een realistische close rate in op basis van recente verkoopdata.",
+      message: "Close rate is missing or 0.",
+      suggestedFix: "Enter a realistic close rate based on recent sales data.",
     });
     riskFlags.push("input:close_rate_missing");
   } else if (Number(closeRate) > 0.7) {
@@ -336,8 +336,8 @@ export function analyzeGoalInputQuality(args: {
     warnings.push({
       code: "close_rate_high",
       severity: "high",
-      message: `Close rate is very high (${(Number(closeRate) * 100).toFixed(0)}%). Confirm this is based on real sales data — local-service close rates above 70% are rare.`,
-      suggestedFix: "Valideer met laatste 3–6 maanden sales data.",
+      message: `Close rate is very high (${(Number(closeRate) * 100).toFixed(0)}%). Confirm this is based on real sales data -- local-service close rates above 70% are rare.`,
+      suggestedFix: "Validate against the last 3-6 months of sales data.",
     });
     riskFlags.push("input:close_rate_high");
   } else if (Number(closeRate) > 0.45) {
@@ -346,7 +346,7 @@ export function analyzeGoalInputQuality(args: {
       code: "close_rate_elevated",
       severity: "medium",
       message: `Close rate is high (${(Number(closeRate) * 100).toFixed(0)}%). Confirm this is based on real sales data.`,
-      suggestedFix: "Valideer met laatste 3–6 maanden sales data.",
+      suggestedFix: "Validate against the last 3-6 months of sales data.",
     });
     riskFlags.push("input:close_rate_elevated");
   } else {
@@ -359,8 +359,8 @@ export function analyzeGoalInputQuality(args: {
     warnings.push({
       code: "tracking_unknown",
       severity: "high",
-      message: "Lead-tracking is nog niet gedocumenteerd.",
-      suggestedFix: "Documenteer hoe calls en formulieren worden gemeten en aan welke bron ze gekoppeld zijn.",
+      message: "Lead tracking is not documented.",
+      suggestedFix: "Document how calls and forms are measured and which source they are attributed to.",
     });
     riskFlags.push("input:tracking_unknown");
   }
@@ -370,7 +370,7 @@ export function analyzeGoalInputQuality(args: {
     warnings.push({
       code: "current_count_missing",
       severity: "medium",
-      message: "Huidige leadflow / current_count ontbreekt — moeilijk om gap te meten.",
+      message: "Current lead volume (current_count) is missing -- gap calculation will be incomplete.",
     });
   }
   const goodFit = Array.isArray(args.goal?.good_fit_leads) ? args.goal.good_fit_leads : [];
@@ -379,14 +379,14 @@ export function analyzeGoalInputQuality(args: {
     warnings.push({
       code: "good_fit_missing",
       severity: "low",
-      message: "Geen good-fit lead voorbeelden — ICP signalen ontbreken.",
+      message: "No good-fit lead examples -- ICP signals are missing.",
     });
   }
   if (badFit.length === 0) {
     warnings.push({
       code: "bad_fit_missing",
       severity: "low",
-      message: "Geen bad-fit lead voorbeelden — disqualificatie criteria ontbreken.",
+      message: "No bad-fit lead examples -- disqualification criteria are missing.",
     });
   }
 
@@ -396,7 +396,7 @@ export function analyzeGoalInputQuality(args: {
     warnings.push({
       code: "vertical_missing",
       severity: "medium",
-      message: "Branche / vertical ontbreekt in Business Profile.",
+      message: "Industry / vertical is missing from the Business Profile.",
     });
     riskFlags.push("input:vertical_missing");
   }

@@ -38,7 +38,7 @@ export async function buildMonthlyReport(
   const periodStartTs = `${periodStart}T00:00:00.000Z`;
   const periodEndTs = `${periodEnd}T23:59:59.999Z`;
 
-  const [goalRow, leadRows, artifactRows, approvedArtifactRows, draftRows, publishedDraftRows, itemRows] = await Promise.all([
+  const [goalRow, leadRows, wonLeadRows, artifactRows, approvedArtifactRows, draftRows, publishedDraftRows, itemRows, optimizedUpdateRows] = await Promise.all([
     // Active growth goal
     admin
       .from("growth_goals")
@@ -50,13 +50,26 @@ export async function buildMonthlyReport(
       .maybeSingle()
       .then((r: { data: unknown }) => r.data),
 
-    // All leads in the period — include revenue fields
+    // All leads created in the period — for counts and pipeline revenue
     admin
       .from("leads")
-      .select("status, source, created_at, closed_amount, close_probability, closed_at")
+      .select("status, source, created_at, close_probability, closed_amount")
       .eq("tenant_id", tenantId)
       .gte("created_at", periodStartTs)
       .lte("created_at", periodEndTs)
+      .then((r: { data: unknown[] | null }) => r.data ?? []),
+
+    // Won leads closed in the period — filtered by closed_at, not created_at.
+    // A lead logged in a prior month but marked won this month correctly
+    // appears in this month's proven revenue.
+    admin
+      .from("leads")
+      .select("closed_amount")
+      .eq("tenant_id", tenantId)
+      .eq("status", "won")
+      .not("closed_at", "is", null)
+      .gte("closed_at", periodStartTs)
+      .lte("closed_at", periodEndTs)
       .then((r: { data: unknown[] | null }) => r.data ?? []),
 
     // Artifacts created in period (for artifactsCreated count)
@@ -68,12 +81,14 @@ export async function buildMonthlyReport(
       .lte("created_at", periodEndTs)
       .then((r: { data: unknown[] | null }) => r.data ?? []),
 
-    // Artifacts approved in period: status=approved AND updated_at in period
+    // Artifacts approved in period: page_brief only (not optimization briefs)
+    // page_optimization_brief approvals are counted separately via pagesOptimized.
     admin
       .from("execution_artifacts")
       .select("id, artifact_type, updated_at")
       .eq("tenant_id", tenantId)
       .eq("status", "approved")
+      .eq("artifact_type", "page_brief")
       .gte("updated_at", periodStartTs)
       .lte("updated_at", periodEndTs)
       .then((r: { data: unknown[] | null }) => r.data ?? []),
@@ -105,6 +120,17 @@ export async function buildMonthlyReport(
       .gte("updated_at", periodStartTs)
       .lte("updated_at", periodEndTs)
       .then((r: { data: unknown[] | null }) => r.data ?? []),
+
+    // Existing pages successfully optimized in the period (applied_at in period)
+    admin
+      .from("wordpress_page_updates")
+      .select("id, applied_at, wp_post_id, raw_response")
+      .eq("tenant_id", tenantId)
+      .eq("status", "applied")
+      .not("applied_at", "is", null)
+      .gte("applied_at", periodStartTs)
+      .lte("applied_at", periodEndTs)
+      .then((r: { data: unknown[] | null }) => r.data ?? []),
   ]);
 
   // ------------------------------------------------------------------
@@ -115,34 +141,35 @@ export async function buildMonthlyReport(
     status: string;
     source: string | null;
     created_at: string;
-    closed_amount: number | null;
     close_probability: number | null;
-    closed_at: string | null;
+    closed_amount: number | null;
   }>;
   const statusCount: Record<string, number> = {};
   const sourceCount: Record<string, number> = {};
-  let provenRevenue = 0;
   let pipelineRevenue = 0;
-  let wonLeadCount = 0;
   for (const l of leads) {
     statusCount[l.status] = (statusCount[l.status] ?? 0) + 1;
     const src = l.source ?? "unknown";
     sourceCount[src] = (sourceCount[src] ?? 0) + 1;
-    if (l.status === "won" && l.closed_amount != null) {
-      provenRevenue += l.closed_amount;
-      wonLeadCount++;
-    }
+    // Pipeline revenue: qualified leads created this period with a probability estimate
     if (l.close_probability != null && l.closed_amount != null && l.status !== "won" && l.status !== "lost") {
       pipelineRevenue += l.close_probability * l.closed_amount;
     }
   }
+
+  // Proven revenue: won leads whose closed_at falls within this period.
+  // Using closed_at (not created_at) so a lead logged last month but closed this
+  // month correctly appears in this month's revenue, not last month's.
+  const wonLeads = wonLeadRows as Array<{ closed_amount: number | null }>;
+  const provenRevenue = wonLeads.reduce((sum, l) => sum + (l.closed_amount ?? 0), 0);
+  const wonLeadCount = wonLeads.length;
   const leadSummary: LeadSummary = {
     total: leads.length,
     qualified: statusCount.qualified ?? 0,
     won: statusCount.won ?? 0,
     lost: statusCount.lost ?? 0,
     new: statusCount.new ?? 0,
-    unqualified: statusCount.unqualified ?? 0,
+    junk: statusCount.junk ?? 0,
     sources: sourceCount,
   };
 
@@ -208,9 +235,16 @@ export async function buildMonthlyReport(
     created_at: string;
   }>;
   const publishedDrafts = publishedDraftRows as Array<{ id: string; title: string | null }>;
+  const optimizedUpdates = optimizedUpdateRows as Array<{
+    id: string;
+    applied_at: string;
+    wp_post_id: number;
+    raw_response: Record<string, unknown> | null;
+  }>;
   const wordpressSummary: WordpressSummary = {
     draftsCreated: drafts.length,
     draftsPublished: publishedDrafts.length,
+    pagesOptimized: optimizedUpdates.length,
     drafts: drafts.map((d) => ({
       title: d.title,
       targetSlug: d.target_slug,
@@ -219,6 +253,14 @@ export async function buildMonthlyReport(
       status: d.status,
       publishedAt: d.published_at,
     })),
+    optimizedPages:
+      optimizedUpdates.length > 0
+        ? optimizedUpdates.map((u) => ({
+            title: null,
+            url: (u.raw_response?.link as string | null) ?? null,
+            appliedAt: u.applied_at,
+          }))
+        : undefined,
   };
 
   // ------------------------------------------------------------------
@@ -300,7 +342,7 @@ export async function buildMonthlyReport(
     });
   }
 
-  if (drafts.length === 0 && artifactsApproved === 0) {
+  if (drafts.length === 0 && artifactsApproved === 0 && wordpressSummary.pagesOptimized === 0) {
     risks.push({
       key: "no_delivery",
       label: "No pages delivered this period",
@@ -391,7 +433,7 @@ function buildNarrative(args: {
   lines.push("### Goal Progress");
   lines.push(goalProgressSummary.paceNote);
 
-  if (executionSummary.artifactsApproved > 0 || wordpressSummary.draftsCreated > 0 || wordpressSummary.draftsPublished > 0) {
+  if (executionSummary.artifactsApproved > 0 || wordpressSummary.draftsCreated > 0 || wordpressSummary.draftsPublished > 0 || (wordpressSummary.pagesOptimized ?? 0) > 0) {
     lines.push("");
     lines.push("### Delivery");
     if (executionSummary.artifactsApproved > 0) {
@@ -399,6 +441,9 @@ function buildNarrative(args: {
     }
     if (wordpressSummary.draftsPublished > 0) {
       lines.push(`${wordpressSummary.draftsPublished} page${wordpressSummary.draftsPublished !== 1 ? "s" : ""} published live.`);
+    }
+    if ((wordpressSummary.pagesOptimized ?? 0) > 0) {
+      lines.push(`Improved ${wordpressSummary.pagesOptimized} existing page${wordpressSummary.pagesOptimized !== 1 ? "s" : ""} this period.`);
     }
     if (wordpressSummary.draftsCreated > 0) {
       const pending = wordpressSummary.drafts.filter((d) => d.status !== "published").length;

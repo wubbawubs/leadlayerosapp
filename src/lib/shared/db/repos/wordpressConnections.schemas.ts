@@ -37,6 +37,7 @@ export const CapabilityCheckResultSchema = z.object({
   canReadTaxonomies: z.boolean().optional(),
   roles: z.array(z.string()).optional(),
   wpVersion: z.string().nullable().optional(),
+  seoPlugin: z.enum(["yoast", "rankmath", "none"]).optional(),
   error: z.string().optional(),
   httpStatus: z.number().optional(),
   elapsedMs: z.number().optional(),

@@ -254,6 +254,7 @@ export const checkWordpressCapabilities = createServerFn({ method: "POST" })
       canReadTaxonomies: capResult.canReadTaxonomies,
       roles: capResult.roles,
       wpVersion: capResult.wpVersion,
+      seoPlugin: capResult.seoPlugin,
       error: capResult.error,
       elapsedMs: capResult.elapsedMs,
     };
@@ -769,6 +770,7 @@ type CapabilitiesShape = {
   canReadTaxonomies?: boolean;
   roles?: string[];
   wpVersion?: string | null;
+  seoPlugin?: "yoast" | "rankmath" | "none";
   error?: string;
   httpStatus?: number;
   elapsedMs?: number;

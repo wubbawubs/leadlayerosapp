@@ -435,7 +435,7 @@ function ReportDetail({
             <Stat label="Qualified" value={ls.qualified} />
             <Stat label="Won" value={ls.won} />
             <Stat label="Lost" value={ls.lost} />
-            <Stat label="Unqualified" value={ls.unqualified} />
+            <Stat label="Unqualified" value={ls.junk} />
             {Object.entries(ls.sources).length > 0 && (
               <div className="rounded border border-border bg-background/40 p-2">
                 <p className="text-xs text-muted-foreground">Top source</p>
