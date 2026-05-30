@@ -113,11 +113,16 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
         </Sidebar>
 
         <SidebarInset className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <header className="sticky top-0 z-10 flex h-12 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <SidebarTrigger />
-            <div className="ml-1 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-              LeadLayer Operator
+            <span className="h-3 w-px bg-border" />
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+              LeadLayer · Operator OS
             </div>
+            <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />
+              Live
+            </span>
           </header>
           <main className="flex-1">{children}</main>
         </SidebarInset>
