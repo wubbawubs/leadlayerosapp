@@ -45,6 +45,12 @@ import { Route as AuthenticatedClientsTenantIdIndexRouteImport } from './routes/
 import { Route as ApiPublicWpcomCallbackRouteImport } from './routes/api/public/wpcom/callback'
 import { Route as AuthenticatedSitesSiteIdInventoryRouteImport } from './routes/_authenticated/sites.$siteId.inventory'
 import { Route as AuthenticatedSitesSiteIdAuditsRouteImport } from './routes/_authenticated/sites.$siteId.audits'
+import { Route as AuthenticatedClientsTenantIdSettingsRouteImport } from './routes/_authenticated/clients.$tenantId.settings'
+import { Route as AuthenticatedClientsTenantIdReportsRouteImport } from './routes/_authenticated/clients.$tenantId.reports'
+import { Route as AuthenticatedClientsTenantIdPagesRouteImport } from './routes/_authenticated/clients.$tenantId.pages'
+import { Route as AuthenticatedClientsTenantIdOverviewRouteImport } from './routes/_authenticated/clients.$tenantId.overview'
+import { Route as AuthenticatedClientsTenantIdLeadsRouteImport } from './routes/_authenticated/clients.$tenantId.leads'
+import { Route as AuthenticatedClientsTenantIdExecutionRouteImport } from './routes/_authenticated/clients.$tenantId.execution'
 import { Route as AuthenticatedAuditsAuditIdProposalsRouteImport } from './routes/_authenticated/audits.$auditId_.proposals'
 import { Route as AuthenticatedAuditsAuditIdCompareRouteImport } from './routes/_authenticated/audits.$auditId_.compare'
 import { Route as AuthenticatedGrowthMasterplanItemIdProposalsRouteImport } from './routes/_authenticated/growth.masterplan_.$itemId.proposals'
@@ -248,6 +254,42 @@ const AuthenticatedSitesSiteIdAuditsRoute =
     path: '/sites/$siteId/audits',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedClientsTenantIdSettingsRoute =
+  AuthenticatedClientsTenantIdSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
+  } as any)
+const AuthenticatedClientsTenantIdReportsRoute =
+  AuthenticatedClientsTenantIdReportsRouteImport.update({
+    id: '/reports',
+    path: '/reports',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
+  } as any)
+const AuthenticatedClientsTenantIdPagesRoute =
+  AuthenticatedClientsTenantIdPagesRouteImport.update({
+    id: '/pages',
+    path: '/pages',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
+  } as any)
+const AuthenticatedClientsTenantIdOverviewRoute =
+  AuthenticatedClientsTenantIdOverviewRouteImport.update({
+    id: '/overview',
+    path: '/overview',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
+  } as any)
+const AuthenticatedClientsTenantIdLeadsRoute =
+  AuthenticatedClientsTenantIdLeadsRouteImport.update({
+    id: '/leads',
+    path: '/leads',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
+  } as any)
+const AuthenticatedClientsTenantIdExecutionRoute =
+  AuthenticatedClientsTenantIdExecutionRouteImport.update({
+    id: '/execution',
+    path: '/execution',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
+  } as any)
 const AuthenticatedAuditsAuditIdProposalsRoute =
   AuthenticatedAuditsAuditIdProposalsRouteImport.update({
     id: '/audits/$auditId_/proposals',
@@ -301,6 +343,12 @@ export interface FileRoutesByFullPath {
   '/sites/': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
+  '/clients/$tenantId/execution': typeof AuthenticatedClientsTenantIdExecutionRoute
+  '/clients/$tenantId/leads': typeof AuthenticatedClientsTenantIdLeadsRoute
+  '/clients/$tenantId/overview': typeof AuthenticatedClientsTenantIdOverviewRoute
+  '/clients/$tenantId/pages': typeof AuthenticatedClientsTenantIdPagesRoute
+  '/clients/$tenantId/reports': typeof AuthenticatedClientsTenantIdReportsRoute
+  '/clients/$tenantId/settings': typeof AuthenticatedClientsTenantIdSettingsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/sites/$siteId/inventory': typeof AuthenticatedSitesSiteIdInventoryRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
@@ -340,6 +388,12 @@ export interface FileRoutesByTo {
   '/sites': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
+  '/clients/$tenantId/execution': typeof AuthenticatedClientsTenantIdExecutionRoute
+  '/clients/$tenantId/leads': typeof AuthenticatedClientsTenantIdLeadsRoute
+  '/clients/$tenantId/overview': typeof AuthenticatedClientsTenantIdOverviewRoute
+  '/clients/$tenantId/pages': typeof AuthenticatedClientsTenantIdPagesRoute
+  '/clients/$tenantId/reports': typeof AuthenticatedClientsTenantIdReportsRoute
+  '/clients/$tenantId/settings': typeof AuthenticatedClientsTenantIdSettingsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/sites/$siteId/inventory': typeof AuthenticatedSitesSiteIdInventoryRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
@@ -382,6 +436,12 @@ export interface FileRoutesById {
   '/_authenticated/sites/': typeof AuthenticatedSitesIndexRoute
   '/_authenticated/audits/$auditId_/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
   '/_authenticated/audits/$auditId_/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
+  '/_authenticated/clients/$tenantId/execution': typeof AuthenticatedClientsTenantIdExecutionRoute
+  '/_authenticated/clients/$tenantId/leads': typeof AuthenticatedClientsTenantIdLeadsRoute
+  '/_authenticated/clients/$tenantId/overview': typeof AuthenticatedClientsTenantIdOverviewRoute
+  '/_authenticated/clients/$tenantId/pages': typeof AuthenticatedClientsTenantIdPagesRoute
+  '/_authenticated/clients/$tenantId/reports': typeof AuthenticatedClientsTenantIdReportsRoute
+  '/_authenticated/clients/$tenantId/settings': typeof AuthenticatedClientsTenantIdSettingsRoute
   '/_authenticated/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/_authenticated/sites/$siteId/inventory': typeof AuthenticatedSitesSiteIdInventoryRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
@@ -424,6 +484,12 @@ export interface FileRouteTypes {
     | '/sites/'
     | '/audits/$auditId/compare'
     | '/audits/$auditId/proposals'
+    | '/clients/$tenantId/execution'
+    | '/clients/$tenantId/leads'
+    | '/clients/$tenantId/overview'
+    | '/clients/$tenantId/pages'
+    | '/clients/$tenantId/reports'
+    | '/clients/$tenantId/settings'
     | '/sites/$siteId/audits'
     | '/sites/$siteId/inventory'
     | '/api/public/wpcom/callback'
@@ -463,6 +529,12 @@ export interface FileRouteTypes {
     | '/sites'
     | '/audits/$auditId/compare'
     | '/audits/$auditId/proposals'
+    | '/clients/$tenantId/execution'
+    | '/clients/$tenantId/leads'
+    | '/clients/$tenantId/overview'
+    | '/clients/$tenantId/pages'
+    | '/clients/$tenantId/reports'
+    | '/clients/$tenantId/settings'
     | '/sites/$siteId/audits'
     | '/sites/$siteId/inventory'
     | '/api/public/wpcom/callback'
@@ -504,6 +576,12 @@ export interface FileRouteTypes {
     | '/_authenticated/sites/'
     | '/_authenticated/audits/$auditId_/compare'
     | '/_authenticated/audits/$auditId_/proposals'
+    | '/_authenticated/clients/$tenantId/execution'
+    | '/_authenticated/clients/$tenantId/leads'
+    | '/_authenticated/clients/$tenantId/overview'
+    | '/_authenticated/clients/$tenantId/pages'
+    | '/_authenticated/clients/$tenantId/reports'
+    | '/_authenticated/clients/$tenantId/settings'
     | '/_authenticated/sites/$siteId/audits'
     | '/_authenticated/sites/$siteId/inventory'
     | '/api/public/wpcom/callback'
@@ -777,6 +855,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSitesSiteIdAuditsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/clients/$tenantId/settings': {
+      id: '/_authenticated/clients/$tenantId/settings'
+      path: '/settings'
+      fullPath: '/clients/$tenantId/settings'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdSettingsRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
+    }
+    '/_authenticated/clients/$tenantId/reports': {
+      id: '/_authenticated/clients/$tenantId/reports'
+      path: '/reports'
+      fullPath: '/clients/$tenantId/reports'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdReportsRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
+    }
+    '/_authenticated/clients/$tenantId/pages': {
+      id: '/_authenticated/clients/$tenantId/pages'
+      path: '/pages'
+      fullPath: '/clients/$tenantId/pages'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdPagesRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
+    }
+    '/_authenticated/clients/$tenantId/overview': {
+      id: '/_authenticated/clients/$tenantId/overview'
+      path: '/overview'
+      fullPath: '/clients/$tenantId/overview'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdOverviewRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
+    }
+    '/_authenticated/clients/$tenantId/leads': {
+      id: '/_authenticated/clients/$tenantId/leads'
+      path: '/leads'
+      fullPath: '/clients/$tenantId/leads'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdLeadsRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
+    }
+    '/_authenticated/clients/$tenantId/execution': {
+      id: '/_authenticated/clients/$tenantId/execution'
+      path: '/execution'
+      fullPath: '/clients/$tenantId/execution'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdExecutionRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
+    }
     '/_authenticated/audits/$auditId_/proposals': {
       id: '/_authenticated/audits/$auditId_/proposals'
       path: '/audits/$auditId/proposals'
@@ -822,11 +942,29 @@ const AuthenticatedOnboardingRouteWithChildren =
   )
 
 interface AuthenticatedClientsTenantIdRouteChildren {
+  AuthenticatedClientsTenantIdExecutionRoute: typeof AuthenticatedClientsTenantIdExecutionRoute
+  AuthenticatedClientsTenantIdLeadsRoute: typeof AuthenticatedClientsTenantIdLeadsRoute
+  AuthenticatedClientsTenantIdOverviewRoute: typeof AuthenticatedClientsTenantIdOverviewRoute
+  AuthenticatedClientsTenantIdPagesRoute: typeof AuthenticatedClientsTenantIdPagesRoute
+  AuthenticatedClientsTenantIdReportsRoute: typeof AuthenticatedClientsTenantIdReportsRoute
+  AuthenticatedClientsTenantIdSettingsRoute: typeof AuthenticatedClientsTenantIdSettingsRoute
   AuthenticatedClientsTenantIdIndexRoute: typeof AuthenticatedClientsTenantIdIndexRoute
 }
 
 const AuthenticatedClientsTenantIdRouteChildren: AuthenticatedClientsTenantIdRouteChildren =
   {
+    AuthenticatedClientsTenantIdExecutionRoute:
+      AuthenticatedClientsTenantIdExecutionRoute,
+    AuthenticatedClientsTenantIdLeadsRoute:
+      AuthenticatedClientsTenantIdLeadsRoute,
+    AuthenticatedClientsTenantIdOverviewRoute:
+      AuthenticatedClientsTenantIdOverviewRoute,
+    AuthenticatedClientsTenantIdPagesRoute:
+      AuthenticatedClientsTenantIdPagesRoute,
+    AuthenticatedClientsTenantIdReportsRoute:
+      AuthenticatedClientsTenantIdReportsRoute,
+    AuthenticatedClientsTenantIdSettingsRoute:
+      AuthenticatedClientsTenantIdSettingsRoute,
     AuthenticatedClientsTenantIdIndexRoute:
       AuthenticatedClientsTenantIdIndexRoute,
   }
