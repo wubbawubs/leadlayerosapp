@@ -30,12 +30,17 @@ function NavBrand() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   return (
-    <Link to="/dashboard" className="flex items-center gap-2.5 px-2 py-1">
+    <Link to="/dashboard" className="flex items-center gap-2.5 px-2 py-2">
       <Mark className="h-7 w-7 shrink-0" />
       {!collapsed && (
-        <span className="font-display text-base font-semibold tracking-tight text-foreground">
-          LeadLayer <span className="text-accent">OS</span>
-        </span>
+        <div className="flex flex-col leading-tight">
+          <span className="font-display text-sm font-bold tracking-tight text-foreground">
+            LeadLayer
+          </span>
+          <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">
+            Operator OS
+          </span>
+        </div>
       )}
     </Link>
   );
