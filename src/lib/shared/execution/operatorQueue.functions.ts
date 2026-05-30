@@ -350,37 +350,43 @@ export const getClientHealthSummaries = createServerFn({ method: "POST" })
     const periodStartTs = periodStart.toISOString();
 
     // Load all data in parallel
-    const [tenantRows, goalRows, leadCountRows, pendingArtRows, draftCreatedRows, deliveryRows] =
-      await Promise.all([
-        admin.from("tenants").select("id, name").in("id", tenantIds),
-        admin
-          .from("growth_goals")
-          .select("tenant_id, status, tier, next_call_at, notification_email, notify_on_lead")
-          .in("tenant_id", tenantIds)
-          .eq("status", "active"),
-        admin
-          .from("leads")
-          .select("tenant_id, created_at")
-          .in("tenant_id", tenantIds)
-          .gte("created_at", periodStartTs),
-        admin
-          .from("execution_artifacts")
-          .select("tenant_id, created_at")
-          .in("tenant_id", tenantIds)
-          .eq("status", "needs_review"),
-        admin
-          .from("wordpress_drafts")
-          .select("tenant_id, created_at")
-          .in("tenant_id", tenantIds)
-          .eq("status", "created"),
-        admin
-          .from("wordpress_drafts")
-          .select("tenant_id, published_at")
-          .in("tenant_id", tenantIds)
-          .not("published_at", "is", null)
-          .order("published_at", { ascending: false })
-          .limit(tenantIds.length * 2),
-      ]);
+    const [
+      { data: tenantRows },
+      { data: goalRows },
+      { data: leadCountRows },
+      { data: pendingArtRows },
+      { data: draftCreatedRows },
+      { data: deliveryRows },
+    ] = await Promise.all([
+      admin.from("tenants").select("id, name").in("id", tenantIds),
+      admin
+        .from("growth_goals")
+        .select("tenant_id, status, tier, next_call_at, notification_email, notify_on_lead")
+        .in("tenant_id", tenantIds)
+        .eq("status", "active"),
+      admin
+        .from("leads")
+        .select("tenant_id, created_at")
+        .in("tenant_id", tenantIds)
+        .gte("created_at", periodStartTs),
+      admin
+        .from("execution_artifacts")
+        .select("tenant_id, created_at")
+        .in("tenant_id", tenantIds)
+        .eq("status", "needs_review"),
+      admin
+        .from("wordpress_drafts")
+        .select("tenant_id, created_at")
+        .in("tenant_id", tenantIds)
+        .eq("status", "created"),
+      admin
+        .from("wordpress_drafts")
+        .select("tenant_id, published_at")
+        .in("tenant_id", tenantIds)
+        .not("published_at", "is", null)
+        .order("published_at", { ascending: false })
+        .limit(tenantIds.length * 2),
+    ]);
 
     // Index all data by tenant
     const goalByTenant = new Map<string, Record<string, unknown>>();
