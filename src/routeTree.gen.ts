@@ -16,8 +16,10 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RShareTokenRouteImport } from './routes/r.$shareToken'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedSitesIndexRouteImport } from './routes/_authenticated/sites.index'
+import { Route as AuthenticatedClientsIndexRouteImport } from './routes/_authenticated/clients.index'
 import { Route as ApiPublicRunAnalyzerJobRouteImport } from './routes/api/public/run-analyzer-job'
 import { Route as ApiPublicLeadIngestRouteImport } from './routes/api/public/lead-ingest'
 import { Route as AuthenticatedSitesNewRouteImport } from './routes/_authenticated/sites.new'
@@ -37,10 +39,18 @@ import { Route as AuthenticatedGrowthGbpRouteImport } from './routes/_authentica
 import { Route as AuthenticatedGrowthFlowRouteImport } from './routes/_authenticated/growth.flow'
 import { Route as AuthenticatedGrowthExecutionRouteImport } from './routes/_authenticated/growth.execution'
 import { Route as AuthenticatedGrowthBlueprintRouteImport } from './routes/_authenticated/growth.blueprint'
+import { Route as AuthenticatedClientsTenantIdRouteImport } from './routes/_authenticated/clients.$tenantId'
 import { Route as AuthenticatedAuditsAuditIdRouteImport } from './routes/_authenticated/audits.$auditId'
+import { Route as AuthenticatedClientsTenantIdIndexRouteImport } from './routes/_authenticated/clients.$tenantId.index'
 import { Route as ApiPublicWpcomCallbackRouteImport } from './routes/api/public/wpcom/callback'
 import { Route as AuthenticatedSitesSiteIdInventoryRouteImport } from './routes/_authenticated/sites.$siteId.inventory'
 import { Route as AuthenticatedSitesSiteIdAuditsRouteImport } from './routes/_authenticated/sites.$siteId.audits'
+import { Route as AuthenticatedClientsTenantIdSettingsRouteImport } from './routes/_authenticated/clients.$tenantId.settings'
+import { Route as AuthenticatedClientsTenantIdReportsRouteImport } from './routes/_authenticated/clients.$tenantId.reports'
+import { Route as AuthenticatedClientsTenantIdPagesRouteImport } from './routes/_authenticated/clients.$tenantId.pages'
+import { Route as AuthenticatedClientsTenantIdOverviewRouteImport } from './routes/_authenticated/clients.$tenantId.overview'
+import { Route as AuthenticatedClientsTenantIdLeadsRouteImport } from './routes/_authenticated/clients.$tenantId.leads'
+import { Route as AuthenticatedClientsTenantIdExecutionRouteImport } from './routes/_authenticated/clients.$tenantId.execution'
 import { Route as AuthenticatedAuditsAuditIdProposalsRouteImport } from './routes/_authenticated/audits.$auditId_.proposals'
 import { Route as AuthenticatedAuditsAuditIdCompareRouteImport } from './routes/_authenticated/audits.$auditId_.compare'
 import { Route as AuthenticatedGrowthMasterplanItemIdProposalsRouteImport } from './routes/_authenticated/growth.masterplan_.$itemId.proposals'
@@ -79,6 +89,11 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   id: '/app',
   path: '/app',
@@ -89,6 +104,12 @@ const AuthenticatedSitesIndexRoute = AuthenticatedSitesIndexRouteImport.update({
   path: '/sites/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedClientsIndexRoute =
+  AuthenticatedClientsIndexRouteImport.update({
+    id: '/clients/',
+    path: '/clients/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiPublicRunAnalyzerJobRoute = ApiPublicRunAnalyzerJobRouteImport.update({
   id: '/api/public/run-analyzer-job',
   path: '/api/public/run-analyzer-job',
@@ -198,11 +219,23 @@ const AuthenticatedGrowthBlueprintRoute =
     path: '/growth/blueprint',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedClientsTenantIdRoute =
+  AuthenticatedClientsTenantIdRouteImport.update({
+    id: '/clients/$tenantId',
+    path: '/clients/$tenantId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAuditsAuditIdRoute =
   AuthenticatedAuditsAuditIdRouteImport.update({
     id: '/audits/$auditId',
     path: '/audits/$auditId',
     getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedClientsTenantIdIndexRoute =
+  AuthenticatedClientsTenantIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
   } as any)
 const ApiPublicWpcomCallbackRoute = ApiPublicWpcomCallbackRouteImport.update({
   id: '/api/public/wpcom/callback',
@@ -220,6 +253,42 @@ const AuthenticatedSitesSiteIdAuditsRoute =
     id: '/sites/$siteId/audits',
     path: '/sites/$siteId/audits',
     getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedClientsTenantIdSettingsRoute =
+  AuthenticatedClientsTenantIdSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
+  } as any)
+const AuthenticatedClientsTenantIdReportsRoute =
+  AuthenticatedClientsTenantIdReportsRouteImport.update({
+    id: '/reports',
+    path: '/reports',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
+  } as any)
+const AuthenticatedClientsTenantIdPagesRoute =
+  AuthenticatedClientsTenantIdPagesRouteImport.update({
+    id: '/pages',
+    path: '/pages',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
+  } as any)
+const AuthenticatedClientsTenantIdOverviewRoute =
+  AuthenticatedClientsTenantIdOverviewRouteImport.update({
+    id: '/overview',
+    path: '/overview',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
+  } as any)
+const AuthenticatedClientsTenantIdLeadsRoute =
+  AuthenticatedClientsTenantIdLeadsRouteImport.update({
+    id: '/leads',
+    path: '/leads',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
+  } as any)
+const AuthenticatedClientsTenantIdExecutionRoute =
+  AuthenticatedClientsTenantIdExecutionRouteImport.update({
+    id: '/execution',
+    path: '/execution',
+    getParentRoute: () => AuthenticatedClientsTenantIdRoute,
   } as any)
 const AuthenticatedAuditsAuditIdProposalsRoute =
   AuthenticatedAuditsAuditIdProposalsRouteImport.update({
@@ -246,9 +315,11 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
   '/r/$shareToken': typeof RShareTokenRoute
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
+  '/clients/$tenantId': typeof AuthenticatedClientsTenantIdRouteWithChildren
   '/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
   '/growth/execution': typeof AuthenticatedGrowthExecutionRoute
   '/growth/flow': typeof AuthenticatedGrowthFlowRoute
@@ -268,12 +339,20 @@ export interface FileRoutesByFullPath {
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/api/public/lead-ingest': typeof ApiPublicLeadIngestRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
+  '/clients/': typeof AuthenticatedClientsIndexRoute
   '/sites/': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
+  '/clients/$tenantId/execution': typeof AuthenticatedClientsTenantIdExecutionRoute
+  '/clients/$tenantId/leads': typeof AuthenticatedClientsTenantIdLeadsRoute
+  '/clients/$tenantId/overview': typeof AuthenticatedClientsTenantIdOverviewRoute
+  '/clients/$tenantId/pages': typeof AuthenticatedClientsTenantIdPagesRoute
+  '/clients/$tenantId/reports': typeof AuthenticatedClientsTenantIdReportsRoute
+  '/clients/$tenantId/settings': typeof AuthenticatedClientsTenantIdSettingsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/sites/$siteId/inventory': typeof AuthenticatedSitesSiteIdInventoryRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
+  '/clients/$tenantId/': typeof AuthenticatedClientsTenantIdIndexRoute
   '/growth/masterplan/$itemId/proposals': typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
 }
 export interface FileRoutesByTo {
@@ -282,6 +361,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
   '/r/$shareToken': typeof RShareTokenRoute
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
@@ -304,12 +384,20 @@ export interface FileRoutesByTo {
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/api/public/lead-ingest': typeof ApiPublicLeadIngestRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
+  '/clients': typeof AuthenticatedClientsIndexRoute
   '/sites': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
   '/audits/$auditId/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
+  '/clients/$tenantId/execution': typeof AuthenticatedClientsTenantIdExecutionRoute
+  '/clients/$tenantId/leads': typeof AuthenticatedClientsTenantIdLeadsRoute
+  '/clients/$tenantId/overview': typeof AuthenticatedClientsTenantIdOverviewRoute
+  '/clients/$tenantId/pages': typeof AuthenticatedClientsTenantIdPagesRoute
+  '/clients/$tenantId/reports': typeof AuthenticatedClientsTenantIdReportsRoute
+  '/clients/$tenantId/settings': typeof AuthenticatedClientsTenantIdSettingsRoute
   '/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/sites/$siteId/inventory': typeof AuthenticatedSitesSiteIdInventoryRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
+  '/clients/$tenantId': typeof AuthenticatedClientsTenantIdIndexRoute
   '/growth/masterplan/$itemId/proposals': typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
 }
 export interface FileRoutesById {
@@ -320,9 +408,11 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
   '/r/$shareToken': typeof RShareTokenRoute
   '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
+  '/_authenticated/clients/$tenantId': typeof AuthenticatedClientsTenantIdRouteWithChildren
   '/_authenticated/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
   '/_authenticated/growth/execution': typeof AuthenticatedGrowthExecutionRoute
   '/_authenticated/growth/flow': typeof AuthenticatedGrowthFlowRoute
@@ -342,12 +432,20 @@ export interface FileRoutesById {
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
   '/api/public/lead-ingest': typeof ApiPublicLeadIngestRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
+  '/_authenticated/clients/': typeof AuthenticatedClientsIndexRoute
   '/_authenticated/sites/': typeof AuthenticatedSitesIndexRoute
   '/_authenticated/audits/$auditId_/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
   '/_authenticated/audits/$auditId_/proposals': typeof AuthenticatedAuditsAuditIdProposalsRoute
+  '/_authenticated/clients/$tenantId/execution': typeof AuthenticatedClientsTenantIdExecutionRoute
+  '/_authenticated/clients/$tenantId/leads': typeof AuthenticatedClientsTenantIdLeadsRoute
+  '/_authenticated/clients/$tenantId/overview': typeof AuthenticatedClientsTenantIdOverviewRoute
+  '/_authenticated/clients/$tenantId/pages': typeof AuthenticatedClientsTenantIdPagesRoute
+  '/_authenticated/clients/$tenantId/reports': typeof AuthenticatedClientsTenantIdReportsRoute
+  '/_authenticated/clients/$tenantId/settings': typeof AuthenticatedClientsTenantIdSettingsRoute
   '/_authenticated/sites/$siteId/audits': typeof AuthenticatedSitesSiteIdAuditsRoute
   '/_authenticated/sites/$siteId/inventory': typeof AuthenticatedSitesSiteIdInventoryRoute
   '/api/public/wpcom/callback': typeof ApiPublicWpcomCallbackRoute
+  '/_authenticated/clients/$tenantId/': typeof AuthenticatedClientsTenantIdIndexRoute
   '/_authenticated/growth/masterplan_/$itemId/proposals': typeof AuthenticatedGrowthMasterplanItemIdProposalsRoute
 }
 export interface FileRouteTypes {
@@ -358,9 +456,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/app'
+    | '/dashboard'
     | '/onboarding'
     | '/r/$shareToken'
     | '/audits/$auditId'
+    | '/clients/$tenantId'
     | '/growth/blueprint'
     | '/growth/execution'
     | '/growth/flow'
@@ -380,12 +480,20 @@ export interface FileRouteTypes {
     | '/sites/new'
     | '/api/public/lead-ingest'
     | '/api/public/run-analyzer-job'
+    | '/clients/'
     | '/sites/'
     | '/audits/$auditId/compare'
     | '/audits/$auditId/proposals'
+    | '/clients/$tenantId/execution'
+    | '/clients/$tenantId/leads'
+    | '/clients/$tenantId/overview'
+    | '/clients/$tenantId/pages'
+    | '/clients/$tenantId/reports'
+    | '/clients/$tenantId/settings'
     | '/sites/$siteId/audits'
     | '/sites/$siteId/inventory'
     | '/api/public/wpcom/callback'
+    | '/clients/$tenantId/'
     | '/growth/masterplan/$itemId/proposals'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -394,6 +502,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/app'
+    | '/dashboard'
     | '/onboarding'
     | '/r/$shareToken'
     | '/audits/$auditId'
@@ -416,12 +525,20 @@ export interface FileRouteTypes {
     | '/sites/new'
     | '/api/public/lead-ingest'
     | '/api/public/run-analyzer-job'
+    | '/clients'
     | '/sites'
     | '/audits/$auditId/compare'
     | '/audits/$auditId/proposals'
+    | '/clients/$tenantId/execution'
+    | '/clients/$tenantId/leads'
+    | '/clients/$tenantId/overview'
+    | '/clients/$tenantId/pages'
+    | '/clients/$tenantId/reports'
+    | '/clients/$tenantId/settings'
     | '/sites/$siteId/audits'
     | '/sites/$siteId/inventory'
     | '/api/public/wpcom/callback'
+    | '/clients/$tenantId'
     | '/growth/masterplan/$itemId/proposals'
   id:
     | '__root__'
@@ -431,9 +548,11 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/_authenticated/app'
+    | '/_authenticated/dashboard'
     | '/_authenticated/onboarding'
     | '/r/$shareToken'
     | '/_authenticated/audits/$auditId'
+    | '/_authenticated/clients/$tenantId'
     | '/_authenticated/growth/blueprint'
     | '/_authenticated/growth/execution'
     | '/_authenticated/growth/flow'
@@ -453,12 +572,20 @@ export interface FileRouteTypes {
     | '/_authenticated/sites/new'
     | '/api/public/lead-ingest'
     | '/api/public/run-analyzer-job'
+    | '/_authenticated/clients/'
     | '/_authenticated/sites/'
     | '/_authenticated/audits/$auditId_/compare'
     | '/_authenticated/audits/$auditId_/proposals'
+    | '/_authenticated/clients/$tenantId/execution'
+    | '/_authenticated/clients/$tenantId/leads'
+    | '/_authenticated/clients/$tenantId/overview'
+    | '/_authenticated/clients/$tenantId/pages'
+    | '/_authenticated/clients/$tenantId/reports'
+    | '/_authenticated/clients/$tenantId/settings'
     | '/_authenticated/sites/$siteId/audits'
     | '/_authenticated/sites/$siteId/inventory'
     | '/api/public/wpcom/callback'
+    | '/_authenticated/clients/$tenantId/'
     | '/_authenticated/growth/masterplan_/$itemId/proposals'
   fileRoutesById: FileRoutesById
 }
@@ -525,6 +652,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/app': {
       id: '/_authenticated/app'
       path: '/app'
@@ -537,6 +671,13 @@ declare module '@tanstack/react-router' {
       path: '/sites'
       fullPath: '/sites/'
       preLoaderRoute: typeof AuthenticatedSitesIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/clients/': {
+      id: '/_authenticated/clients/'
+      path: '/clients'
+      fullPath: '/clients/'
+      preLoaderRoute: typeof AuthenticatedClientsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/public/run-analyzer-job': {
@@ -672,12 +813,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthBlueprintRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/clients/$tenantId': {
+      id: '/_authenticated/clients/$tenantId'
+      path: '/clients/$tenantId'
+      fullPath: '/clients/$tenantId'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/audits/$auditId': {
       id: '/_authenticated/audits/$auditId'
       path: '/audits/$auditId'
       fullPath: '/audits/$auditId'
       preLoaderRoute: typeof AuthenticatedAuditsAuditIdRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/clients/$tenantId/': {
+      id: '/_authenticated/clients/$tenantId/'
+      path: '/'
+      fullPath: '/clients/$tenantId/'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdIndexRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
     }
     '/api/public/wpcom/callback': {
       id: '/api/public/wpcom/callback'
@@ -699,6 +854,48 @@ declare module '@tanstack/react-router' {
       fullPath: '/sites/$siteId/audits'
       preLoaderRoute: typeof AuthenticatedSitesSiteIdAuditsRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/clients/$tenantId/settings': {
+      id: '/_authenticated/clients/$tenantId/settings'
+      path: '/settings'
+      fullPath: '/clients/$tenantId/settings'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdSettingsRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
+    }
+    '/_authenticated/clients/$tenantId/reports': {
+      id: '/_authenticated/clients/$tenantId/reports'
+      path: '/reports'
+      fullPath: '/clients/$tenantId/reports'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdReportsRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
+    }
+    '/_authenticated/clients/$tenantId/pages': {
+      id: '/_authenticated/clients/$tenantId/pages'
+      path: '/pages'
+      fullPath: '/clients/$tenantId/pages'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdPagesRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
+    }
+    '/_authenticated/clients/$tenantId/overview': {
+      id: '/_authenticated/clients/$tenantId/overview'
+      path: '/overview'
+      fullPath: '/clients/$tenantId/overview'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdOverviewRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
+    }
+    '/_authenticated/clients/$tenantId/leads': {
+      id: '/_authenticated/clients/$tenantId/leads'
+      path: '/leads'
+      fullPath: '/clients/$tenantId/leads'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdLeadsRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
+    }
+    '/_authenticated/clients/$tenantId/execution': {
+      id: '/_authenticated/clients/$tenantId/execution'
+      path: '/execution'
+      fullPath: '/clients/$tenantId/execution'
+      preLoaderRoute: typeof AuthenticatedClientsTenantIdExecutionRouteImport
+      parentRoute: typeof AuthenticatedClientsTenantIdRoute
     }
     '/_authenticated/audits/$auditId_/proposals': {
       id: '/_authenticated/audits/$auditId_/proposals'
@@ -744,10 +941,45 @@ const AuthenticatedOnboardingRouteWithChildren =
     AuthenticatedOnboardingRouteChildren,
   )
 
+interface AuthenticatedClientsTenantIdRouteChildren {
+  AuthenticatedClientsTenantIdExecutionRoute: typeof AuthenticatedClientsTenantIdExecutionRoute
+  AuthenticatedClientsTenantIdLeadsRoute: typeof AuthenticatedClientsTenantIdLeadsRoute
+  AuthenticatedClientsTenantIdOverviewRoute: typeof AuthenticatedClientsTenantIdOverviewRoute
+  AuthenticatedClientsTenantIdPagesRoute: typeof AuthenticatedClientsTenantIdPagesRoute
+  AuthenticatedClientsTenantIdReportsRoute: typeof AuthenticatedClientsTenantIdReportsRoute
+  AuthenticatedClientsTenantIdSettingsRoute: typeof AuthenticatedClientsTenantIdSettingsRoute
+  AuthenticatedClientsTenantIdIndexRoute: typeof AuthenticatedClientsTenantIdIndexRoute
+}
+
+const AuthenticatedClientsTenantIdRouteChildren: AuthenticatedClientsTenantIdRouteChildren =
+  {
+    AuthenticatedClientsTenantIdExecutionRoute:
+      AuthenticatedClientsTenantIdExecutionRoute,
+    AuthenticatedClientsTenantIdLeadsRoute:
+      AuthenticatedClientsTenantIdLeadsRoute,
+    AuthenticatedClientsTenantIdOverviewRoute:
+      AuthenticatedClientsTenantIdOverviewRoute,
+    AuthenticatedClientsTenantIdPagesRoute:
+      AuthenticatedClientsTenantIdPagesRoute,
+    AuthenticatedClientsTenantIdReportsRoute:
+      AuthenticatedClientsTenantIdReportsRoute,
+    AuthenticatedClientsTenantIdSettingsRoute:
+      AuthenticatedClientsTenantIdSettingsRoute,
+    AuthenticatedClientsTenantIdIndexRoute:
+      AuthenticatedClientsTenantIdIndexRoute,
+  }
+
+const AuthenticatedClientsTenantIdRouteWithChildren =
+  AuthenticatedClientsTenantIdRoute._addFileChildren(
+    AuthenticatedClientsTenantIdRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRouteWithChildren
   AuthenticatedAuditsAuditIdRoute: typeof AuthenticatedAuditsAuditIdRoute
+  AuthenticatedClientsTenantIdRoute: typeof AuthenticatedClientsTenantIdRouteWithChildren
   AuthenticatedGrowthBlueprintRoute: typeof AuthenticatedGrowthBlueprintRoute
   AuthenticatedGrowthExecutionRoute: typeof AuthenticatedGrowthExecutionRoute
   AuthenticatedGrowthFlowRoute: typeof AuthenticatedGrowthFlowRoute
@@ -761,6 +993,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsGrowthGoalRoute: typeof AuthenticatedSettingsGrowthGoalRoute
   AuthenticatedSettingsToneProfileRoute: typeof AuthenticatedSettingsToneProfileRoute
   AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
+  AuthenticatedClientsIndexRoute: typeof AuthenticatedClientsIndexRoute
   AuthenticatedSitesIndexRoute: typeof AuthenticatedSitesIndexRoute
   AuthenticatedAuditsAuditIdCompareRoute: typeof AuthenticatedAuditsAuditIdCompareRoute
   AuthenticatedAuditsAuditIdProposalsRoute: typeof AuthenticatedAuditsAuditIdProposalsRoute
@@ -771,8 +1004,11 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRouteWithChildren,
   AuthenticatedAuditsAuditIdRoute: AuthenticatedAuditsAuditIdRoute,
+  AuthenticatedClientsTenantIdRoute:
+    AuthenticatedClientsTenantIdRouteWithChildren,
   AuthenticatedGrowthBlueprintRoute: AuthenticatedGrowthBlueprintRoute,
   AuthenticatedGrowthExecutionRoute: AuthenticatedGrowthExecutionRoute,
   AuthenticatedGrowthFlowRoute: AuthenticatedGrowthFlowRoute,
@@ -787,6 +1023,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsGrowthGoalRoute: AuthenticatedSettingsGrowthGoalRoute,
   AuthenticatedSettingsToneProfileRoute: AuthenticatedSettingsToneProfileRoute,
   AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
+  AuthenticatedClientsIndexRoute: AuthenticatedClientsIndexRoute,
   AuthenticatedSitesIndexRoute: AuthenticatedSitesIndexRoute,
   AuthenticatedAuditsAuditIdCompareRoute:
     AuthenticatedAuditsAuditIdCompareRoute,
