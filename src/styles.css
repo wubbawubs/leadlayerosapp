@@ -83,56 +83,59 @@
   --brand-orange: oklch(72% 0.2 48);
   --brand-orange-deep: oklch(66% 0.21 42);
 
-  /* Light theme (default — matches marketing site) */
-  --background: oklch(98.5% 0.004 250);
-  --foreground: oklch(16% 0.05 265);
+  /* Light theme — warm cream operator surface (matches leadlayer.studio) */
+  --background: oklch(94% 0.018 80);
+  --foreground: oklch(18% 0.012 80);
 
-  --card: oklch(100% 0 0);
-  --card-foreground: oklch(16% 0.05 265);
+  --card: oklch(97% 0.012 80);
+  --card-foreground: oklch(18% 0.012 80);
 
-  --popover: oklch(100% 0 0);
-  --popover-foreground: oklch(16% 0.05 265);
+  --popover: oklch(97% 0.012 80);
+  --popover-foreground: oklch(18% 0.012 80);
 
-  --primary: oklch(46% 0.22 260);
-  --primary-foreground: oklch(99% 0.005 250);
-  --primary-glow: oklch(62% 0.2 258);
+  /* Primary = near-black (used for primary CTA / trapezoid button) */
+  --primary: oklch(18% 0.012 80);
+  --primary-foreground: oklch(97% 0.012 80);
+  --primary-glow: oklch(30% 0.014 80);
 
-  --secondary: oklch(96.5% 0.01 260);
-  --secondary-foreground: oklch(20% 0.05 265);
+  --secondary: oklch(91% 0.016 80);
+  --secondary-foreground: oklch(18% 0.012 80);
 
-  --muted: oklch(96.5% 0.01 260);
-  --muted-foreground: oklch(48% 0.03 260);
+  --muted: oklch(91% 0.016 80);
+  --muted-foreground: oklch(42% 0.012 80);
 
-  --accent: oklch(72% 0.2 48);
-  --accent-foreground: oklch(100% 0 0);
-  --accent-glow: oklch(78% 0.19 55);
+  /* Accent = LeadLayer orange */
+  --accent: oklch(72% 0.16 55);
+  --accent-foreground: oklch(18% 0.012 80);
+  --accent-glow: oklch(78% 0.15 60);
 
   --destructive: oklch(57.7% 0.245 27.325);
-  --destructive-foreground: oklch(98.4% 0.003 247.858);
+  --destructive-foreground: oklch(98% 0.005 80);
 
-  --border: oklch(91% 0.013 260);
-  --input: oklch(91% 0.013 260);
-  --ring: oklch(46% 0.22 260);
+  /* Hairline border — slightly darker than bg for editorial feel */
+  --border: oklch(82% 0.018 80);
+  --input: oklch(82% 0.018 80);
+  --ring: oklch(72% 0.16 55);
 
-  --sidebar: oklch(98.4% 0.003 247.858);
-  --sidebar-foreground: oklch(12.9% 0.042 264.695);
-  --sidebar-primary: oklch(20.8% 0.042 265.755);
-  --sidebar-primary-foreground: oklch(98.4% 0.003 247.858);
-  --sidebar-accent: oklch(96.8% 0.007 247.896);
-  --sidebar-accent-foreground: oklch(20.8% 0.042 265.755);
-  --sidebar-border: oklch(92.9% 0.013 255.508);
-  --sidebar-ring: oklch(55.1% 0.027 264.364);
+  --sidebar: oklch(92% 0.018 80);
+  --sidebar-foreground: oklch(18% 0.012 80);
+  --sidebar-primary: oklch(18% 0.012 80);
+  --sidebar-primary-foreground: oklch(97% 0.012 80);
+  --sidebar-accent: oklch(88% 0.02 80);
+  --sidebar-accent-foreground: oklch(18% 0.012 80);
+  --sidebar-border: oklch(82% 0.018 80);
+  --sidebar-ring: oklch(72% 0.16 55);
 
-  /* Gradients (from marketing site) */
-  --gradient-primary: linear-gradient(135deg, oklch(34% 0.18 262), oklch(50% 0.22 258));
-  --gradient-accent: linear-gradient(135deg, oklch(66% 0.21 42), oklch(78% 0.19 55));
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, oklch(18% 0.012 80), oklch(30% 0.014 80));
+  --gradient-accent: linear-gradient(135deg, oklch(66% 0.18 50), oklch(78% 0.15 60));
   --gradient-hero:
-    radial-gradient(900px 500px at 85% 10%, oklch(72% 0.2 48 / 0.35), transparent 60%),
-    radial-gradient(1100px 700px at 0% 0%, oklch(62% 0.2 258 / 0.45), transparent 60%),
-    linear-gradient(180deg, oklch(30% 0.16 262), oklch(22% 0.14 264));
+    radial-gradient(900px 500px at 85% 10%, oklch(72% 0.16 55 / 0.35), transparent 60%),
+    radial-gradient(1100px 700px at 0% 0%, oklch(46% 0.22 260 / 0.25), transparent 60%),
+    linear-gradient(180deg, oklch(94% 0.018 80), oklch(91% 0.016 80));
 
-  --shadow-elegant: 0 10px 30px -10px oklch(46% 0.22 260 / 0.3);
-  --shadow-glow: 0 0 60px oklch(72% 0.2 48 / 0.35);
+  --shadow-elegant: 0 10px 30px -10px oklch(18% 0.012 80 / 0.18);
+  --shadow-glow: 0 0 60px oklch(72% 0.16 55 / 0.35);
 
   /* Operator status palette — calm, premium, distinct from brand accent.
    * Used for run/stage/item status pills, badges, and review callouts. */
