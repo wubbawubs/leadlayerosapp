@@ -8,7 +8,9 @@ export const Route = createFileRoute("/_authenticated/onboarding")({
 const STEPS = [
   { path: "/onboarding/welcome", label: "Welcome" },
   { path: "/onboarding/business", label: "Business" },
-  { path: "/onboarding/site", label: "Site" },
+  { path: "/onboarding/site", label: "Workspace" },
+  { path: "/onboarding/wordpress", label: "WordPress" },
+  { path: "/onboarding/goal", label: "Goal" },
   { path: "/onboarding/done", label: "Done" },
 ];
 

@@ -10,10 +10,12 @@ import {
   getLeadStats,
   markLeadWon,
   logLeadManually,
+  updateLeadStatus,
   type LeadSummary,
   type LeadStatus,
 } from "@/lib/shared/leads/repo.functions";
 import { StatusPill, type StatusTone } from "@/components/execution/StatusPill";
+import { SkeletonLeadRow } from "@/components/ui/Skeletons";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -59,6 +61,7 @@ function LeadsTab() {
   const [filter, setFilter] = useState<Filter>("all");
   const [logOpen, setLogOpen] = useState(false);
   const [wonLead, setWonLead] = useState<LeadSummary | null>(null);
+  const qc = useQueryClient();
 
   const all = leadsQuery.data?.leads ?? [];
   const stats = statsQuery.data?.stats;
@@ -145,9 +148,13 @@ function LeadsTab() {
       </nav>
 
       {leadsQuery.isLoading && (
-        <p className="mt-8 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          Loading leads…
-        </p>
+        <div className="mt-6 overflow-x-auto border border-border bg-card">
+          <table className="w-full border-collapse text-sm">
+            <tbody>
+              {[...Array(5)].map((_, i) => <SkeletonLeadRow key={i} />)}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {leadsQuery.isError && (
@@ -175,7 +182,15 @@ function LeadsTab() {
       )}
 
       {filtered.length > 0 && (
-        <LeadsTable leads={filtered} onMarkWon={setWonLead} />
+        <LeadsTable
+          leads={filtered}
+          tenantId={tenantId}
+          onMarkWon={setWonLead}
+          onStatusChanged={() => {
+            qc.invalidateQueries({ queryKey: ["leads", tenantId] });
+            qc.invalidateQueries({ queryKey: ["lead-stats", tenantId] });
+          }}
+        />
       )}
 
       <LogLeadDialog
@@ -207,10 +222,14 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 function LeadsTable({
   leads,
+  tenantId,
   onMarkWon,
+  onStatusChanged,
 }: {
   leads: LeadSummary[];
+  tenantId: string;
   onMarkWon: (l: LeadSummary) => void;
+  onStatusChanged: () => void;
 }) {
   return (
     <div className="mt-6 overflow-x-auto border border-border bg-card">
@@ -223,12 +242,18 @@ function LeadsTable({
             <th className="px-4 py-2.5 text-left font-medium">Status</th>
             <th className="px-4 py-2.5 text-left font-medium">Service / location</th>
             <th className="px-4 py-2.5 text-right font-medium">Revenue</th>
-            <th className="px-4 py-2.5 text-right font-medium">Action</th>
+            <th className="px-4 py-2.5 text-right font-medium">Actions</th>
           </tr>
         </thead>
         <tbody>
           {leads.map((l) => (
-            <LeadRow key={l.id} lead={l} onMarkWon={() => onMarkWon(l)} />
+            <LeadRow
+              key={l.id}
+              lead={l}
+              tenantId={tenantId}
+              onMarkWon={() => onMarkWon(l)}
+              onStatusChanged={onStatusChanged}
+            />
           ))}
         </tbody>
       </table>
@@ -238,28 +263,39 @@ function LeadsTable({
 
 function LeadRow({
   lead,
+  tenantId,
   onMarkWon,
+  onStatusChanged,
 }: {
   lead: LeadSummary;
+  tenantId: string;
   onMarkWon: () => void;
+  onStatusChanged: () => void;
 }) {
+  const updateFn = useServerFn(updateLeadStatus);
+  const statusMutation = useMutation({
+    mutationFn: (status: LeadStatus) =>
+      updateFn({ data: { tenantId, leadId: lead.id, status } }),
+    onSuccess: () => {
+      toast.success("Lead updated");
+      onStatusChanged();
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
   const tone: StatusTone =
     lead.status === "won" ? "green"
-    : lead.status === "lost" || lead.status === "junk" ? "red"
-    : lead.status === "qualified" ? "amber"
+    : lead.status === "lost" || lead.status === "junk" ? "neutral"
+    : lead.status === "qualified" ? "info"
     : "amber";
 
-  const service =
-    (lead.attribution?.service as string | undefined) ?? null;
-  const location =
-    (lead.attribution?.location as string | undefined) ?? null;
+  const service = (lead.attribution?.service as string | undefined) ?? null;
+  const location = (lead.attribution?.location as string | undefined) ?? null;
   const serviceLocation = [service, location].filter(Boolean).join(" · ") || "—";
 
   const contact = lead.name ?? lead.email ?? lead.phone ?? "Unnamed lead";
   const subContact =
-    lead.name && (lead.email || lead.phone)
-      ? lead.email ?? lead.phone
-      : null;
+    lead.name && (lead.email || lead.phone) ? (lead.email ?? lead.phone) : null;
 
   return (
     <tr className="border-b border-border last:border-b-0 hover:bg-muted/30">
@@ -289,17 +325,63 @@ function LeadRow({
         {lead.closedAmount != null ? formatMoney(lead.closedAmount) : "—"}
       </td>
       <td className="px-4 py-3 align-top text-right">
-        {lead.status !== "won" && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.14em]"
-            onClick={onMarkWon}
-          >
-            <Trophy className="h-3 w-3" />
-            Mark won
-          </Button>
-        )}
+        <div className="flex items-center justify-end gap-1.5">
+          {lead.status === "new" && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2.5 font-mono text-[10px] uppercase tracking-[0.14em]"
+                disabled={statusMutation.isPending}
+                onClick={() => statusMutation.mutate("qualified")}
+              >
+                Qualify
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+                disabled={statusMutation.isPending}
+                onClick={() => statusMutation.mutate("junk")}
+              >
+                Junk
+              </Button>
+            </>
+          )}
+          {lead.status === "qualified" && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.14em]"
+                onClick={onMarkWon}
+              >
+                <Trophy className="h-3 w-3" />
+                Won
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+                disabled={statusMutation.isPending}
+                onClick={() => statusMutation.mutate("lost")}
+              >
+                Lost
+              </Button>
+            </>
+          )}
+          {lead.status !== "new" && lead.status !== "qualified" && lead.status !== "won" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+              disabled={statusMutation.isPending}
+              onClick={() => statusMutation.mutate("new")}
+            >
+              Reopen
+            </Button>
+          )}
+        </div>
       </td>
     </tr>
   );

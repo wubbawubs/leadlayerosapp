@@ -31,11 +31,13 @@ function Site() {
       if (!name) throw new Error("Missing business name — go back to step 2");
       return save({ data: { ...parsed, name } });
     },
-    onSuccess: async () => {
+    onSuccess: async (r) => {
+      sessionStorage.setItem("onboarding.tenantId", r.tenantId);
+      sessionStorage.setItem("onboarding.siteUrl", siteUrl);
       sessionStorage.removeItem("onboarding.name");
       await qc.invalidateQueries({ queryKey: ["my-tenants"] });
       await qc.invalidateQueries({ queryKey: ["onboarding"] });
-      navigate({ to: "/onboarding/done" });
+      navigate({ to: "/onboarding/wordpress" });
     },
     onError: (e) => setErr((e as Error).message),
   });
@@ -73,7 +75,7 @@ function Site() {
         disabled={m.isPending}
         className="mt-6 inline-flex rounded-md bg-primary px-5 py-2.5 font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
       >
-        {m.isPending ? "Creating workspace…" : t.next}
+        {m.isPending ? "Creating workspace…" : "Create workspace"}
       </button>
     </form>
   );

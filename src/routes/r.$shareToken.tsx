@@ -13,6 +13,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getReportByShareToken } from "@/lib/shared/monthlyReports/monthlyReports.functions";
 import type { MonthlyReport } from "@/lib/shared/monthlyReports/schemas";
+import { AnimatedMark } from "@/components/brand/AnimatedMark";
+import { Mark } from "@/components/brand/Mark";
 
 // ------------------------------------------------------------------
 // Server function — no auth middleware. Public token lookup.
@@ -50,8 +52,11 @@ function PublicReportPage() {
 
   if (query.isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">Loading report…</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-background">
+        <AnimatedMark className="h-9 w-9" />
+        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+          Loading report…
+        </p>
       </div>
     );
   }
@@ -60,9 +65,10 @@ function PublicReportPage() {
 
   if (!report) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center">
-        <p className="text-2xl font-semibold text-foreground">Report not found</p>
-        <p className="mt-2 text-sm text-muted-foreground">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-background px-6 text-center">
+        <Mark className="h-8 w-8" />
+        <p className="font-display text-xl font-semibold text-foreground">Report not found</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
           This link may have expired or been revoked. Contact your LeadLayer operator for a new link.
         </p>
       </div>

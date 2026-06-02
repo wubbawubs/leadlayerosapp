@@ -1,0 +1,30 @@
+{
+  "name": "LeadLayer",
+  "short_name": "LeadLayer",
+  "description": "Your growth dashboard — leads, pages, and revenue in one place.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f0ede6",
+  "theme_color": "#b86d1e",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/leadlayer-mark.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

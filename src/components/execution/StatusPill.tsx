@@ -37,20 +37,22 @@ export function StatusPill({
 }
 
 export function StatusDot({ tone }: { tone: StatusTone }) {
+  const colorClass =
+    tone === "green" ? "bg-[color:var(--status-green)]"
+    : tone === "amber" ? "bg-[color:var(--status-amber)]"
+    : tone === "red" ? "bg-[color:var(--status-red)]"
+    : tone === "info" ? "bg-[color:var(--status-info)]"
+    : "bg-[color:var(--status-neutral)]";
+
   return (
-    <span
-      aria-hidden
-      className={`inline-block h-2 w-2 rounded-full ${
-        tone === "green"
-          ? "bg-[color:var(--status-green)]"
-          : tone === "amber"
-            ? "bg-[color:var(--status-amber)]"
-            : tone === "red"
-              ? "bg-[color:var(--status-red)]"
-              : tone === "info"
-                ? "bg-[color:var(--status-info)]"
-                : "bg-[color:var(--status-neutral)]"
-      }`}
-    />
+    <span aria-hidden className="relative inline-flex h-2 w-2">
+      {tone === "red" && (
+        <span
+          className={`absolute inline-flex h-full w-full rounded-full ${colorClass} opacity-75`}
+          style={{ animation: "dot-ring-pulse 1.8s ease-out infinite" }}
+        />
+      )}
+      <span className={`relative inline-flex h-2 w-2 rounded-full ${colorClass}`} />
+    </span>
   );
 }

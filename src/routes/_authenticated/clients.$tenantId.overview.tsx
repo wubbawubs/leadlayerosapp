@@ -198,6 +198,23 @@ function EmptyLine({ children }: { children: React.ReactNode }) {
   );
 }
 
+function CardSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-4">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="space-y-2">
+            <div className="h-2.5 w-12 rounded skeleton-shimmer" />
+            <div className="h-6 w-10 rounded skeleton-shimmer" />
+            <div className="h-2 w-8 rounded skeleton-shimmer" />
+          </div>
+        ))}
+      </div>
+      <div className="h-2 w-3/4 rounded skeleton-shimmer" />
+    </div>
+  );
+}
+
 function Stat({
   label,
   value,
@@ -238,7 +255,8 @@ function NeedsAttentionStrip({
   if (loading) {
     return (
       <div className="rounded-xl border border-border bg-card p-5">
-        <EmptyLine>Loading attention queue…</EmptyLine>
+        <div className="h-2.5 w-24 rounded skeleton-shimmer" />
+        <div className="mt-3 h-3 w-64 rounded skeleton-shimmer" />
       </div>
     );
   }
@@ -329,7 +347,7 @@ function GoalCard({
   return (
     <SystemCard index="01" title="Growth goal" icon={<Target className="h-4 w-4" />} tenantId={tenantId}>
       {loading ? (
-        <EmptyLine>Loading goal…</EmptyLine>
+        <CardSkeleton />
       ) : !goal || goal.status === "no_goal" ? (
         <EmptyLine>No active growth goal set.</EmptyLine>
       ) : (
@@ -386,7 +404,7 @@ function LeadsCard({
       tenantId={tenantId}
     >
       {loading ? (
-        <EmptyLine>Loading lead activity…</EmptyLine>
+        <CardSkeleton />
       ) : !stats ? (
         <EmptyLine>No lead data yet.</EmptyLine>
       ) : (
@@ -430,7 +448,7 @@ function DeliveryCard({
       tenantId={tenantId}
     >
       {loading ? (
-        <EmptyLine>Loading page inventory…</EmptyLine>
+        <CardSkeleton />
       ) : total === 0 ? (
         <EmptyLine>No pages delivered yet.</EmptyLine>
       ) : (
@@ -486,7 +504,7 @@ function LatestReportCard({
       tenantId={tenantId}
     >
       {loading ? (
-        <EmptyLine>Loading report…</EmptyLine>
+        <CardSkeleton />
       ) : !report ? (
         <EmptyLine>No monthly report generated yet.</EmptyLine>
       ) : (
@@ -558,7 +576,7 @@ function NextPlanCard({
       tenantId={tenantId}
     >
       {loading ? (
-        <EmptyLine>Loading plan…</EmptyLine>
+        <CardSkeleton />
       ) : !plan ? (
         <EmptyLine>No execution plan generated yet.</EmptyLine>
       ) : (

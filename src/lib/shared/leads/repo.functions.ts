@@ -273,3 +273,37 @@ export const markLeadWon = createServerFn({ method: "POST" })
       closedAt: row.closed_at as string,
     };
   });
+
+export const updateLeadStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        tenantId: z.string().uuid(),
+        leadId: z.string().uuid(),
+        status: z.enum(LEAD_STATUSES),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+
+    const { data: row, error } = await admin
+      .from("leads")
+      .update({ status: data.status })
+      .eq("id", data.leadId)
+      .eq("tenant_id", data.tenantId)
+      .select("id, status")
+      .single();
+    if (error) throw error;
+
+    await admin.from("lead_events").insert({
+      tenant_id: data.tenantId,
+      lead_id: data.leadId,
+      event_type: "status_changed",
+      payload: { by: userId, status: data.status },
+    });
+
+    return { ok: true, leadId: row.id as string, status: row.status as LeadStatus };
+  });

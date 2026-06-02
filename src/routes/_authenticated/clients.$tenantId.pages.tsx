@@ -12,6 +12,7 @@ import {
 import { publishWordpressDraftFromLeadLayer } from "@/lib/shared/wordpressDrafts/wordpressDrafts.functions";
 import { StatusPill, type StatusTone } from "@/components/execution/StatusPill";
 import { Button } from "@/components/ui/button";
+import { SkeletonPageRow } from "@/components/ui/Skeletons";
 
 export const Route = createFileRoute("/_authenticated/clients/$tenantId/pages")({
   component: PagesTab,
@@ -90,9 +91,13 @@ function PagesTab() {
       </nav>
 
       {inventoryQuery.isLoading && (
-        <p className="mt-8 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          Loading inventory…
-        </p>
+        <div className="mt-6 overflow-x-auto border border-border bg-card">
+          <table className="w-full border-collapse">
+            <tbody>
+              {[...Array(4)].map((_, i) => <SkeletonPageRow key={i} />)}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {inventoryQuery.isError && (

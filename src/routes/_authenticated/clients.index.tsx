@@ -1,7 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, MapPin, Briefcase } from "lucide-react";
+import { ArrowRight, MapPin, Briefcase, Plus } from "lucide-react";
+import { SkeletonClientCard } from "@/components/ui/Skeletons";
 
 import { listMyTenants } from "@/lib/shared/db/repos/tenants.functions";
 import {
@@ -22,6 +23,7 @@ const HEALTH_TONE: Record<ClientHealthSummary["health"], StatusTone> = {
 };
 
 function ClientsIndexPage() {
+  const navigate = useNavigate();
   const fetchTenants = useServerFn(listMyTenants);
   const fetchHealth = useServerFn(getClientHealthSummaries);
 
@@ -42,23 +44,33 @@ function ClientsIndexPage() {
   const isEmpty = !loading && tenants.length === 0 && summaries.length === 0;
 
   return (
-    <div className="mx-auto max-w-7xl px-8 py-12">
-      <div className="border-b border-border pb-8">
-        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-          § Clients · Portfolio
-        </p>
-        <h1 className="mt-3 font-display text-4xl font-bold tracking-tight text-foreground">
-          Your client portfolio.
-        </h1>
-        <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
-          Pick a client to open their command center: overview, execution, pages, leads, reports, and settings.
-        </p>
+    <div className="mx-auto max-w-7xl animate-fade-up-in px-8 py-12">
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-8">
+        <div>
+          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+            § Clients · Portfolio
+          </p>
+          <h1 className="mt-3 font-display text-4xl font-bold tracking-tight text-foreground">
+            Your client portfolio.
+          </h1>
+          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
+            Pick a client to open their command center: overview, execution, pages, leads, reports, and settings.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate({ to: "/onboarding/welcome" })}
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.16em] text-primary-foreground hover:opacity-90"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add client
+        </button>
       </div>
 
       {loading && (
-        <p className="mt-10 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          Loading clients…
-        </p>
+        <div className="mt-10 grid gap-0 border border-border bg-card sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(4)].map((_, i) => <SkeletonClientCard key={i} />)}
+        </div>
       )}
 
       {isEmpty && (

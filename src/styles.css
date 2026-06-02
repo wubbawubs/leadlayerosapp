@@ -214,6 +214,46 @@
   }
 }
 
+/* ─── Keyframes ─────────────────────────────────────────────────────────── */
+
+/* Layer cascade: used by AnimatedMark — each parallelogram pulses in stagger */
+@keyframes layer-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
+/* Page content enters: subtle rise + fade for main content areas */
+@keyframes fade-up-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Nav progress bar sweeps across and stalls before completing */
+@keyframes nav-bar-sweep {
+  0%   { width: 0%; opacity: 1; }
+  30%  { width: 55%; }
+  70%  { width: 75%; }
+  95%  { width: 88%; }
+  100% { width: 88%; }
+}
+@keyframes nav-bar-finish {
+  from { width: 88%; opacity: 1; }
+  to   { width: 100%; opacity: 0; }
+}
+
+/* Red dot ring pulse — signals urgency without being alarming */
+@keyframes dot-ring-pulse {
+  0%   { box-shadow: 0 0 0 0 var(--status-red, oklch(58% 0.21 25)) ; opacity: 0.8; }
+  70%  { box-shadow: 0 0 0 5px transparent; opacity: 0; }
+  100% { box-shadow: 0 0 0 0 transparent; opacity: 0; }
+}
+
+/* Skeleton shimmer — directional sweep, more premium than flat pulse */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
 @layer utilities {
   .font-display {
     font-family: var(--font-display);
@@ -224,23 +264,26 @@
     letter-spacing: -0.01em;
     line-height: 0.9;
   }
+
+  /* Blueprint dots — on auth/onboarding backgrounds */
   .bg-blueprint {
     background-image:
       radial-gradient(oklch(46% 0.22 260 / 0.06) 1px, transparent 1px);
     background-size: 26px 26px;
   }
+  /* Very faint blueprint for operator app background — more subtle than auth */
+  .bg-blueprint-subtle {
+    background-image:
+      radial-gradient(oklch(46% 0.22 260 / 0.025) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
 
   .text-balance { text-wrap: balance; }
 
-  /* Marketing hero gradient — for auth screens / hero panels */
-  .bg-hero {
-    background-image: var(--gradient-hero);
-  }
-
+  .bg-hero           { background-image: var(--gradient-hero); }
   .bg-gradient-primary { background-image: var(--gradient-primary); }
   .bg-gradient-accent  { background-image: var(--gradient-accent); }
 
-  /* Dotted blueprint backdrop used across the marketing hero */
   .bg-dots {
     background-image: radial-gradient(oklch(100% 0 0 / 0.08) 1px, transparent 1px);
     background-size: 22px 22px;
@@ -248,4 +291,38 @@
 
   .shadow-elegant { box-shadow: var(--shadow-elegant); }
   .shadow-glow    { box-shadow: var(--shadow-glow); }
+
+  /* Page enter — apply to main content wrappers on load */
+  .animate-fade-up-in {
+    animation: fade-up-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Skeleton shimmer — more directional/premium than Tailwind animate-pulse */
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--muted) 25%,
+      oklch(from var(--muted) calc(l + 0.04) c h) 50%,
+      var(--muted) 75%
+    );
+    background-size: 400px 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+
+  /* Red dot with animated ring — shows on urgent/failed states */
+  .dot-ring-pulse::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    animation: dot-ring-pulse 1.8s ease-out infinite;
+  }
+
+  /* Nav progress bar states */
+  .nav-bar-loading {
+    animation: nav-bar-sweep 8s cubic-bezier(0.1, 0, 0.2, 1) forwards;
+  }
+  .nav-bar-finishing {
+    animation: nav-bar-finish 0.3s ease-out forwards;
+  }
 }

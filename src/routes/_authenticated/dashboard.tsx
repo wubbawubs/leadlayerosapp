@@ -12,6 +12,7 @@ import {
   type ClientHealthSummary,
 } from "@/lib/shared/execution/operatorQueue.functions";
 import { StatusDot, StatusPill, type StatusTone } from "@/components/execution/StatusPill";
+import { SkeletonActionRow, SkeletonClientCard } from "@/components/ui/Skeletons";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
@@ -68,7 +69,7 @@ function DashboardPage() {
   });
 
   return (
-    <div className="mx-auto max-w-7xl px-8 py-12">
+    <div className="mx-auto max-w-7xl animate-fade-up-in px-8 py-12">
       <div className="border-b border-border pb-8">
         <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
           § Operator home · {today}
@@ -93,6 +94,12 @@ function DashboardPage() {
             </h2>
           </div>
         </header>
+
+        {queueQuery.isLoading && (
+          <div>
+            {[...Array(3)].map((_, i) => <SkeletonActionRow key={i} />)}
+          </div>
+        )}
 
         {!queueQuery.isLoading && actions.length === 0 && (
           <div className="px-6 py-10 text-center">
@@ -169,9 +176,9 @@ function DashboardPage() {
         </header>
 
         {healthQuery.isLoading && tenants.length === 0 && (
-          <p className="mt-6 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-            Loading clients…
-          </p>
+          <div className="mt-6 grid gap-0 border border-border bg-card sm:grid-cols-2 lg:grid-cols-3">
+            {[...Array(3)].map((_, i) => <SkeletonClientCard key={i} />)}
+          </div>
         )}
 
         {summaries.length > 0 ? (

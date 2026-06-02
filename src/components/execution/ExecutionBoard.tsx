@@ -24,6 +24,7 @@ import { itemTypeLabel } from "@/lib/shared/masterplan/labels";
 import { StatusPill, type StatusTone } from "./StatusPill";
 import { PageBriefReviewPanel } from "./PageBriefReviewPanel";
 import { OptimizationReviewPanel } from "./OptimizationReviewPanel";
+import { SkeletonBoardRow } from "@/components/ui/Skeletons";
 
 // ---------------------------------------------------------------------------
 // Status → display tone + label mapping (operator-facing)
@@ -81,7 +82,21 @@ export function ExecutionBoard({ tenantId }: { tenantId: string }) {
   const [filter, setFilter] = useState<Filter>("all");
 
   if (boardQuery.isLoading) {
-    return <p className="px-6 py-10 text-sm text-muted-foreground">Loading execution board…</p>;
+    return (
+      <div className="mx-auto max-w-7xl animate-fade-up-in px-6 py-8">
+        <div className="mb-6 space-y-2">
+          <div className="h-2.5 w-16 rounded skeleton-shimmer" />
+          <div className="h-7 w-48 rounded skeleton-shimmer" />
+        </div>
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="rounded-lg border border-border bg-card">
+              <SkeletonBoardRow />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
   if (!boardQuery.data?.plan) {
     return (
@@ -95,7 +110,7 @@ export function ExecutionBoard({ tenantId }: { tenantId: string }) {
   const summary = boardQuery.data.summary;
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-8">
+    <div className="mx-auto max-w-7xl animate-fade-up-in px-6 py-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[color:var(--status-info)]">

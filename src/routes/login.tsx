@@ -26,20 +26,20 @@ function LoginPage() {
       setError(error.message);
       return;
     }
-    window.location.assign("/app");
+    window.location.assign("/dashboard");
   }
 
   async function handleGoogle() {
     setError(null);
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin + "/app",
+      redirect_uri: window.location.origin + "/dashboard",
     });
     if (result.error) {
       setError(result.error.message ?? "Google sign-in failed");
       return;
     }
     if (result.redirected) return;
-    navigate({ to: "/app" });
+    navigate({ to: "/dashboard" });
   }
 
   return <AuthShell title="Sign in" subtitle="Welcome back to LeadLayer OS.">

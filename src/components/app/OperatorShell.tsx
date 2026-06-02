@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, Users, LogOut } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import {
   Sidebar,
@@ -92,10 +93,41 @@ function SignOutItem() {
   );
 }
 
+function NavProgressBar() {
+  const isLoading = useRouterState({ select: (s) => s.status === "pending" });
+  const [finishing, setFinishing] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (isLoading) {
+      setFinishing(false);
+      setVisible(true);
+    } else if (visible) {
+      setFinishing(true);
+      const t = setTimeout(() => {
+        setVisible(false);
+        setFinishing(false);
+      }, 350);
+      return () => clearTimeout(t);
+    }
+  }, [isLoading]);
+
+  if (!visible) return null;
+
+  return (
+    <div className="pointer-events-none fixed left-0 right-0 top-0 z-[100] h-[2px] overflow-hidden">
+      <div
+        className={`h-full bg-accent ${finishing ? "nav-bar-finishing" : "nav-bar-loading"}`}
+      />
+    </div>
+  );
+}
+
 export function OperatorShell({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-background">
+      <NavProgressBar />
+      <div className="flex min-h-screen w-full bg-background bg-blueprint-subtle">
         <Sidebar collapsible="icon" className="border-r border-border">
           <SidebarHeader>
             <NavBrand />

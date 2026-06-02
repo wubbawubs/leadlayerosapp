@@ -9,7 +9,7 @@ function Welcome() {
   const t = onboardingCopy.en.welcome;
   return (
     <div className="rounded-lg border border-border bg-card/70 p-8 backdrop-blur">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+      <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-accent">
         {t.eyebrow}
       </p>
       <h1 className="font-display text-4xl text-foreground">{t.title}</h1>

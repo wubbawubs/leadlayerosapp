@@ -10,6 +10,7 @@ import {
   Link2,
   Link2Off,
   CheckCircle2,
+  Send,
 } from "lucide-react";
 
 import {
@@ -18,6 +19,7 @@ import {
   updateMonthlyReportStatus,
   generateMonthlyReportShareLink,
   revokeMonthlyReportShareLink,
+  sendMonthlyReport,
 } from "@/lib/shared/monthlyReports/monthlyReports.functions";
 import type { MonthlyReport } from "@/lib/shared/monthlyReports/schemas";
 import {
@@ -29,6 +31,8 @@ import type { MonthlyExecutionPlan } from "@/lib/shared/monthlyExecutionPlans/sc
 
 import { StatusPill, type StatusTone } from "@/components/execution/StatusPill";
 import { Button } from "@/components/ui/button";
+import { SkeletonReportCard } from "@/components/ui/Skeletons";
+import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_authenticated/clients/$tenantId/reports")({
   component: ReportsTab,
@@ -140,11 +144,7 @@ function LatestReportSection({
         </Button>
       </div>
 
-      {loading && (
-        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          Loading…
-        </p>
-      )}
+      {loading && <SkeletonReportCard />}
 
       {!loading && !latest && (
         <div className="border border-dashed border-border bg-card/60 p-10 text-center">
@@ -176,6 +176,9 @@ function ReportCard({
   const approveFn = useServerFn(updateMonthlyReportStatus);
   const shareFn = useServerFn(generateMonthlyReportShareLink);
   const revokeFn = useServerFn(revokeMonthlyReportShareLink);
+  const sendFn = useServerFn(sendMonthlyReport);
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sendEmail, setSendEmail] = useState("");
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["monthly-reports", tenantId] });
@@ -211,6 +214,19 @@ function ReportCard({
     },
     onError: (e: unknown) =>
       toast.error(e instanceof Error ? e.message : "Failed to revoke"),
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: () =>
+      sendFn({ data: { tenantId, reportId: report.id, toEmail: sendEmail } }),
+    onSuccess: () => {
+      toast.success(`Report sent to ${sendEmail}`);
+      setSendOpen(false);
+      setSendEmail("");
+      invalidate();
+    },
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Failed to send report"),
   });
 
   const lead = report.leadSummary;
@@ -306,7 +322,56 @@ function ReportCard({
             {approveMutation.isPending ? "Approving…" : "Approve"}
           </Button>
         )}
+        {report.status === "approved" && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSendOpen((v) => !v)}
+            className="h-7 gap-1.5 px-2.5 font-mono text-[10px] uppercase tracking-[0.14em]"
+          >
+            <Send className="h-3 w-3" />
+            Send to client
+          </Button>
+        )}
       </div>
+
+      {sendOpen && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!sendEmail.trim()) return;
+            sendMutation.mutate();
+          }}
+          className="mt-3 flex items-center gap-2 border-t border-border pt-3"
+        >
+          <Input
+            type="email"
+            value={sendEmail}
+            onChange={(e) => setSendEmail(e.target.value)}
+            placeholder="client@example.com"
+            required
+            className="h-7 flex-1 text-sm"
+            autoFocus
+          />
+          <Button
+            type="submit"
+            size="sm"
+            disabled={sendMutation.isPending || !sendEmail.trim()}
+            className="h-7 gap-1.5 px-3 font-mono text-[10px] uppercase tracking-[0.14em]"
+          >
+            {sendMutation.isPending ? "Sending…" : "Send"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => { setSendOpen(false); setSendEmail(""); }}
+            className="h-7 px-2 text-muted-foreground"
+          >
+            Cancel
+          </Button>
+        </form>
+      )}
     </div>
   );
 }
@@ -432,11 +497,7 @@ function ExecutionPlanSection({
         </Button>
       </div>
 
-      {loading && (
-        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          Loading…
-        </p>
-      )}
+      {loading && <SkeletonReportCard />}
 
       {!loading && !latest && (
         <div className="border border-dashed border-border bg-card/60 p-10 text-center">

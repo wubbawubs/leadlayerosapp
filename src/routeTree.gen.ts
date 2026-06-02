@@ -12,9 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as DemoRouteImport } from './routes/demo'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RShareTokenRouteImport } from './routes/r.$shareToken'
+import { Route as PortalPortalTokenRouteImport } from './routes/portal.$portalToken'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
@@ -26,8 +28,10 @@ import { Route as AuthenticatedSitesNewRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedSettingsToneProfileRouteImport } from './routes/_authenticated/settings.tone-profile'
 import { Route as AuthenticatedSettingsGrowthGoalRouteImport } from './routes/_authenticated/settings.growth-goal'
 import { Route as AuthenticatedSettingsBusinessProfileRouteImport } from './routes/_authenticated/settings.business-profile'
+import { Route as AuthenticatedOnboardingWordpressRouteImport } from './routes/_authenticated/onboarding.wordpress'
 import { Route as AuthenticatedOnboardingWelcomeRouteImport } from './routes/_authenticated/onboarding.welcome'
 import { Route as AuthenticatedOnboardingSiteRouteImport } from './routes/_authenticated/onboarding.site'
+import { Route as AuthenticatedOnboardingGoalRouteImport } from './routes/_authenticated/onboarding.goal'
 import { Route as AuthenticatedOnboardingDoneRouteImport } from './routes/_authenticated/onboarding.done'
 import { Route as AuthenticatedOnboardingBusinessRouteImport } from './routes/_authenticated/onboarding.business'
 import { Route as AuthenticatedGrowthReportsRouteImport } from './routes/_authenticated/growth.reports'
@@ -70,6 +74,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DemoRoute = DemoRouteImport.update({
+  id: '/demo',
+  path: '/demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
@@ -82,6 +91,11 @@ const IndexRoute = IndexRouteImport.update({
 const RShareTokenRoute = RShareTokenRouteImport.update({
   id: '/r/$shareToken',
   path: '/r/$shareToken',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalPortalTokenRoute = PortalPortalTokenRouteImport.update({
+  id: '/portal/$portalToken',
+  path: '/portal/$portalToken',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
@@ -143,6 +157,12 @@ const AuthenticatedSettingsBusinessProfileRoute =
     path: '/settings/business-profile',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedOnboardingWordpressRoute =
+  AuthenticatedOnboardingWordpressRouteImport.update({
+    id: '/wordpress',
+    path: '/wordpress',
+    getParentRoute: () => AuthenticatedOnboardingRoute,
+  } as any)
 const AuthenticatedOnboardingWelcomeRoute =
   AuthenticatedOnboardingWelcomeRouteImport.update({
     id: '/welcome',
@@ -153,6 +173,12 @@ const AuthenticatedOnboardingSiteRoute =
   AuthenticatedOnboardingSiteRouteImport.update({
     id: '/site',
     path: '/site',
+    getParentRoute: () => AuthenticatedOnboardingRoute,
+  } as any)
+const AuthenticatedOnboardingGoalRoute =
+  AuthenticatedOnboardingGoalRouteImport.update({
+    id: '/goal',
+    path: '/goal',
     getParentRoute: () => AuthenticatedOnboardingRoute,
   } as any)
 const AuthenticatedOnboardingDoneRoute =
@@ -311,12 +337,14 @@ const AuthenticatedGrowthMasterplanItemIdProposalsRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/demo': typeof DemoRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
+  '/portal/$portalToken': typeof PortalPortalTokenRoute
   '/r/$shareToken': typeof RShareTokenRoute
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/clients/$tenantId': typeof AuthenticatedClientsTenantIdRouteWithChildren
@@ -331,8 +359,10 @@ export interface FileRoutesByFullPath {
   '/growth/reports': typeof AuthenticatedGrowthReportsRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
+  '/onboarding/goal': typeof AuthenticatedOnboardingGoalRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
+  '/onboarding/wordpress': typeof AuthenticatedOnboardingWordpressRoute
   '/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
   '/settings/growth-goal': typeof AuthenticatedSettingsGrowthGoalRoute
   '/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
@@ -357,12 +387,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/demo': typeof DemoRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
+  '/portal/$portalToken': typeof PortalPortalTokenRoute
   '/r/$shareToken': typeof RShareTokenRoute
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
@@ -376,8 +408,10 @@ export interface FileRoutesByTo {
   '/growth/reports': typeof AuthenticatedGrowthReportsRoute
   '/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
+  '/onboarding/goal': typeof AuthenticatedOnboardingGoalRoute
   '/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
+  '/onboarding/wordpress': typeof AuthenticatedOnboardingWordpressRoute
   '/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
   '/settings/growth-goal': typeof AuthenticatedSettingsGrowthGoalRoute
   '/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
@@ -404,12 +438,14 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/demo': typeof DemoRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
+  '/portal/$portalToken': typeof PortalPortalTokenRoute
   '/r/$shareToken': typeof RShareTokenRoute
   '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/_authenticated/clients/$tenantId': typeof AuthenticatedClientsTenantIdRouteWithChildren
@@ -424,8 +460,10 @@ export interface FileRoutesById {
   '/_authenticated/growth/reports': typeof AuthenticatedGrowthReportsRoute
   '/_authenticated/onboarding/business': typeof AuthenticatedOnboardingBusinessRoute
   '/_authenticated/onboarding/done': typeof AuthenticatedOnboardingDoneRoute
+  '/_authenticated/onboarding/goal': typeof AuthenticatedOnboardingGoalRoute
   '/_authenticated/onboarding/site': typeof AuthenticatedOnboardingSiteRoute
   '/_authenticated/onboarding/welcome': typeof AuthenticatedOnboardingWelcomeRoute
+  '/_authenticated/onboarding/wordpress': typeof AuthenticatedOnboardingWordpressRoute
   '/_authenticated/settings/business-profile': typeof AuthenticatedSettingsBusinessProfileRoute
   '/_authenticated/settings/growth-goal': typeof AuthenticatedSettingsGrowthGoalRoute
   '/_authenticated/settings/tone-profile': typeof AuthenticatedSettingsToneProfileRoute
@@ -452,12 +490,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/demo'
     | '/login'
     | '/reset-password'
     | '/signup'
     | '/app'
     | '/dashboard'
     | '/onboarding'
+    | '/portal/$portalToken'
     | '/r/$shareToken'
     | '/audits/$auditId'
     | '/clients/$tenantId'
@@ -472,8 +512,10 @@ export interface FileRouteTypes {
     | '/growth/reports'
     | '/onboarding/business'
     | '/onboarding/done'
+    | '/onboarding/goal'
     | '/onboarding/site'
     | '/onboarding/welcome'
+    | '/onboarding/wordpress'
     | '/settings/business-profile'
     | '/settings/growth-goal'
     | '/settings/tone-profile'
@@ -498,12 +540,14 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/demo'
     | '/login'
     | '/reset-password'
     | '/signup'
     | '/app'
     | '/dashboard'
     | '/onboarding'
+    | '/portal/$portalToken'
     | '/r/$shareToken'
     | '/audits/$auditId'
     | '/growth/blueprint'
@@ -517,8 +561,10 @@ export interface FileRouteTypes {
     | '/growth/reports'
     | '/onboarding/business'
     | '/onboarding/done'
+    | '/onboarding/goal'
     | '/onboarding/site'
     | '/onboarding/welcome'
+    | '/onboarding/wordpress'
     | '/settings/business-profile'
     | '/settings/growth-goal'
     | '/settings/tone-profile'
@@ -544,12 +590,14 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/demo'
     | '/login'
     | '/reset-password'
     | '/signup'
     | '/_authenticated/app'
     | '/_authenticated/dashboard'
     | '/_authenticated/onboarding'
+    | '/portal/$portalToken'
     | '/r/$shareToken'
     | '/_authenticated/audits/$auditId'
     | '/_authenticated/clients/$tenantId'
@@ -564,8 +612,10 @@ export interface FileRouteTypes {
     | '/_authenticated/growth/reports'
     | '/_authenticated/onboarding/business'
     | '/_authenticated/onboarding/done'
+    | '/_authenticated/onboarding/goal'
     | '/_authenticated/onboarding/site'
     | '/_authenticated/onboarding/welcome'
+    | '/_authenticated/onboarding/wordpress'
     | '/_authenticated/settings/business-profile'
     | '/_authenticated/settings/growth-goal'
     | '/_authenticated/settings/tone-profile'
@@ -592,9 +642,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  DemoRoute: typeof DemoRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
+  PortalPortalTokenRoute: typeof PortalPortalTokenRoute
   RShareTokenRoute: typeof RShareTokenRoute
   ApiPublicLeadIngestRoute: typeof ApiPublicLeadIngestRoute
   ApiPublicRunAnalyzerJobRoute: typeof ApiPublicRunAnalyzerJobRoute
@@ -624,6 +676,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/demo': {
+      id: '/demo'
+      path: '/demo'
+      fullPath: '/demo'
+      preLoaderRoute: typeof DemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
@@ -643,6 +702,13 @@ declare module '@tanstack/react-router' {
       path: '/r/$shareToken'
       fullPath: '/r/$shareToken'
       preLoaderRoute: typeof RShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/$portalToken': {
+      id: '/portal/$portalToken'
+      path: '/portal/$portalToken'
+      fullPath: '/portal/$portalToken'
+      preLoaderRoute: typeof PortalPortalTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/onboarding': {
@@ -722,6 +788,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsBusinessProfileRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/onboarding/wordpress': {
+      id: '/_authenticated/onboarding/wordpress'
+      path: '/wordpress'
+      fullPath: '/onboarding/wordpress'
+      preLoaderRoute: typeof AuthenticatedOnboardingWordpressRouteImport
+      parentRoute: typeof AuthenticatedOnboardingRoute
+    }
     '/_authenticated/onboarding/welcome': {
       id: '/_authenticated/onboarding/welcome'
       path: '/welcome'
@@ -734,6 +807,13 @@ declare module '@tanstack/react-router' {
       path: '/site'
       fullPath: '/onboarding/site'
       preLoaderRoute: typeof AuthenticatedOnboardingSiteRouteImport
+      parentRoute: typeof AuthenticatedOnboardingRoute
+    }
+    '/_authenticated/onboarding/goal': {
+      id: '/_authenticated/onboarding/goal'
+      path: '/goal'
+      fullPath: '/onboarding/goal'
+      preLoaderRoute: typeof AuthenticatedOnboardingGoalRouteImport
       parentRoute: typeof AuthenticatedOnboardingRoute
     }
     '/_authenticated/onboarding/done': {
@@ -924,16 +1004,21 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedOnboardingRouteChildren {
   AuthenticatedOnboardingBusinessRoute: typeof AuthenticatedOnboardingBusinessRoute
   AuthenticatedOnboardingDoneRoute: typeof AuthenticatedOnboardingDoneRoute
+  AuthenticatedOnboardingGoalRoute: typeof AuthenticatedOnboardingGoalRoute
   AuthenticatedOnboardingSiteRoute: typeof AuthenticatedOnboardingSiteRoute
   AuthenticatedOnboardingWelcomeRoute: typeof AuthenticatedOnboardingWelcomeRoute
+  AuthenticatedOnboardingWordpressRoute: typeof AuthenticatedOnboardingWordpressRoute
 }
 
 const AuthenticatedOnboardingRouteChildren: AuthenticatedOnboardingRouteChildren =
   {
     AuthenticatedOnboardingBusinessRoute: AuthenticatedOnboardingBusinessRoute,
     AuthenticatedOnboardingDoneRoute: AuthenticatedOnboardingDoneRoute,
+    AuthenticatedOnboardingGoalRoute: AuthenticatedOnboardingGoalRoute,
     AuthenticatedOnboardingSiteRoute: AuthenticatedOnboardingSiteRoute,
     AuthenticatedOnboardingWelcomeRoute: AuthenticatedOnboardingWelcomeRoute,
+    AuthenticatedOnboardingWordpressRoute:
+      AuthenticatedOnboardingWordpressRoute,
   }
 
 const AuthenticatedOnboardingRouteWithChildren =
@@ -1043,9 +1128,11 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  DemoRoute: DemoRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
+  PortalPortalTokenRoute: PortalPortalTokenRoute,
   RShareTokenRoute: RShareTokenRoute,
   ApiPublicLeadIngestRoute: ApiPublicLeadIngestRoute,
   ApiPublicRunAnalyzerJobRoute: ApiPublicRunAnalyzerJobRoute,
@@ -1054,3 +1141,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
