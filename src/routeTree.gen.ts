@@ -13,10 +13,15 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DemoRouteImport } from './routes/demo'
+import { Route as ClientRouteImport } from './routes/client'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ClientIndexRouteImport } from './routes/client/index'
 import { Route as RShareTokenRouteImport } from './routes/r.$shareToken'
 import { Route as PortalPortalTokenRouteImport } from './routes/portal.$portalToken'
+import { Route as ClientReportsRouteImport } from './routes/client/reports'
+import { Route as ClientPagesRouteImport } from './routes/client/pages'
+import { Route as ClientLeadsRouteImport } from './routes/client/leads'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
@@ -79,6 +84,11 @@ const DemoRoute = DemoRouteImport.update({
   path: '/demo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientRoute = ClientRouteImport.update({
+  id: '/client',
+  path: '/client',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
@@ -87,6 +97,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ClientIndexRoute = ClientIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ClientRoute,
 } as any)
 const RShareTokenRoute = RShareTokenRouteImport.update({
   id: '/r/$shareToken',
@@ -97,6 +112,21 @@ const PortalPortalTokenRoute = PortalPortalTokenRouteImport.update({
   id: '/portal/$portalToken',
   path: '/portal/$portalToken',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ClientReportsRoute = ClientReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => ClientRoute,
+} as any)
+const ClientPagesRoute = ClientPagesRouteImport.update({
+  id: '/pages',
+  path: '/pages',
+  getParentRoute: () => ClientRoute,
+} as any)
+const ClientLeadsRoute = ClientLeadsRouteImport.update({
+  id: '/leads',
+  path: '/leads',
+  getParentRoute: () => ClientRoute,
 } as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
@@ -337,6 +367,7 @@ const AuthenticatedGrowthMasterplanItemIdProposalsRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/client': typeof ClientRouteWithChildren
   '/demo': typeof DemoRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -344,8 +375,12 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
+  '/client/leads': typeof ClientLeadsRoute
+  '/client/pages': typeof ClientPagesRoute
+  '/client/reports': typeof ClientReportsRoute
   '/portal/$portalToken': typeof PortalPortalTokenRoute
   '/r/$shareToken': typeof RShareTokenRoute
+  '/client/': typeof ClientIndexRoute
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/clients/$tenantId': typeof AuthenticatedClientsTenantIdRouteWithChildren
   '/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
@@ -394,8 +429,12 @@ export interface FileRoutesByTo {
   '/app': typeof AuthenticatedAppRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
+  '/client/leads': typeof ClientLeadsRoute
+  '/client/pages': typeof ClientPagesRoute
+  '/client/reports': typeof ClientReportsRoute
   '/portal/$portalToken': typeof PortalPortalTokenRoute
   '/r/$shareToken': typeof RShareTokenRoute
+  '/client': typeof ClientIndexRoute
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
   '/growth/execution': typeof AuthenticatedGrowthExecutionRoute
@@ -438,6 +477,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/client': typeof ClientRouteWithChildren
   '/demo': typeof DemoRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -445,8 +485,12 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRouteWithChildren
+  '/client/leads': typeof ClientLeadsRoute
+  '/client/pages': typeof ClientPagesRoute
+  '/client/reports': typeof ClientReportsRoute
   '/portal/$portalToken': typeof PortalPortalTokenRoute
   '/r/$shareToken': typeof RShareTokenRoute
+  '/client/': typeof ClientIndexRoute
   '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/_authenticated/clients/$tenantId': typeof AuthenticatedClientsTenantIdRouteWithChildren
   '/_authenticated/growth/blueprint': typeof AuthenticatedGrowthBlueprintRoute
@@ -490,6 +534,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/client'
     | '/demo'
     | '/login'
     | '/reset-password'
@@ -497,8 +542,12 @@ export interface FileRouteTypes {
     | '/app'
     | '/dashboard'
     | '/onboarding'
+    | '/client/leads'
+    | '/client/pages'
+    | '/client/reports'
     | '/portal/$portalToken'
     | '/r/$shareToken'
+    | '/client/'
     | '/audits/$auditId'
     | '/clients/$tenantId'
     | '/growth/blueprint'
@@ -547,8 +596,12 @@ export interface FileRouteTypes {
     | '/app'
     | '/dashboard'
     | '/onboarding'
+    | '/client/leads'
+    | '/client/pages'
+    | '/client/reports'
     | '/portal/$portalToken'
     | '/r/$shareToken'
+    | '/client'
     | '/audits/$auditId'
     | '/growth/blueprint'
     | '/growth/execution'
@@ -590,6 +643,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/client'
     | '/demo'
     | '/login'
     | '/reset-password'
@@ -597,8 +651,12 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/_authenticated/dashboard'
     | '/_authenticated/onboarding'
+    | '/client/leads'
+    | '/client/pages'
+    | '/client/reports'
     | '/portal/$portalToken'
     | '/r/$shareToken'
+    | '/client/'
     | '/_authenticated/audits/$auditId'
     | '/_authenticated/clients/$tenantId'
     | '/_authenticated/growth/blueprint'
@@ -642,6 +700,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  ClientRoute: typeof ClientRouteWithChildren
   DemoRoute: typeof DemoRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -683,6 +742,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client': {
+      id: '/client'
+      path: '/client'
+      fullPath: '/client'
+      preLoaderRoute: typeof ClientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
@@ -697,6 +763,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/client/': {
+      id: '/client/'
+      path: '/'
+      fullPath: '/client/'
+      preLoaderRoute: typeof ClientIndexRouteImport
+      parentRoute: typeof ClientRoute
+    }
     '/r/$shareToken': {
       id: '/r/$shareToken'
       path: '/r/$shareToken'
@@ -710,6 +783,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/portal/$portalToken'
       preLoaderRoute: typeof PortalPortalTokenRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/client/reports': {
+      id: '/client/reports'
+      path: '/reports'
+      fullPath: '/client/reports'
+      preLoaderRoute: typeof ClientReportsRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/client/pages': {
+      id: '/client/pages'
+      path: '/pages'
+      fullPath: '/client/pages'
+      preLoaderRoute: typeof ClientPagesRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/client/leads': {
+      id: '/client/leads'
+      path: '/leads'
+      fullPath: '/client/leads'
+      preLoaderRoute: typeof ClientLeadsRouteImport
+      parentRoute: typeof ClientRoute
     }
     '/_authenticated/onboarding': {
       id: '/_authenticated/onboarding'
@@ -1125,9 +1219,27 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface ClientRouteChildren {
+  ClientLeadsRoute: typeof ClientLeadsRoute
+  ClientPagesRoute: typeof ClientPagesRoute
+  ClientReportsRoute: typeof ClientReportsRoute
+  ClientIndexRoute: typeof ClientIndexRoute
+}
+
+const ClientRouteChildren: ClientRouteChildren = {
+  ClientLeadsRoute: ClientLeadsRoute,
+  ClientPagesRoute: ClientPagesRoute,
+  ClientReportsRoute: ClientReportsRoute,
+  ClientIndexRoute: ClientIndexRoute,
+}
+
+const ClientRouteWithChildren =
+  ClientRoute._addFileChildren(ClientRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  ClientRoute: ClientRouteWithChildren,
   DemoRoute: DemoRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,

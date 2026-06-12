@@ -24,6 +24,7 @@ export interface PageInventoryItem {
   source: "leadlayer_new" | "leadlayer_optimized";
   type: "new_page" | "optimized";
   status: "live" | "draft" | "failed";
+  draftStatus: string | null; // raw wordpress_drafts.status — Publishing Gate state for new-page drafts
   title: string | null;
   slug: string | null;
   url: string | null;
@@ -37,9 +38,7 @@ export interface PageInventoryItem {
 
 export const getPageInventory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ tenantId: z.string().uuid() }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ tenantId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
@@ -55,14 +54,18 @@ export const getPageInventory = createServerFn({ method: "POST" })
       // New pages (drafts)
       admin
         .from("wordpress_drafts")
-        .select("id, title, target_slug, wp_post_id, wp_edit_link, wp_preview_link, published_url, status, seo_meta_status, published_at, created_at, updated_at")
+        .select(
+          "id, title, target_slug, wp_post_id, wp_edit_link, wp_preview_link, published_url, status, seo_meta_status, published_at, created_at, updated_at",
+        )
         .eq("tenant_id", data.tenantId)
         .order("created_at", { ascending: false }),
 
       // Optimized existing pages
       admin
         .from("wordpress_page_updates")
-        .select("id, wp_post_id, wordpress_connection_id, snapshot_id, applied_at, created_at, raw_response")
+        .select(
+          "id, wp_post_id, wordpress_connection_id, snapshot_id, applied_at, created_at, raw_response",
+        )
         .eq("tenant_id", data.tenantId)
         .eq("status", "applied")
         .order("applied_at", { ascending: false }),
@@ -72,14 +75,22 @@ export const getPageInventory = createServerFn({ method: "POST" })
     const optimizedPostIds = (updateRows ?? [])
       .map((u: { wp_post_id: number }) => u.wp_post_id)
       .filter(Boolean);
-    const invTitleByPostId = new Map<number, { title: string | null; slug: string | null; link: string | null }>();
+    const invTitleByPostId = new Map<
+      number,
+      { title: string | null; slug: string | null; link: string | null }
+    >();
     if (optimizedPostIds.length > 0) {
       const { data: invRows } = await admin
         .from("wordpress_site_inventory")
         .select("wp_post_id, title, slug, link")
         .eq("tenant_id", data.tenantId)
         .in("wp_post_id", optimizedPostIds);
-      for (const r of (invRows ?? []) as Array<{ wp_post_id: number; title: string | null; slug: string | null; link: string | null }>) {
+      for (const r of (invRows ?? []) as Array<{
+        wp_post_id: number;
+        title: string | null;
+        slug: string | null;
+        link: string | null;
+      }>) {
         invTitleByPostId.set(r.wp_post_id, { title: r.title, slug: r.slug, link: r.link });
       }
     }
@@ -106,14 +117,13 @@ export const getPageInventory = createServerFn({ method: "POST" })
     }>) {
       if (r.wp_post_id) seenPostIds.add(r.wp_post_id);
       const status: PageInventoryItem["status"] =
-        r.status === "published" ? "live"
-        : r.status === "failed" ? "failed"
-        : "draft";
+        r.status === "published" ? "live" : r.status === "failed" ? "failed" : "draft";
       items.push({
         id: r.id,
         source: "leadlayer_new",
         type: "new_page",
         status,
+        draftStatus: r.status,
         title: r.title,
         slug: r.target_slug,
         url: r.published_url,
@@ -143,7 +153,12 @@ export const getPageInventory = createServerFn({ method: "POST" })
         source: "leadlayer_optimized",
         type: "optimized",
         status: "live",
-        title: inv?.title ?? (typeof raw.title === "object" && raw.title !== null ? ((raw.title as Record<string, unknown>).rendered as string | null) : null),
+        draftStatus: null,
+        title:
+          inv?.title ??
+          (typeof raw.title === "object" && raw.title !== null
+            ? ((raw.title as Record<string, unknown>).rendered as string | null)
+            : null),
         slug: inv?.slug ?? (typeof raw.slug === "string" ? raw.slug : null),
         url: inv?.link ?? (typeof raw.link === "string" ? raw.link : null),
         wpEditLink: null,

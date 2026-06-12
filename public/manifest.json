@@ -1,12 +1,16 @@
 {
-  "name": "LeadLayer",
+  "name": "LeadLayer OS",
   "short_name": "LeadLayer",
-  "description": "Your growth dashboard — leads, pages, and revenue in one place.",
+  "description": "Lead growth infrastructure — leads, pages, and revenue in one place.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait-primary",
-  "background_color": "#f0ede6",
-  "theme_color": "#b86d1e",
+  "background_color": "#0D0E10",
+  "theme_color": "#0D0E10",
+  "lang": "en",
+  "categories": ["business", "productivity"],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -25,6 +29,20 @@
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Operator Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Client Portal",
+      "short_name": "My Portal",
+      "url": "/client",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

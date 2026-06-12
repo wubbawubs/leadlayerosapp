@@ -12,6 +12,12 @@
  *
  * No live publish. The maximum automated WP status written is "draft".
  * Credentials are never returned to the client.
+ *
+ * Publishing Gate (V1): a draft can only go live after a formal operator
+ * approval. Flow: created → (approve, with checklist + safety envelope)
+ * → approved_for_publish → publish (LeadLayer API or manual mark).
+ * Request-changes sends a draft back to needs_review and clears approval.
+ * Both publish paths refuse drafts that are not approved_for_publish.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -25,15 +31,21 @@ import {
 } from "@/lib/shared/wpcom/wp-rest.server";
 import { pageBriefToGutenbergContent } from "./gutenberg.server";
 import {
+  ApproveWordpressDraftInputSchema,
   CreateWordpressDraftInputSchema,
   GetWordpressDraftForArtifactInputSchema,
   ListWordpressDraftsInputSchema,
   MarkWordpressDraftPublishedInputSchema,
   PublishWordpressDraftInputSchema,
+  RequestWordpressDraftChangesInputSchema,
   type DraftSafetyChecks,
+  type PublishSafetyChecks,
   type WordpressDraftPayload,
 } from "./schemas";
-import type { PageBriefArtifactPayload, ArtifactQualityGates } from "@/lib/shared/executionArtifacts/schemas";
+import type {
+  PageBriefArtifactPayload,
+  ArtifactQualityGates,
+} from "@/lib/shared/executionArtifacts/schemas";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const admin = supabaseAdmin as any;
@@ -91,7 +103,8 @@ async function loadCredentials(
     .eq("key", secretKey)
     .maybeSingle();
   if (error) throw error;
-  if (!row) throw new Error(`Credential not found — re-add the WordPress connection (key: ${secretKey})`);
+  if (!row)
+    throw new Error(`Credential not found — re-add the WordPress connection (key: ${secretKey})`);
 
   const secret = decrypt(row.value_encrypted, row.encryption_version);
 
@@ -122,7 +135,9 @@ export const createWordpressDraftFromArtifact = createServerFn({ method: "POST" 
     // 1. Load artifact
     const { data: artRow, error: artErr } = await admin
       .from("execution_artifacts")
-      .select("id, tenant_id, masterplan_item_id, artifact_type, status, payload, quality_gates, delivery_readiness, risk_flags, missing_context")
+      .select(
+        "id, tenant_id, masterplan_item_id, artifact_type, status, payload, quality_gates, delivery_readiness, risk_flags, missing_context",
+      )
       .eq("id", data.artifactId)
       .eq("tenant_id", data.tenantId)
       .maybeSingle();
@@ -131,17 +146,23 @@ export const createWordpressDraftFromArtifact = createServerFn({ method: "POST" 
 
     // Gate: type check
     if (artRow.artifact_type !== "page_brief") {
-      throw new Error(`Draft creation only supported for page_brief artifacts (got: ${artRow.artifact_type as string})`);
+      throw new Error(
+        `Draft creation only supported for page_brief artifacts (got: ${artRow.artifact_type as string})`,
+      );
     }
     // Gate: must be approved
     if (artRow.status !== "approved") {
-      throw new Error(`Artifact must be approved before creating a WordPress draft (current status: ${artRow.status as string})`);
+      throw new Error(
+        `Artifact must be approved before creating a WordPress draft (current status: ${artRow.status as string})`,
+      );
     }
 
     const payload = artRow.payload as PageBriefArtifactPayload;
     const qualityGates = (artRow.quality_gates ?? {}) as Partial<ArtifactQualityGates>;
     const riskFlags: string[] = Array.isArray(artRow.risk_flags) ? artRow.risk_flags : [];
-    const missingContext: string[] = Array.isArray(artRow.missing_context) ? artRow.missing_context : [];
+    const missingContext: string[] = Array.isArray(artRow.missing_context)
+      ? artRow.missing_context
+      : [];
 
     // 2. Load WordPress connection
     const { data: connRow, error: connErr } = await admin
@@ -153,7 +174,8 @@ export const createWordpressDraftFromArtifact = createServerFn({ method: "POST" 
       .limit(1)
       .maybeSingle();
     if (connErr) throw connErr;
-    if (!connRow) throw new Error("No connected WordPress site found. Connect a WordPress site first.");
+    if (!connRow)
+      throw new Error("No connected WordPress site found. Connect a WordPress site first.");
 
     const kind = connRow.kind as string;
 
@@ -161,7 +183,7 @@ export const createWordpressDraftFromArtifact = createServerFn({ method: "POST" 
     if (kind === "wordpress_com") {
       throw new Error(
         "WordPress.com draft creation is not supported in V1. " +
-        "Use a self-hosted WordPress site with Application Passwords enabled.",
+          "Use a self-hosted WordPress site with Application Passwords enabled.",
       );
     }
 
@@ -171,7 +193,7 @@ export const createWordpressDraftFromArtifact = createServerFn({ method: "POST" 
     if (!canCreateDraft) {
       throw new Error(
         "The connected WordPress site does not have draft creation capability. " +
-        "Re-check the connection from the Sites page to refresh capabilities.",
+          "Re-check the connection from the Sites page to refresh capabilities.",
       );
     }
 
@@ -191,7 +213,11 @@ export const createWordpressDraftFromArtifact = createServerFn({ method: "POST" 
       checkedAt: new Date().toISOString(),
     };
 
-    if (!safetyChecks.artifactApproved || !safetyChecks.wordpressConnected || !safetyChecks.canCreateDraft) {
+    if (
+      !safetyChecks.artifactApproved ||
+      !safetyChecks.wordpressConnected ||
+      !safetyChecks.canCreateDraft
+    ) {
       throw new Error("Safety checks failed — cannot create WordPress draft");
     }
 
@@ -324,7 +350,9 @@ export const getWordpressDraftForArtifact = createServerFn({ method: "POST" })
 
     const { data: row, error } = await admin
       .from("wordpress_drafts")
-      .select("id, status, wp_post_id, wp_edit_link, wp_preview_link, target_slug, title, error_message, seo_meta_status, meta_title, meta_description, publish_source, published_at, published_by, published_url, publication_notes, created_at")
+      .select(
+        "id, status, wp_post_id, wp_edit_link, wp_preview_link, target_slug, title, error_message, seo_meta_status, meta_title, meta_description, publish_source, published_at, published_by, published_url, publication_notes, approved_at, approved_by, approval_notes, review_notes, created_at",
+      )
       .eq("tenant_id", data.tenantId)
       .eq("execution_artifact_id", data.artifactId)
       .order("created_at", { ascending: false })
@@ -352,6 +380,10 @@ export const getWordpressDraftForArtifact = createServerFn({ method: "POST" })
         publishedBy: (row.published_by as string | null) ?? null,
         publishedUrl: (row.published_url as string | null) ?? null,
         publicationNotes: (row.publication_notes as string | null) ?? null,
+        approvedAt: (row.approved_at as string | null) ?? null,
+        approvedBy: (row.approved_by as string | null) ?? null,
+        approvalNotes: (row.approval_notes as string | null) ?? null,
+        reviewNotes: (row.review_notes as string | null) ?? null,
         createdAt: row.created_at as string,
       },
     };
@@ -371,7 +403,9 @@ export const listWordpressDraftsForTenant = createServerFn({ method: "POST" })
 
     const { data: rows, error } = await admin
       .from("wordpress_drafts")
-      .select("id, status, wp_post_id, wp_edit_link, wp_preview_link, target_slug, title, error_message, seo_meta_status, meta_title, meta_description, publish_source, published_at, published_by, published_url, publication_notes, created_at")
+      .select(
+        "id, status, wp_post_id, wp_edit_link, wp_preview_link, target_slug, title, error_message, seo_meta_status, meta_title, meta_description, publish_source, published_at, published_by, published_url, publication_notes, approved_at, approved_by, approval_notes, review_notes, created_at",
+      )
       .eq("tenant_id", data.tenantId)
       .order("created_at", { ascending: false })
       .limit(data.limit ?? 50);
@@ -395,15 +429,184 @@ export const listWordpressDraftsForTenant = createServerFn({ method: "POST" })
         publishedBy: (r.published_by as string | null) ?? null,
         publishedUrl: (r.published_url as string | null) ?? null,
         publicationNotes: (r.publication_notes as string | null) ?? null,
+        approvedAt: (r.approved_at as string | null) ?? null,
+        approvedBy: (r.approved_by as string | null) ?? null,
+        approvalNotes: (r.approval_notes as string | null) ?? null,
+        reviewNotes: (r.review_notes as string | null) ?? null,
         createdAt: r.created_at as string,
       })),
     };
   });
 
 // ------------------------------------------------------------------
-// 4. markWordpressDraftPublished
+// 4. approveWordpressDraftForPublish — the Publishing Gate.
+//    Formal operator approval. Re-verifies the safety envelope
+//    (artifact still approved, WP connection live, post exists) and
+//    records who approved, when, and the envelope state.
+// ------------------------------------------------------------------
+
+export const approveWordpressDraftForPublish = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => ApproveWordpressDraftInputSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+
+    const { data: draft, error: draftErr } = await admin
+      .from("wordpress_drafts")
+      .select(
+        "id, status, wp_post_id, wordpress_connection_id, publishing_bundle_id, execution_artifact_id, published_at, seo_meta_status, title",
+      )
+      .eq("id", data.draftId)
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
+    if (draftErr) throw draftErr;
+    if (!draft) throw new Error("WordPress draft not found");
+    if (draft.published_at) throw new Error("Draft is already published");
+    if (draft.status !== "created" && draft.status !== "needs_review") {
+      throw new Error(
+        `Draft must be in 'created' or 'needs_review' state to approve (current: ${draft.status as string})`,
+      );
+    }
+    if (!draft.wp_post_id) {
+      throw new Error("Draft has no WordPress post ID — cannot approve for publish");
+    }
+
+    // Envelope check 1: source artifact must still be approved
+    const { data: artifact, error: artErr } = await admin
+      .from("execution_artifacts")
+      .select("id, status")
+      .eq("id", draft.execution_artifact_id as string)
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
+    if (artErr) throw artErr;
+    const artifactApproved = artifact?.status === "approved";
+    if (!artifactApproved) {
+      throw new Error(
+        `Source page brief is no longer approved (current: ${(artifact?.status as string) ?? "missing"}) — re-approve the artifact first`,
+      );
+    }
+
+    // Envelope check 2: WP connection must still be live with publish access
+    const { data: conn, error: connErr } = await admin
+      .from("wordpress_connections")
+      .select("id, status, capabilities")
+      .eq("id", draft.wordpress_connection_id as string)
+      .maybeSingle();
+    if (connErr) throw connErr;
+    const wordpressConnected = conn?.status === "connected";
+    const canPublish =
+      ((conn?.capabilities ?? {}) as Record<string, unknown>).canCreateDraft === true;
+    if (!wordpressConnected)
+      throw new Error(
+        "WordPress site is not connected — re-check the connection from the Sites page",
+      );
+    if (!canPublish)
+      throw new Error(
+        "The WordPress connection does not have publish access — re-check capabilities",
+      );
+
+    const now = new Date().toISOString();
+    const safetyChecks: PublishSafetyChecks = {
+      artifactApproved,
+      draftHasWpPost: true,
+      wordpressConnected,
+      canPublish,
+      operatorChecklistConfirmed: data.checklistConfirmed,
+      seoMetaStatus: (draft.seo_meta_status as string | null) ?? null,
+      approvedAt: now,
+      recheckedAt: null,
+      checkedAt: now,
+    };
+
+    const { error: updErr } = await admin
+      .from("wordpress_drafts")
+      .update({
+        status: "approved_for_publish",
+        approved_at: now,
+        approved_by: userId,
+        approval_notes: data.notes ?? null,
+        review_notes: null,
+        publish_safety_checks: safetyChecks,
+      })
+      .eq("id", data.draftId)
+      .eq("tenant_id", data.tenantId);
+    if (updErr) throw updErr;
+
+    if (draft.publishing_bundle_id) {
+      await admin
+        .from("publishing_bundles")
+        .update({ status: "approved_for_publish" })
+        .eq("id", draft.publishing_bundle_id as string);
+    }
+
+    return {
+      ok: true,
+      draftId: data.draftId,
+      status: "approved_for_publish",
+      approvedAt: now,
+      title: (draft.title as string | null) ?? null,
+    };
+  });
+
+// ------------------------------------------------------------------
+// 5. requestWordpressDraftChanges
+//    Sends a draft back to needs_review with a reason and clears any
+//    prior approval. The operator fixes the draft in WP, then
+//    re-approves through the gate.
+// ------------------------------------------------------------------
+
+export const requestWordpressDraftChanges = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => RequestWordpressDraftChangesInputSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    await assertOperator(supabase, userId, data.tenantId);
+
+    const { data: draft, error: draftErr } = await admin
+      .from("wordpress_drafts")
+      .select("id, status, publishing_bundle_id, published_at")
+      .eq("id", data.draftId)
+      .eq("tenant_id", data.tenantId)
+      .maybeSingle();
+    if (draftErr) throw draftErr;
+    if (!draft) throw new Error("WordPress draft not found");
+    if (draft.published_at)
+      throw new Error("Draft is already published — changes must go through page optimization");
+    if (draft.status !== "created" && draft.status !== "approved_for_publish") {
+      throw new Error(
+        `Draft must be in 'created' or 'approved_for_publish' state to request changes (current: ${draft.status as string})`,
+      );
+    }
+
+    const { error: updErr } = await admin
+      .from("wordpress_drafts")
+      .update({
+        status: "needs_review",
+        review_notes: data.reason,
+        approved_at: null,
+        approved_by: null,
+        approval_notes: null,
+      })
+      .eq("id", data.draftId)
+      .eq("tenant_id", data.tenantId);
+    if (updErr) throw updErr;
+
+    if (draft.publishing_bundle_id) {
+      await admin
+        .from("publishing_bundles")
+        .update({ status: "needs_review" })
+        .eq("id", draft.publishing_bundle_id as string);
+    }
+
+    return { ok: true, draftId: data.draftId, status: "needs_review" };
+  });
+
+// ------------------------------------------------------------------
+// 6. markWordpressDraftPublished
 //    Operator confirms that a draft was published in WP admin.
 //    This is a manual record — no WP API call is made.
+//    Publishing Gate: requires approved_for_publish.
 // ------------------------------------------------------------------
 
 export const markWordpressDraftPublished = createServerFn({ method: "POST" })
@@ -422,6 +625,11 @@ export const markWordpressDraftPublished = createServerFn({ method: "POST" })
     if (checkErr) throw checkErr;
     if (!existing) throw new Error("WordPress draft not found");
     if (existing.published_at) throw new Error("Draft is already marked as published");
+    if (existing.status !== "approved_for_publish") {
+      throw new Error(
+        `Publishing Gate: approve this draft before marking it published (current status: ${existing.status as string})`,
+      );
+    }
 
     const now = new Date().toISOString();
     const { data: row, error } = await admin
@@ -436,7 +644,9 @@ export const markWordpressDraftPublished = createServerFn({ method: "POST" })
       })
       .eq("id", data.draftId)
       .eq("tenant_id", data.tenantId)
-      .select("id, status, published_at, published_url, publication_notes, wp_edit_link, wp_preview_link, target_slug, title")
+      .select(
+        "id, status, published_at, published_url, publication_notes, wp_edit_link, wp_preview_link, target_slug, title",
+      )
       .single();
     if (error) throw error;
 
@@ -459,10 +669,11 @@ export const markWordpressDraftPublished = createServerFn({ method: "POST" })
     };
   });
 // ------------------------------------------------------------------
-// 5. publishWordpressDraftFromLeadLayer
+// 7. publishWordpressDraftFromLeadLayer
 //    Operator-initiated publish via WP REST API PATCH.
-//    Gates: draft exists, status=created, wp_post_id not null,
-//           WP connection connected, canCreateDraft, self-hosted only.
+//    Gates: draft exists, status=approved_for_publish (Publishing
+//           Gate), wp_post_id not null, WP connection connected,
+//           canCreateDraft, self-hosted only.
 //    No auto-publish — operator must explicitly confirm in the UI.
 // ------------------------------------------------------------------
 
@@ -476,15 +687,19 @@ export const publishWordpressDraftFromLeadLayer = createServerFn({ method: "POST
     // 1. Load the draft — verify ownership and eligibility
     const { data: draft, error: draftErr } = await admin
       .from("wordpress_drafts")
-      .select("id, status, wp_post_id, wordpress_connection_id, publishing_bundle_id, published_at, title, target_slug")
+      .select(
+        "id, status, wp_post_id, wordpress_connection_id, publishing_bundle_id, published_at, title, target_slug, publish_safety_checks",
+      )
       .eq("id", data.draftId)
       .eq("tenant_id", data.tenantId)
       .maybeSingle();
     if (draftErr) throw draftErr;
     if (!draft) throw new Error("WordPress draft not found");
     if (draft.published_at) throw new Error("Draft is already published");
-    if (draft.status !== "created") {
-      throw new Error(`Draft must be in 'created' state to publish (current: ${draft.status as string})`);
+    if (draft.status !== "approved_for_publish") {
+      throw new Error(
+        `Publishing Gate: draft must be approved before publishing (current: ${draft.status as string})`,
+      );
     }
     if (!draft.wp_post_id) {
       throw new Error("Draft has no WordPress post ID — cannot publish");
@@ -498,14 +713,19 @@ export const publishWordpressDraftFromLeadLayer = createServerFn({ method: "POST
       .maybeSingle();
     if (connErr) throw connErr;
     if (!conn) throw new Error("WordPress connection not found");
-    if (conn.status !== "connected") throw new Error("WordPress site is not connected — re-check the connection from the Sites page");
+    if (conn.status !== "connected")
+      throw new Error(
+        "WordPress site is not connected — re-check the connection from the Sites page",
+      );
     if ((conn.kind as string) === "wordpress_com") {
       throw new Error("Publishing from LeadLayer is not supported for WordPress.com sites in V2");
     }
 
     const caps = (conn.capabilities ?? {}) as Record<string, unknown>;
     if (!caps.canCreateDraft) {
-      throw new Error("The WordPress connection does not have publish access — re-check capabilities");
+      throw new Error(
+        "The WordPress connection does not have publish access — re-check capabilities",
+      );
     }
 
     // 3. Load credentials
@@ -533,8 +753,9 @@ export const publishWordpressDraftFromLeadLayer = createServerFn({ method: "POST
       throw new Error(wpResult.error ?? "WordPress publish failed");
     }
 
-    // 5. Record successful publish
+    // 5. Record successful publish — stamp the safety envelope recheck
     const now = new Date().toISOString();
+    const priorChecks = (draft.publish_safety_checks ?? {}) as Record<string, unknown>;
     await admin
       .from("wordpress_drafts")
       .update({
@@ -544,6 +765,12 @@ export const publishWordpressDraftFromLeadLayer = createServerFn({ method: "POST
         published_by: userId,
         published_url: wpResult.publishedUrl ?? null,
         publish_source: "leadlayer_publish",
+        publish_safety_checks: {
+          ...priorChecks,
+          wordpressConnected: true,
+          canPublish: true,
+          recheckedAt: now,
+        },
         error_message: null,
       })
       .eq("id", data.draftId);

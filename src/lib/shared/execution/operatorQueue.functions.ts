@@ -51,6 +51,7 @@ export interface ClientHealthSummary {
   tier: string | null;
   health: "green" | "amber" | "red";
   leadsThisMonth: number;
+  leadsPrevMonth: number;
   pendingActionCount: number;
   lastDeliveryAt: string | null;
   lastActivityAt: string | null;
@@ -344,16 +345,18 @@ export const getClientHealthSummaries = createServerFn({ method: "POST" })
 
     const tenantIds = memberships.map((m: { tenant_id: string }) => m.tenant_id);
 
-    const periodStart = new Date();
-    periodStart.setDate(1);
-    periodStart.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const periodStartTs = periodStart.toISOString();
+    const prevMonthStartTs = prevMonthStart.toISOString();
 
     // Load all data in parallel
     const [
       { data: tenantRows },
       { data: goalRows },
       { data: leadCountRows },
+      { data: prevLeadCountRows },
       { data: pendingArtRows },
       { data: draftCreatedRows },
       { data: deliveryRows },
@@ -369,6 +372,12 @@ export const getClientHealthSummaries = createServerFn({ method: "POST" })
         .select("tenant_id, created_at")
         .in("tenant_id", tenantIds)
         .gte("created_at", periodStartTs),
+      admin
+        .from("leads")
+        .select("tenant_id, created_at")
+        .in("tenant_id", tenantIds)
+        .gte("created_at", prevMonthStartTs)
+        .lt("created_at", periodStartTs),
       admin
         .from("execution_artifacts")
         .select("tenant_id, created_at")
@@ -399,6 +408,11 @@ export const getClientHealthSummaries = createServerFn({ method: "POST" })
       leadsThisMonthByTenant.set(r.tenant_id, (leadsThisMonthByTenant.get(r.tenant_id) ?? 0) + 1);
     }
 
+    const leadsPrevMonthByTenant = new Map<string, number>();
+    for (const r of (prevLeadCountRows ?? []) as Array<{ tenant_id: string }>) {
+      leadsPrevMonthByTenant.set(r.tenant_id, (leadsPrevMonthByTenant.get(r.tenant_id) ?? 0) + 1);
+    }
+
     const pendingCountByTenant = new Map<string, number>();
     for (const r of [...(pendingArtRows ?? []), ...(draftCreatedRows ?? [])] as Array<{ tenant_id: string }>) {
       pendingCountByTenant.set(r.tenant_id, (pendingCountByTenant.get(r.tenant_id) ?? 0) + 1);
@@ -411,7 +425,7 @@ export const getClientHealthSummaries = createServerFn({ method: "POST" })
       }
     }
 
-    const now = Date.now();
+    const nowMs = now.getTime();
     const summaries: ClientHealthSummary[] = [];
 
     for (const m of memberships as Array<{ tenant_id: string }>) {
@@ -419,21 +433,26 @@ export const getClientHealthSummaries = createServerFn({ method: "POST" })
       const tenantName = (tenantRows?.find((t: { id: string; name: string }) => t.id === tid)?.name) ?? tid;
       const goal = goalByTenant.get(tid) ?? null;
       const leadsThisMonth = leadsThisMonthByTenant.get(tid) ?? 0;
+      const leadsPrevMonth = leadsPrevMonthByTenant.get(tid) ?? 0;
       const pendingActionCount = pendingCountByTenant.get(tid) ?? 0;
       const lastDeliveryAt = lastDeliveryByTenant.get(tid) ?? null;
 
       // Last activity = last delivery or last lead
       const lastActivityAt = lastDeliveryAt;
 
-      // Health scoring
+      // Health scoring.
+      // Only factor delivery lag for clients that HAVE published at least once —
+      // new clients with no delivery yet should not immediately show as red.
       let health: "green" | "amber" | "red" = "green";
 
       const daysSinceDelivery = lastDeliveryAt
-        ? Math.floor((now - new Date(lastDeliveryAt).getTime()) / 86_400_000)
-        : 999;
+        ? Math.floor((nowMs - new Date(lastDeliveryAt).getTime()) / 86_400_000)
+        : null;
 
-      if (pendingActionCount > 0 || daysSinceDelivery > 7) health = "amber";
-      if (daysSinceDelivery > 14 || !goal) health = "red";
+      if (pendingActionCount > 0) health = "amber";
+      if (daysSinceDelivery !== null && daysSinceDelivery > 7) health = "amber";
+      if (!goal) health = "red";
+      if (daysSinceDelivery !== null && daysSinceDelivery > 21) health = "red";
 
       summaries.push({
         tenantId: tid,
@@ -441,6 +460,7 @@ export const getClientHealthSummaries = createServerFn({ method: "POST" })
         tier: (goal?.tier as string | null) ?? null,
         health,
         leadsThisMonth,
+        leadsPrevMonth,
         pendingActionCount,
         lastDeliveryAt,
         lastActivityAt,

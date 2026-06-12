@@ -57,14 +57,14 @@ The product only matters if it can answer:
 13. ✅ **WordPress Connection + Inventory V1** — `wordpress_connections`, inventory scan, connection health (see `docs/WORDPRESS_CONNECTION_INVENTORY_V1.md`)
 14. ✅ **Basic Lead Ingestion Webhook V1** — `lead_ingestion_sources`, public `/api/public/lead-ingest` endpoint (see `docs/BASIC_LEAD_INGESTION_WEBHOOK_V1.md`)
 15. ✅ **Delivery Proof + Revenue Chain V1** — `wordpress_drafts.published_at/url`, `leads.closed_amount/closed_at`, `markWordpressDraftPublished`, `markLeadWon`, `provenRevenue` in monthly reports and public share page
-16. ⬜ Publishing Gate — formal operator approval, safety envelope
+16. ✅ **Publishing Gate V1** — formal operator approval (`approved_for_publish` flow, checklist modal, request-changes loop), safety envelope on `wordpress_drafts.publish_safety_checks`; both publish paths gated server-side (see `docs/PUBLISHING_GATE_V1.md`)
 17. ⬜ Locale/Bilingual hardening — language param in artifact generators, report templates
 18. ⬜ Branches V1 — location scoping on artifacts, drafts, leads
 
-Safe Publishing remains blocked. The execution spine is stable and labelled,
-but no client website is touched until the approval gate exists and an
-operator has driven a full Goal → Masterplan → Execution → QA → Approved
-loop end-to-end in the preview.
+The approval gate now exists: no draft can be published — via LeadLayer or
+marked manually — without passing formal operator approval. Safe Publishing
+has one remaining precondition: an operator drives a full Goal → Masterplan →
+Execution → QA → Approve → Publish loop end-to-end in the preview.
 
 ## Modular Architecture Contract
 

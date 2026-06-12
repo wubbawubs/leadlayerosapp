@@ -52,6 +52,25 @@ export const DraftSafetyChecksSchema = z.object({
 export type DraftSafetyChecks = z.infer<typeof DraftSafetyChecksSchema>;
 
 // ------------------------------------------------------------------
+// Publishing Gate — safety envelope stored on
+// wordpress_drafts.publish_safety_checks at approval time, re-checked
+// and stamped again at publish time.
+// ------------------------------------------------------------------
+
+export const PublishSafetyChecksSchema = z.object({
+  artifactApproved: z.boolean(),
+  draftHasWpPost: z.boolean(),
+  wordpressConnected: z.boolean(),
+  canPublish: z.boolean(),
+  operatorChecklistConfirmed: z.boolean(),
+  seoMetaStatus: z.string().nullable(),
+  approvedAt: z.string().nullable(),
+  recheckedAt: z.string().nullable(),
+  checkedAt: z.string(),
+});
+export type PublishSafetyChecks = z.infer<typeof PublishSafetyChecksSchema>;
+
+// ------------------------------------------------------------------
 // Payload stored on publishing_bundle.payload
 // ------------------------------------------------------------------
 
@@ -131,6 +150,11 @@ export const WordpressDraftSchema = z.object({
   publishedBy: z.string().uuid().nullable(),
   publishedUrl: z.string().nullable(),
   publicationNotes: z.string().nullable(),
+  approvedAt: z.string().nullable(),
+  approvedBy: z.string().uuid().nullable(),
+  approvalNotes: z.string().nullable(),
+  reviewNotes: z.string().nullable(),
+  publishSafetyChecks: PublishSafetyChecksSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -162,10 +186,29 @@ export const MarkWordpressDraftPublishedInputSchema = z.object({
   publishedUrl: z.string().url().max(2000).optional(),
   notes: z.string().max(1000).optional(),
 });
-export type MarkWordpressDraftPublishedInput = z.infer<typeof MarkWordpressDraftPublishedInputSchema>;
+export type MarkWordpressDraftPublishedInput = z.infer<
+  typeof MarkWordpressDraftPublishedInputSchema
+>;
 
 export const PublishWordpressDraftInputSchema = z.object({
   tenantId: z.string().uuid(),
   draftId: z.string().uuid(),
 });
 export type PublishWordpressDraftInput = z.infer<typeof PublishWordpressDraftInputSchema>;
+
+export const ApproveWordpressDraftInputSchema = z.object({
+  tenantId: z.string().uuid(),
+  draftId: z.string().uuid(),
+  checklistConfirmed: z.literal(true),
+  notes: z.string().max(1000).optional(),
+});
+export type ApproveWordpressDraftInput = z.infer<typeof ApproveWordpressDraftInputSchema>;
+
+export const RequestWordpressDraftChangesInputSchema = z.object({
+  tenantId: z.string().uuid(),
+  draftId: z.string().uuid(),
+  reason: z.string().min(1).max(1000),
+});
+export type RequestWordpressDraftChangesInput = z.infer<
+  typeof RequestWordpressDraftChangesInputSchema
+>;

@@ -4,12 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
+import { getExecutionBoard, type ExecutionBoardItem } from "@/lib/shared/execution/board.functions";
 import {
-  getExecutionBoard,
-  type ExecutionBoardItem,
-} from "@/lib/shared/execution/board.functions";
-import { generatePageBriefArtifactFn, updateExecutionArtifactStatus } from "@/lib/shared/executionArtifacts/artifacts.functions";
+  generatePageBriefArtifactFn,
+  updateExecutionArtifactStatus,
+} from "@/lib/shared/executionArtifacts/artifacts.functions";
 import {
+  approveWordpressDraftForPublish,
   createWordpressDraftFromArtifact,
   publishWordpressDraftFromLeadLayer,
   markWordpressDraftPublished,
@@ -34,15 +35,26 @@ function statusDisplay(item: ExecutionBoardItem): {
   tone: StatusTone;
   label: string;
 } {
-  if (item.optimizationDeliveryStatus === "optimized" || item.optimizationUpdateStatus === "applied") {
+  if (
+    item.optimizationDeliveryStatus === "optimized" ||
+    item.optimizationUpdateStatus === "applied"
+  ) {
     return { tone: "green", label: "Optimization applied" };
   }
   if (item.wpDraftStatus === "published") return { tone: "green", label: "Published" };
   if (item.wpDraftStatus === "failed") return { tone: "red", label: "Draft failed" };
+  if (item.wpDraftStatus === "approved_for_publish")
+    return { tone: "info", label: "Approved for publish" };
+  if (item.wpDraftStatus === "needs_review") return { tone: "amber", label: "Changes requested" };
   if (item.wpDraftStatus === "created") return { tone: "info", label: "Draft created" };
-  if (item.optimizationDeliveryStatus === "delivery_failed") return { tone: "red", label: "Apply failed" };
-  if (item.optimizationArtifactStatus === "approved") return { tone: "info", label: "Optimization approved" };
-  if (item.optimizationArtifactStatus === "needs_review" || item.optimizationArtifactStatus === "draft")
+  if (item.optimizationDeliveryStatus === "delivery_failed")
+    return { tone: "red", label: "Apply failed" };
+  if (item.optimizationArtifactStatus === "approved")
+    return { tone: "info", label: "Optimization approved" };
+  if (
+    item.optimizationArtifactStatus === "needs_review" ||
+    item.optimizationArtifactStatus === "draft"
+  )
     return { tone: "amber", label: "Optimization brief ready" };
   if (item.artifactStatus === "approved") return { tone: "info", label: "Brief approved" };
   if (item.artifactStatus === "needs_review" || item.artifactStatus === "draft")
@@ -175,13 +187,7 @@ function FilterChips({
 // ExecutionItemCard — review panel + action buttons
 // ---------------------------------------------------------------------------
 
-function ExecutionItemCard({
-  item,
-  tenantId,
-}: {
-  item: ExecutionBoardItem;
-  tenantId: string;
-}) {
+function ExecutionItemCard({ item, tenantId }: { item: ExecutionBoardItem; tenantId: string }) {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const display = statusDisplay(item);
@@ -196,8 +202,7 @@ function ExecutionItemCard({
   const doOptBrief = useServerFn(generateExistingPageOptimizationBrief);
   const doApplyOpt = useServerFn(applyExistingPageOptimization);
 
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
 
   const briefMut = useMutation({
     mutationFn: () => genBrief({ data: { tenantId, masterplanItemId: item.masterplanItemId } }),
@@ -235,6 +240,24 @@ function ExecutionItemCard({
       invalidate();
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+  });
+
+  // Publishing Gate — two-step confirm replaces the full checklist modal
+  // on this compact board; the formal checklist lives on /growth/execution.
+  const approveDraftFn = useServerFn(approveWordpressDraftForPublish);
+  const [confirmingApprove, setConfirmingApprove] = useState(false);
+  const approveDraftMut = useMutation({
+    mutationFn: (draftId: string) =>
+      approveDraftFn({ data: { tenantId, draftId, checklistConfirmed: true as const } }),
+    onSuccess: (r) => {
+      if (r.ok) toast.success("Draft approved for publish");
+      setConfirmingApprove(false);
+      invalidate();
+    },
+    onError: (e) => {
+      setConfirmingApprove(false);
+      toast.error(e instanceof Error ? e.message : "Approval failed");
+    },
   });
 
   const markPubMut = useMutation({
@@ -365,7 +388,8 @@ function ExecutionItemCard({
               </>
             ) : (
               <>
-                <ChevronRight className="h-3.5 w-3.5" /> Review {item.isOptimizationTarget ? "optimization" : "brief"}
+                <ChevronRight className="h-3.5 w-3.5" /> Review{" "}
+                {item.isOptimizationTarget ? "optimization" : "brief"}
               </>
             )}
           </button>
@@ -420,14 +444,45 @@ function ExecutionItemCard({
             {draftMut.isPending ? "Creating draft…" : "Create WordPress draft"}
           </PrimaryButton>
         )}
-        {item.wpDraftStatus === "created" && item.wpDraftId && (
+        {(item.wpDraftStatus === "created" || item.wpDraftStatus === "needs_review") &&
+          item.wpDraftId && (
+            <>
+              {item.wpEditLink && <LinkButton href={item.wpEditLink}>Edit in WP ↗</LinkButton>}
+              {item.wpPreviewLink && <LinkButton href={item.wpPreviewLink}>Preview ↗</LinkButton>}
+              {item.wpReviewNotes && (
+                <span className="text-[11px] text-amber-500" title={item.wpReviewNotes}>
+                  Requested changes: {item.wpReviewNotes}
+                </span>
+              )}
+              {/* Publishing Gate: explicit two-step approval before any publish action */}
+              <PrimaryButton
+                onClick={() => {
+                  if (!item.wpDraftId) return;
+                  if (!confirmingApprove) {
+                    setConfirmingApprove(true);
+                    return;
+                  }
+                  approveDraftMut.mutate(item.wpDraftId);
+                }}
+                disabled={approveDraftMut.isPending}
+              >
+                {approveDraftMut.isPending
+                  ? "Approving…"
+                  : confirmingApprove
+                    ? "Confirm: reviewed in WP & ready to publish"
+                    : "Approve for publish"}
+              </PrimaryButton>
+              {confirmingApprove && (
+                <SecondaryButton onClick={() => setConfirmingApprove(false)}>
+                  Cancel
+                </SecondaryButton>
+              )}
+            </>
+          )}
+        {item.wpDraftStatus === "approved_for_publish" && item.wpDraftId && (
           <>
-            {item.wpEditLink && (
-              <LinkButton href={item.wpEditLink}>Edit in WP ↗</LinkButton>
-            )}
-            {item.wpPreviewLink && (
-              <LinkButton href={item.wpPreviewLink}>Preview ↗</LinkButton>
-            )}
+            {item.wpEditLink && <LinkButton href={item.wpEditLink}>Edit in WP ↗</LinkButton>}
+            {item.wpPreviewLink && <LinkButton href={item.wpPreviewLink}>Preview ↗</LinkButton>}
             <PrimaryButton
               onClick={() => item.wpDraftId && llPublishMut.mutate(item.wpDraftId)}
               disabled={llPublishMut.isPending}
@@ -466,7 +521,10 @@ function ExecutionItemCard({
                 </PrimaryButton>
               )}
               {item.optimizationSnapshotId && !item.optimizationArtifactId && (
-                <PrimaryButton onClick={() => optBriefMut.mutate()} disabled={optBriefMut.isPending}>
+                <PrimaryButton
+                  onClick={() => optBriefMut.mutate()}
+                  disabled={optBriefMut.isPending}
+                >
                   {optBriefMut.isPending ? "Generating…" : "Generate optimization brief"}
                 </PrimaryButton>
               )}
@@ -475,14 +533,15 @@ function ExecutionItemCard({
                   item.optimizationArtifactStatus === "draft") && (
                   <>
                     <PrimaryButton onClick={handleApproveOpt}>Approve optimization</PrimaryButton>
-                    <SecondaryButton onClick={() => optBriefMut.mutate()}>Regenerate</SecondaryButton>
+                    <SecondaryButton onClick={() => optBriefMut.mutate()}>
+                      Regenerate
+                    </SecondaryButton>
                   </>
                 )}
               {item.optimizationArtifactStatus === "approved" && item.optimizationArtifactId && (
                 <PrimaryButton
                   onClick={() =>
-                    item.optimizationArtifactId &&
-                    applyOptMut.mutate(item.optimizationArtifactId)
+                    item.optimizationArtifactId && applyOptMut.mutate(item.optimizationArtifactId)
                   }
                   disabled={applyOptMut.isPending}
                   tone={item.optimizationDeliveryStatus === "delivery_failed" ? "red" : "info"}

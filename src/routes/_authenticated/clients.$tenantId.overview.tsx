@@ -103,7 +103,7 @@ function OverviewTab() {
     <div className="mx-auto max-w-7xl space-y-10 px-8 py-10">
       <header className="border-b border-border pb-6">
         <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">
-          § 01 · Overview
+          Overview
         </p>
         <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-foreground">
           Client snapshot

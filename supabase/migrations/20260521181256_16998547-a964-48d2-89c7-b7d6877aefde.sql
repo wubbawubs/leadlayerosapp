@@ -1,1 +1,0 @@
-DELETE FROM site_connections WHERE id = 'fcd3865b-14f1-49a1-90ab-2ac4e0ca01d9';

@@ -69,7 +69,7 @@ export interface ExecutionBoardItem {
   artifactH1: string | null;
   artifactMetaTitle: string | null;
   artifactMetaDescription: string | null;
-  artifactIntroPreview: string | null;    // first 300 chars of introBlock
+  artifactIntroPreview: string | null; // first 300 chars of introBlock
   artifactOperatorNotes: string | null;
   artifactRiskFlags: string[];
   artifactMissingContext: string[];
@@ -87,6 +87,8 @@ export interface ExecutionBoardItem {
   wpMetaTitle: string | null;
   wpMetaDescription: string | null;
   wpPublishSource: string | null; // 'leadlayer_publish' | 'operator_manual'
+  wpApprovedAt: string | null; // Publishing Gate: when the draft was approved
+  wpReviewNotes: string | null; // Publishing Gate: reason when changes were requested
 
   // Existing page optimization fields
   isOptimizationTarget: boolean;
@@ -105,7 +107,7 @@ export interface ExecutionBoardItem {
   optimizationAppliedAt: string | null;
 
   // Optimization brief review data — populated for UI review panel
-  optimizationArtifactUpdateMode: string | null;     // 'full_content' | 'meta_only' | 'manual'
+  optimizationArtifactUpdateMode: string | null; // 'full_content' | 'meta_only' | 'manual'
   optimizationArtifactRecommendedTitle: string | null;
   optimizationArtifactMetaTitle: string | null;
   optimizationArtifactMetaDescription: string | null;
@@ -125,7 +127,10 @@ const UNSUPPORTED_TYPES: ReadonlySet<MasterplanItemType> = new Set([
   "reporting",
 ]);
 
-const PAGE_BRIEF_TYPES: ReadonlySet<MasterplanItemType> = new Set(["service_page", "location_page"]);
+const PAGE_BRIEF_TYPES: ReadonlySet<MasterplanItemType> = new Set([
+  "service_page",
+  "location_page",
+]);
 
 // Mapping types that indicate an existing page can be optimized
 const OPTIMIZATION_MAPPING_TYPES = new Set(["existing_page", "candidate_match"]);
@@ -175,9 +180,16 @@ function mapExecutionStatus(args: {
   // Existing page optimization path
   if (optimization) {
     if (optimization.deliveryStatus === "optimized" || optimization.updateStatus === "applied") {
-      return { executionStatus: "done", blockingReason: null, nextAction: "Optimized — page updated" };
+      return {
+        executionStatus: "done",
+        blockingReason: null,
+        nextAction: "Optimized — page updated",
+      };
     }
-    if (optimization.deliveryStatus === "delivery_failed" || optimization.updateStatus === "failed") {
+    if (
+      optimization.deliveryStatus === "delivery_failed" ||
+      optimization.updateStatus === "failed"
+    ) {
       return {
         executionStatus: "blocked",
         blockingReason: "Optimization PATCH failed",
@@ -453,10 +465,7 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
     }
 
     // 4b. Latest execution_artifact per item (page_brief targets)
-    const pageBriefItemIds = items
-      .filter((i) => PAGE_BRIEF_TYPES.has(i.type))
-      .map((i) => i.id);
-
+    const pageBriefItemIds = items.filter((i) => PAGE_BRIEF_TYPES.has(i.type)).map((i) => i.id);
 
     const artifactByItem = new Map<
       string,
@@ -481,7 +490,9 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
     if (pageBriefItemIds.length > 0) {
       const { data: artRows } = await admin
         .from("execution_artifacts")
-        .select("id, status, masterplan_item_id, created_at, delivery_readiness, payload, risk_flags, missing_context")
+        .select(
+          "id, status, masterplan_item_id, created_at, delivery_readiness, payload, risk_flags, missing_context",
+        )
         .eq("tenant_id", data.tenantId)
         .in("masterplan_item_id", pageBriefItemIds)
         .eq("artifact_type", "page_brief")
@@ -514,7 +525,9 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
           operatorNotes: typeof p.operatorNotes === "string" ? p.operatorNotes : null,
           riskFlags: Array.isArray(r.risk_flags) ? r.risk_flags : [],
           missingContext: Array.isArray(r.missing_context) ? r.missing_context : [],
-          sectionCount: Array.isArray(p.serviceSections) ? (p.serviceSections as unknown[]).length : 0,
+          sectionCount: Array.isArray(p.serviceSections)
+            ? (p.serviceSections as unknown[]).length
+            : 0,
           faqCount: Array.isArray(p.faqBlock) ? (p.faqBlock as unknown[]).length : 0,
         });
       }
@@ -538,12 +551,16 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
         metaTitle: string | null;
         metaDescription: string | null;
         publishSource: string | null;
+        approvedAt: string | null;
+        reviewNotes: string | null;
       }
     >();
     if (approvedArtifactIds.length > 0) {
       const { data: draftRows } = await admin
         .from("wordpress_drafts")
-        .select("id, status, execution_artifact_id, wp_edit_link, wp_preview_link, published_at, published_url, seo_meta_status, meta_title, meta_description, publish_source")
+        .select(
+          "id, status, execution_artifact_id, wp_edit_link, wp_preview_link, published_at, published_url, seo_meta_status, meta_title, meta_description, publish_source, approved_at, review_notes",
+        )
         .eq("tenant_id", data.tenantId)
         .in("execution_artifact_id", approvedArtifactIds)
         .order("created_at", { ascending: false });
@@ -559,6 +576,8 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
         meta_title: string | null;
         meta_description: string | null;
         publish_source: string | null;
+        approved_at: string | null;
+        review_notes: string | null;
       }>) {
         if (draftByArtifact.has(r.execution_artifact_id)) continue;
         draftByArtifact.set(r.execution_artifact_id, {
@@ -572,6 +591,8 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
           metaTitle: r.meta_title,
           metaDescription: r.meta_description,
           publishSource: r.publish_source,
+          approvedAt: r.approved_at,
+          reviewNotes: r.review_notes,
         });
       }
     }
@@ -640,22 +661,31 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
     }
 
     // Load latest snapshot per item
-    const connectionIds = [...new Set([...optimizationMappingByItem.values()].map((m) => m.connectionId))];
-    const snapshotByItemPost = new Map<string, {
-      id: string;
-      eligibilityStatus: string;
-      detectedBuilder: string | null;
-    }>();
+    const connectionIds = [
+      ...new Set([...optimizationMappingByItem.values()].map((m) => m.connectionId)),
+    ];
+    const snapshotByItemPost = new Map<
+      string,
+      {
+        id: string;
+        eligibilityStatus: string;
+        detectedBuilder: string | null;
+      }
+    >();
     if (connectionIds.length > 0) {
-      const wpPostIds = [...new Set(
-        [...optimizationMappingByItem.values()]
-          .map((m) => m.inventoryId ? wpPostIdByInventory.get(m.inventoryId) : null)
-          .filter((v): v is number => v != null),
-      )];
+      const wpPostIds = [
+        ...new Set(
+          [...optimizationMappingByItem.values()]
+            .map((m) => (m.inventoryId ? wpPostIdByInventory.get(m.inventoryId) : null))
+            .filter((v): v is number => v != null),
+        ),
+      ];
       if (wpPostIds.length > 0) {
         const { data: snapRows } = await admin
           .from("page_optimization_snapshots")
-          .select("id, wp_post_id, wordpress_connection_id, eligibility_status, detected_builder, created_at")
+          .select(
+            "id, wp_post_id, wordpress_connection_id, eligibility_status, detected_builder, created_at",
+          )
           .eq("tenant_id", data.tenantId)
           .in("wp_post_id", wpPostIds)
           .order("created_at", { ascending: false });
@@ -699,7 +729,9 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
     if (optItemIds.length > 0) {
       const { data: optArtRows } = await admin
         .from("execution_artifacts")
-        .select("id, status, masterplan_item_id, delivery_status, created_at, payload, risk_flags, missing_context")
+        .select(
+          "id, status, masterplan_item_id, delivery_status, created_at, payload, risk_flags, missing_context",
+        )
         .eq("tenant_id", data.tenantId)
         .in("masterplan_item_id", optItemIds)
         .eq("artifact_type", "page_optimization_brief")
@@ -726,7 +758,9 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
             metaDescription: typeof p.metaDescription === "string" ? p.metaDescription : null,
             riskFlags: Array.isArray(r.risk_flags) ? r.risk_flags : [],
             missingContext: Array.isArray(r.missing_context) ? r.missing_context : [],
-            operatorChecklist: Array.isArray(p.operatorChecklist) ? (p.operatorChecklist as string[]) : [],
+            operatorChecklist: Array.isArray(p.operatorChecklist)
+              ? (p.operatorChecklist as string[])
+              : [],
           });
         }
       }
@@ -765,11 +799,13 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
 
     // Compose optimization data per item
     for (const [itemId, mapping] of optimizationMappingByItem) {
-      const wpPostId = mapping.inventoryId ? (wpPostIdByInventory.get(mapping.inventoryId) ?? null) : null;
+      const wpPostId = mapping.inventoryId
+        ? (wpPostIdByInventory.get(mapping.inventoryId) ?? null)
+        : null;
       const snapKey = wpPostId ? `${mapping.connectionId}:${wpPostId}` : null;
-      const snap = snapKey ? snapshotByItemPost.get(snapKey) ?? null : null;
+      const snap = snapKey ? (snapshotByItemPost.get(snapKey) ?? null) : null;
       const art = optArtifactByItem.get(itemId) ?? null;
-      const upd = art ? optUpdateByArtifact.get(art.id) ?? null : null;
+      const upd = art ? (optUpdateByArtifact.get(art.id) ?? null) : null;
 
       optimizationByItem.set(itemId, {
         inventoryId: mapping.inventoryId,
@@ -791,16 +827,14 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
     // 5. Compose
     const board: ExecutionBoardItem[] = items.map((item) => {
       const proposal = latestByItem.get(item.id) ?? null;
-      const comp = proposal ? compByProposal.get(proposal.id) ?? null : null;
+      const comp = proposal ? (compByProposal.get(proposal.id) ?? null) : null;
       const artifact = artifactByItem.get(item.id) ?? null;
-      const wpDraft = artifact ? draftByArtifact.get(artifact.id) ?? null : null;
+      const wpDraft = artifact ? (draftByArtifact.get(artifact.id) ?? null) : null;
       const isPageBriefTarget = PAGE_BRIEF_TYPES.has(item.type);
       const optData = optimizationByItem.get(item.id) ?? null;
       const mapped = mapExecutionStatus({
         item,
-        proposal: proposal
-          ? { status: proposal.status, riskFlags: proposal.riskFlags }
-          : null,
+        proposal: proposal ? { status: proposal.status, riskFlags: proposal.riskFlags } : null,
         comparison: comp ? { winner: comp.winner } : null,
         artifact: artifact ? { id: artifact.id, status: artifact.status } : null,
         wpDraft: wpDraft ? { status: wpDraft.status } : null,
@@ -858,6 +892,8 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
         wpMetaTitle: wpDraft?.metaTitle ?? null,
         wpMetaDescription: wpDraft?.metaDescription ?? null,
         wpPublishSource: wpDraft?.publishSource ?? null,
+        wpApprovedAt: wpDraft?.approvedAt ?? null,
+        wpReviewNotes: wpDraft?.reviewNotes ?? null,
         isOptimizationTarget: optData !== null,
         optimizationInventoryId: optData?.inventoryId ?? null,
         optimizationWpPostId: optData?.wpPostId ?? null,
@@ -873,12 +909,15 @@ export const getExecutionBoard = createServerFn({ method: "POST" })
         optimizationUpdateStatus: optData?.updateStatus ?? null,
         optimizationAppliedAt: optData?.appliedAt ?? null,
         optimizationArtifactUpdateMode: optArtifactByItem.get(item.id)?.updateMode ?? null,
-        optimizationArtifactRecommendedTitle: optArtifactByItem.get(item.id)?.recommendedTitle ?? null,
+        optimizationArtifactRecommendedTitle:
+          optArtifactByItem.get(item.id)?.recommendedTitle ?? null,
         optimizationArtifactMetaTitle: optArtifactByItem.get(item.id)?.metaTitle ?? null,
-        optimizationArtifactMetaDescription: optArtifactByItem.get(item.id)?.metaDescription ?? null,
+        optimizationArtifactMetaDescription:
+          optArtifactByItem.get(item.id)?.metaDescription ?? null,
         optimizationArtifactRiskFlags: optArtifactByItem.get(item.id)?.riskFlags ?? [],
         optimizationArtifactMissingContext: optArtifactByItem.get(item.id)?.missingContext ?? [],
-        optimizationArtifactOperatorChecklist: optArtifactByItem.get(item.id)?.operatorChecklist ?? [],
+        optimizationArtifactOperatorChecklist:
+          optArtifactByItem.get(item.id)?.operatorChecklist ?? [],
         executionStatus: mapped.executionStatus,
         blockingReason: mapped.blockingReason,
         nextAction: mapped.nextAction,

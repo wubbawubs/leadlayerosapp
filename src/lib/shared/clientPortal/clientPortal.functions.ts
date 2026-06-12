@@ -38,12 +38,8 @@ async function assertOperator(supabase: any, userId: string, tenantId: string) {
 
 /** Resolves tenantId from a portal token. Used by all public portal endpoints. */
 async function resolveTenantFromToken(token: string): Promise<string | null> {
-  if (!token || token.length !== 40 || !/^[a-f0-9]+$/.test(token)) return null;
-  const { data } = await admin
-    .from("tenants")
-    .select("id")
-    .eq("portal_token", token)
-    .maybeSingle();
+  if (!token || token.length < 32 || token.length > 96 || !/^[a-f0-9]+$/.test(token)) return null;
+  const { data } = await admin.from("tenants").select("id").eq("portal_token", token).maybeSingle();
   return (data?.id as string) ?? null;
 }
 
@@ -89,6 +85,9 @@ export interface ClientPortalActivity {
 export interface ClientPortalData {
   businessName: string;
 
+  /** Portal language, derived from tenant geo (NL -> nl, otherwise en) */
+  locale: "nl" | "en";
+
   goal: {
     title: string | null;
     targetCount: number | null;
@@ -100,6 +99,7 @@ export interface ClientPortalData {
 
   stats: {
     leadsThisMonth: number;
+    leadsLastMonth: number;
     leadsWon: number;
     provenRevenue: number;
     pagesLive: number;
@@ -130,9 +130,7 @@ export interface ClientPortalData {
 
 export const generateClientPortalToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ tenantId: z.string().uuid() }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ tenantId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertOperator(supabase, userId, data.tenantId);
@@ -157,9 +155,7 @@ export const generateClientPortalToken = createServerFn({ method: "POST" })
 
 export const revokeClientPortalToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ tenantId: z.string().uuid() }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ tenantId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     await assertOperator(supabase, userId, data.tenantId);
@@ -179,9 +175,7 @@ export const revokeClientPortalToken = createServerFn({ method: "POST" })
 
 export const getClientPortalInfo = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ tenantId: z.string().uuid() }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ tenantId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: member } = await supabase
@@ -264,30 +258,48 @@ export const markLeadWonFromPortal = createServerFn({ method: "POST" })
 // 5. getClientPortalData (PUBLIC — no auth, service_role lookup by token)
 // ------------------------------------------------------------------
 
-export async function getClientPortalData(
-  token: string,
-): Promise<ClientPortalData | null> {
-  const tenantId = await resolveTenantFromToken(token);
-  if (!tenantId) return null;
-
-  // Load business name + portal created_at
+// Shared data assembly — called by both token-based portal and authenticated dashboard
+export async function assembleClientData(tenantId: string): Promise<ClientPortalData | null> {
   const { data: tenantRow } = await admin
     .from("tenants")
-    .select("name, portal_token_created_at")
+    .select("name, geo, portal_token_created_at")
     .eq("id", tenantId)
     .maybeSingle();
   if (!tenantRow) return null;
 
   const businessName = (tenantRow.name as string) || "Your business";
+  const locale: "nl" | "en" = tenantRow.geo === "NL" ? "nl" : "en";
+
+  return _assemble(
+    tenantId,
+    businessName,
+    locale,
+    (tenantRow.portal_token_created_at as string | null) ?? null,
+  );
+}
+
+export async function getClientPortalData(token: string): Promise<ClientPortalData | null> {
+  const tenantId = await resolveTenantFromToken(token);
+  if (!tenantId) return null;
+  return assembleClientData(tenantId);
+}
+
+async function _assemble(
+  tenantId: string,
+  businessName: string,
+  locale: "nl" | "en",
+  portalCreatedAt: string | null,
+): Promise<ClientPortalData> {
   const now = new Date();
   const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
 
   // All data in parallel
   const [
     goalRes,
     allLeadRes,
     monthLeadRes,
+    prevMonthLeadRes,
     draftRes,
     updateRes,
     reportRes,
@@ -312,6 +324,12 @@ export async function getClientPortalData(
       .eq("tenant_id", tenantId)
       .gte("created_at", periodStart),
     admin
+      .from("leads")
+      .select("status, created_at")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", prevMonthStart)
+      .lt("created_at", periodStart),
+    admin
       .from("wordpress_drafts")
       .select("title, published_url, published_at, created_at")
       .eq("tenant_id", tenantId)
@@ -326,7 +344,9 @@ export async function getClientPortalData(
       .order("applied_at", { ascending: false }),
     admin
       .from("monthly_reports")
-      .select("period_start, period_end, status, lead_summary, goal_progress_summary, wordpress_summary, share_token, updated_at")
+      .select(
+        "period_start, period_end, status, lead_summary, goal_progress_summary, wordpress_summary, share_token, updated_at",
+      )
       .eq("tenant_id", tenantId)
       .eq("status", "approved")
       .order("period_start", { ascending: false })
@@ -343,9 +363,23 @@ export async function getClientPortalData(
   // ------------------------------------------------------------------
   // Leads
   // ------------------------------------------------------------------
-  type LeadRow = { id: string; name: string | null; phone: string | null; email: string | null; source: string | null; status: string; closed_amount: number | null; won_notes: string | null; created_at: string };
+  type LeadRow = {
+    id: string;
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+    source: string | null;
+    status: string;
+    closed_amount: number | null;
+    won_notes: string | null;
+    created_at: string;
+  };
   const allLeads = (allLeadRes.data ?? []) as LeadRow[];
   const monthLeads = (monthLeadRes.data ?? []) as Array<{ status: string; created_at: string }>;
+  const prevMonthLeads = (prevMonthLeadRes.data ?? []) as Array<{
+    status: string;
+    created_at: string;
+  }>;
 
   const leads: ClientPortalLead[] = allLeads.map((l) => ({
     id: l.id,
@@ -363,15 +397,24 @@ export async function getClientPortalData(
   const provenRevenue = allLeads
     .filter((l) => l.status === "won")
     .reduce((s, l) => s + (l.closed_amount ?? 0), 0);
-  const leadsThisMonth = monthLeads.filter((l) =>
-    ["new", "qualified", "won"].includes(l.status),
-  ).length;
+  const countable = ["new", "qualified", "won"];
+  const leadsThisMonth = monthLeads.filter((l) => countable.includes(l.status)).length;
+  const leadsLastMonth = prevMonthLeads.filter((l) => countable.includes(l.status)).length;
 
   // ------------------------------------------------------------------
   // Pages
   // ------------------------------------------------------------------
-  type DraftRow = { title: string | null; published_url: string | null; published_at: string | null; created_at: string };
-  type UpdateRow = { wp_post_id: number; applied_at: string | null; raw_response: Record<string, unknown> | null };
+  type DraftRow = {
+    title: string | null;
+    published_url: string | null;
+    published_at: string | null;
+    created_at: string;
+  };
+  type UpdateRow = {
+    wp_post_id: number;
+    applied_at: string | null;
+    raw_response: Record<string, unknown> | null;
+  };
   const drafts = (draftRes.data ?? []) as DraftRow[];
   const updates = (updateRes.data ?? []) as UpdateRow[];
 
@@ -405,7 +448,15 @@ export async function getClientPortalData(
   // ------------------------------------------------------------------
   // Reports
   // ------------------------------------------------------------------
-  type ReportRow = { period_start: string; period_end: string; lead_summary: Record<string, unknown> | null; goal_progress_summary: Record<string, unknown> | null; wordpress_summary: Record<string, unknown> | null; share_token: string | null; updated_at: string };
+  type ReportRow = {
+    period_start: string;
+    period_end: string;
+    lead_summary: Record<string, unknown> | null;
+    goal_progress_summary: Record<string, unknown> | null;
+    wordpress_summary: Record<string, unknown> | null;
+    share_token: string | null;
+    updated_at: string;
+  };
   const reportRows = (reportRes.data ?? []) as ReportRow[];
 
   const reports: ClientPortalReport[] = reportRows.map((r) => {
@@ -413,7 +464,7 @@ export async function getClientPortalData(
     const gs = r.goal_progress_summary ?? {};
     const ws = r.wordpress_summary ?? {};
     return {
-      periodLabel: formatPeriodLabel(r.period_start, r.period_end),
+      periodLabel: formatPeriodLabel(r.period_start, r.period_end, locale),
       leadCount: Number(ls.total ?? 0),
       revenue: Number(gs.provenRevenue ?? 0),
       pagesPublished: Number(ws.draftsPublished ?? 0),
@@ -431,18 +482,25 @@ export async function getClientPortalData(
   if (goal) {
     const requiredLeads = (goal.required_leads as number | null) ?? 0;
     const startMs = new Date(goal.created_at as string).getTime();
-    const totalDays = goal.timeframe_months ? Math.round((goal.timeframe_months as number) * 30.4) : 0;
+    const totalDays = goal.timeframe_months
+      ? Math.round((goal.timeframe_months as number) * 30.4)
+      : 0;
     const deadline = totalDays ? new Date(startMs + totalDays * 86_400_000) : null;
-    const daysRemaining = deadline ? Math.max(0, Math.floor((deadline.getTime() - Date.now()) / 86_400_000)) : null;
+    const daysRemaining = deadline
+      ? Math.max(0, Math.floor((deadline.getTime() - Date.now()) / 86_400_000))
+      : null;
     const daysElapsed = Math.max(0, Math.floor((Date.now() - startMs) / 86_400_000));
 
-    const actualLeads = allLeads.filter((l) => {
-      const t = new Date(l.created_at).getTime();
-      return t >= startMs && ["new", "qualified", "won"].includes(l.status);
-    }).length;
+    const actualLeads = allLeads.filter((l) =>
+      ["new", "qualified", "won"].includes(l.status),
+    ).length;
 
-    const progressPercent = requiredLeads > 0 ? Math.min(100, Math.round((actualLeads / requiredLeads) * 100)) : 0;
-    const paceRequired = totalDays > 0 && requiredLeads > 0 ? Math.round((requiredLeads * daysElapsed) / totalDays) : 0;
+    const progressPercent =
+      requiredLeads > 0 ? Math.min(100, Math.round((actualLeads / requiredLeads) * 100)) : 0;
+    const paceRequired =
+      totalDays > 0 && requiredLeads > 0
+        ? Math.round((requiredLeads * daysElapsed) / totalDays)
+        : 0;
     const gap = paceRequired - actualLeads;
 
     let status: "on_track" | "behind" | "ahead" | "complete" | "no_goal" | "no_data" = "no_data";
@@ -465,13 +523,27 @@ export async function getClientPortalData(
 
   // ------------------------------------------------------------------
   // Recent activity feed (newest first, max 15)
+  // Labels are localized here — the portal renders them verbatim.
   // ------------------------------------------------------------------
+  const t =
+    locale === "nl"
+      ? {
+          pagePublished: "Nieuwe pagina live",
+          pageOptimized: "Pagina verbeterd",
+          reportReady: "Maandrapport klaar",
+        }
+      : {
+          pagePublished: "New page published",
+          pageOptimized: "Page improved",
+          reportReady: "Monthly report ready",
+        };
+
   const activity: ClientPortalActivity[] = [];
 
   for (const d of drafts.slice(0, 5)) {
     activity.push({
       type: "page_published",
-      label: `New page published`,
+      label: t.pagePublished,
       detail: d.title ?? null,
       date: d.published_at ?? d.created_at,
     });
@@ -482,29 +554,21 @@ export async function getClientPortalData(
     const title =
       typeof titleRaw === "object" && titleRaw !== null
         ? String((titleRaw as Record<string, unknown>).rendered ?? null)
-        : typeof titleRaw === "string" ? titleRaw : null;
+        : typeof titleRaw === "string"
+          ? titleRaw
+          : null;
     activity.push({
       type: "page_optimized",
-      label: "Page optimized",
+      label: t.pageOptimized,
       detail: title,
       date: u.applied_at ?? "",
-    });
-  }
-  // Recent leads (last 30 days)
-  const recentLeads = allLeads.filter((l) => new Date(l.created_at) >= new Date(thirtyDaysAgo));
-  for (const l of recentLeads.slice(0, 5)) {
-    activity.push({
-      type: "lead_received",
-      label: l.name ? `Lead: ${l.name}` : "New lead received",
-      detail: l.source ?? null,
-      date: l.created_at,
     });
   }
   for (const r of reportRows.slice(0, 2)) {
     activity.push({
       type: "report_ready",
-      label: `Monthly report ready`,
-      detail: formatPeriodLabel(r.period_start, r.period_end),
+      label: t.reportReady,
+      detail: formatPeriodLabel(r.period_start, r.period_end, locale),
       date: r.updated_at,
     });
   }
@@ -528,9 +592,11 @@ export async function getClientPortalData(
 
   return {
     businessName,
+    locale,
     goal: goalData,
     stats: {
       leadsThisMonth,
+      leadsLastMonth,
       leadsWon,
       provenRevenue,
       pagesLive: drafts.length,
@@ -541,14 +607,19 @@ export async function getClientPortalData(
     pages,
     reports,
     nextMonthFocus: nextMonthFocus.slice(0, 5),
-    portalCreatedAt: (tenantRow.portal_token_created_at as string | null) ?? null,
+    portalCreatedAt,
   };
 }
 
-function formatPeriodLabel(start: string, end: string): string {
+function formatPeriodLabel(start: string, end: string, locale: "nl" | "en" = "en"): string {
   try {
     const s = new Date(`${start}T00:00:00Z`);
-    return s.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+    const label = s.toLocaleDateString(locale === "nl" ? "nl-NL" : "en-US", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+    return label.charAt(0).toUpperCase() + label.slice(1);
   } catch {
     return `${start} – ${end}`;
   }

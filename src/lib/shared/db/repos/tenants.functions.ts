@@ -48,6 +48,7 @@ export interface TenantSummary {
     active: boolean;
     hasSource: boolean;
     webhookKey: string | null;
+    lastLeadAt: string | null;
   };
   intelligencePipeline: {
     lastRunAt: string | null;
@@ -88,6 +89,7 @@ export const getTenantSummary = createServerFn({ method: "POST" })
       intelRes,
       gbpRes,
       invRes,
+      lastLeadRes,
     ] = await Promise.all([
       admin
         .from("growth_goals")
@@ -134,6 +136,12 @@ export const getTenantSummary = createServerFn({ method: "POST" })
         .from("wordpress_site_inventory")
         .select("id", { count: "exact", head: true })
         .eq("tenant_id", data.tenantId),
+      admin
+        .from("leads")
+        .select("created_at")
+        .eq("tenant_id", data.tenantId)
+        .order("created_at", { ascending: false })
+        .limit(1),
     ]);
 
     const goal = (goalRes.data ?? [])[0] ?? null;
@@ -144,6 +152,7 @@ export const getTenantSummary = createServerFn({ method: "POST" })
     const intel = (intelRes.data ?? [])[0] ?? null;
     const gbp = (gbpRes.data ?? [])[0] ?? null;
     const pageCount = (invRes.count as number | null) ?? 0;
+    const lastLeadAt = ((lastLeadRes.data ?? [])[0] as { created_at?: string } | undefined)?.created_at ?? null;
 
     // Simple health derivation
     let health: "green" | "amber" | "red" = "green";
@@ -178,6 +187,7 @@ export const getTenantSummary = createServerFn({ method: "POST" })
         active: !!leadIng && leadIng.status === "active",
         hasSource: !!leadIng,
         webhookKey: (leadIng?.public_key as string | null) ?? null,
+        lastLeadAt,
       },
       intelligencePipeline: {
         lastRunAt: (intel?.created_at as string | null) ?? null,

@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 
-import { Logo } from "@/components/brand/Logo";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 
@@ -15,17 +14,27 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      setError(error.message);
+    setSigningIn(true);
+
+    const [{ error: authError }] = await Promise.all([
+      supabase.auth.signInWithPassword({ email, password }),
+      // Minimum display time so the mark animation has room to play
+      new Promise<void>((r) => setTimeout(r, 650)),
+    ]);
+
+    if (authError) {
+      setSigningIn(false);
+      setLoading(false);
+      setError(authError.message);
       return;
     }
+
+    // Overlay stays up through the navigation
     window.location.assign("/dashboard");
   }
 
@@ -42,51 +51,139 @@ function LoginPage() {
     navigate({ to: "/dashboard" });
   }
 
-  return <AuthShell title="Sign in" subtitle="Welcome back to LeadLayer OS.">
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" required />
-      <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" required />
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-md bg-primary px-4 py-2.5 font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
-      >
-        {loading ? "Signing in…" : "Sign in"}
-      </button>
-    </form>
+  return (
+    <>
+      {signingIn && <SignInOverlay />}
 
-    <Divider />
+      <AuthShell title="Sign in" subtitle="Welcome back to LeadLayer.">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Field
+            label="Email"
+            type="email"
+            value={email}
+            onChange={setEmail}
+            autoComplete="email"
+            required
+          />
+          <Field
+            label="Password"
+            type="password"
+            value={password}
+            onChange={setPassword}
+            autoComplete="current-password"
+            required
+          />
+          {error && <p className="text-sm font-medium text-paper-danger">{error}</p>}
+          <button type="submit" disabled={loading || signingIn} className="cta-shear w-full">
+            Sign in
+          </button>
+        </form>
 
-    <button
-      type="button"
-      onClick={handleGoogle}
-      className="w-full rounded-md border border-border bg-card px-4 py-2.5 font-medium text-foreground hover:bg-secondary"
-    >
-      Continue with Google
-    </button>
+        <Divider />
 
-    <div className="mt-6 flex items-center justify-between text-sm text-muted-foreground">
-      <Link to="/reset-password" className="hover:text-foreground">Forgot password?</Link>
-      <Link to="/signup" className="hover:text-foreground">Create account</Link>
-    </div>
-  </AuthShell>;
+        <button
+          type="button"
+          onClick={handleGoogle}
+          className="h-12 w-full rounded-[4px] border border-paper-line-strong bg-white text-[15px] font-medium text-ink transition hover:bg-paper-subtle"
+        >
+          Continue with Google
+        </button>
+
+        <div className="mt-6 flex items-center justify-between text-sm text-ink-2">
+          <Link to="/reset-password" className="transition hover:text-ink">
+            Forgot password?
+          </Link>
+          <Link to="/signup" className="transition hover:text-ink">
+            Create account
+          </Link>
+        </div>
+      </AuthShell>
+    </>
+  );
 }
 
-export function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+function SignInOverlay() {
   return (
-    <div className="min-h-screen bg-background bg-blueprint">
-      <header className="container mx-auto px-6 py-5">
-        <Logo />
-      </header>
-      <main className="container mx-auto flex justify-center px-6 py-12">
-        <div className="w-full max-w-md rounded-lg border border-border bg-card/70 p-8 backdrop-blur">
-          <h1 className="font-display text-4xl text-foreground">{title}</h1>
-          <p className="mt-1 mb-6 text-sm text-muted-foreground">{subtitle}</p>
-          {children}
-        </div>
-      </main>
+    <div
+      className="paper fixed inset-0 z-50 flex flex-col items-center justify-center gap-5"
+      style={{ animation: "login-card-in 0.18s ease-out both" }}
+    >
+      <LoginMark />
+      <p className="label-mono" style={{ animation: "mark-wordmark 0.3s ease-out 0.5s both" }}>
+        Signing in…
+      </p>
     </div>
+  );
+}
+
+export function AuthShell({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="paper bg-blueprint flex min-h-screen flex-col items-center justify-center px-6 py-12">
+      {/* Animated logo mark */}
+      <div className="mb-8 flex flex-col items-center gap-3">
+        <LoginMark />
+        <p
+          className="font-display text-2xl font-bold tracking-tight text-ink"
+          style={{ animation: "mark-wordmark 0.4s cubic-bezier(0.16,1,0.3,1) 0.55s both" }}
+        >
+          LeadLayer <span className="text-amber">OS</span>
+        </p>
+      </div>
+
+      {/* Auth card */}
+      <div
+        className="w-full max-w-md rounded-[4px] border border-paper-line-strong bg-paper-raised p-8"
+        style={{ animation: "login-card-in 0.5s cubic-bezier(0.16,1,0.3,1) 0.7s both" }}
+      >
+        <h1 className="font-display text-3xl font-bold tracking-tight text-ink">{title}</h1>
+        <p className="mt-1 mb-6 text-[15px] text-ink-2">{subtitle}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function LoginMark() {
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-20 w-20"
+      aria-hidden="true"
+    >
+      {/* Top layer — slides in from top-left */}
+      <path
+        d="M18 10 L54 10 L46 22 L10 22 Z"
+        fill="var(--amber)"
+        style={{ animation: "mark-layer-1 0.45s cubic-bezier(0.16,1,0.3,1) 0.1s both" }}
+      />
+      {/* Middle layer — outline, scales in from center */}
+      <path
+        d="M14 27 L50 27 L42 39 L6 39 Z"
+        fill="none"
+        stroke="var(--amber)"
+        strokeWidth="2.5"
+        style={{
+          animation: "mark-layer-2 0.4s cubic-bezier(0.16,1,0.3,1) 0.28s both",
+          transformOrigin: "32px 33px",
+        }}
+      />
+      {/* Bottom layer — slides in from bottom-right */}
+      <path
+        d="M18 44 L54 44 L46 56 L10 56 Z"
+        fill="var(--amber-deep)"
+        style={{ animation: "mark-layer-3 0.45s cubic-bezier(0.16,1,0.3,1) 0.42s both" }}
+      />
+    </svg>
   );
 }
 
@@ -107,14 +204,14 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-foreground">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
         required={required}
-        className="w-full rounded-md border border-input bg-background/50 px-3 py-2 text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+        className="h-12 w-full rounded-[4px] border border-paper-line-strong bg-white px-3 text-base text-ink outline-none transition focus:border-amber focus:ring-2 focus:ring-amber/25"
       />
     </label>
   );
@@ -122,10 +219,10 @@ export function Field({
 
 export function Divider() {
   return (
-    <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-widest text-muted-foreground">
-      <span className="h-px flex-1 bg-border" />
-      or
-      <span className="h-px flex-1 bg-border" />
+    <div className="my-5 flex items-center gap-3">
+      <span className="rule-hair flex-1" />
+      <span className="label-mono">or</span>
+      <span className="rule-hair flex-1" />
     </div>
   );
 }

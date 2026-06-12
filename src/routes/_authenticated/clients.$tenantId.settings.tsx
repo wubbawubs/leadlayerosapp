@@ -1,18 +1,27 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, AlertCircle, Circle, Copy, Link2Off, RefreshCw } from "lucide-react";
+import {
+  CheckCircle2,
+  AlertCircle,
+  Circle,
+  Copy,
+  Link2Off,
+  RefreshCw,
+  UserPlus,
+  Trash2,
+  Mail,
+} from "lucide-react";
 import { toast } from "sonner";
+import { useState } from "react";
 
+import { getTenantSummary, type TenantSummary } from "@/lib/shared/db/repos/tenants.functions";
 import {
-  getTenantSummary,
-  type TenantSummary,
-} from "@/lib/shared/db/repos/tenants.functions";
-import {
-  generateClientPortalToken,
-  revokeClientPortalToken,
-  getClientPortalInfo,
-} from "@/lib/shared/clientPortal/clientPortal.functions";
+  inviteClientToTenant,
+  listClientMembers,
+  revokeClientAccess,
+  type ClientMember,
+} from "@/lib/shared/clientPortal/clientAuth.functions";
 import { SkeletonSettingsRow } from "@/components/ui/Skeletons";
 
 export const Route = createFileRoute("/_authenticated/clients/$tenantId/settings")({
@@ -31,11 +40,7 @@ function StatusTag({ ok, label }: { ok: boolean; label: string }) {
         ok ? "text-status-green" : "text-muted-foreground"
       }`}
     >
-      {ok ? (
-        <CheckCircle2 className="h-3 w-3 shrink-0" />
-      ) : (
-        <Circle className="h-3 w-3 shrink-0" />
-      )}
+      {ok ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : <Circle className="h-3 w-3 shrink-0" />}
       {label}
     </span>
   );
@@ -83,18 +88,48 @@ function deriveStatus(summary: TenantSummary | null | undefined, key: string): R
             return summary.wordpressConnection.siteUrl;
           }
         })();
-        return connected ? (
-          <StatusTag ok label={host} />
-        ) : (
-          <WarningTag label={`${summary.wordpressConnection.status} · ${host}`} />
+        const probeAgo = summary.wordpressConnection.lastProbeAt
+          ? formatRelativeCompact(summary.wordpressConnection.lastProbeAt)
+          : null;
+        return (
+          <span className="flex flex-wrap items-center gap-2">
+            {connected ? (
+              <StatusTag ok label={host} />
+            ) : (
+              <WarningTag label={`${summary.wordpressConnection.status} · ${host}`} />
+            )}
+            {probeAgo && (
+              <span className="font-mono text-[10px] text-muted-foreground">
+                last synced {probeAgo}
+              </span>
+            )}
+          </span>
         );
       }
       return <WarningTag label="Not connected" />;
 
-    case "lead-ingestion":
-      if (summary.leadIngestion.active) return <StatusTag ok label="Webhook active" />;
-      if (summary.leadIngestion.hasSource) return <WarningTag label="Source inactive" />;
-      return <WarningTag label="Not configured" />;
+    case "lead-ingestion": {
+      const lastLead = summary.leadIngestion.lastLeadAt
+        ? formatRelativeCompact(summary.leadIngestion.lastLeadAt)
+        : null;
+      const ingestionStatus = summary.leadIngestion.active ? (
+        <StatusTag ok label="Webhook active" />
+      ) : summary.leadIngestion.hasSource ? (
+        <WarningTag label="Source inactive" />
+      ) : (
+        <WarningTag label="Not configured" />
+      );
+      return (
+        <span className="flex flex-wrap items-center gap-2">
+          {ingestionStatus}
+          {lastLead && (
+            <span className="font-mono text-[10px] text-muted-foreground">
+              last lead {lastLead}
+            </span>
+          )}
+        </span>
+      );
+    }
 
     case "intelligence-pipeline":
       if (summary.intelligencePipeline.lastRunAt) {
@@ -106,14 +141,18 @@ function deriveStatus(summary: TenantSummary | null | undefined, key: string): R
       return <WarningTag label="Not run" />;
 
     case "gbp":
-      return summary.gbp.connected
-        ? <StatusTag ok label="Connected" />
-        : <WarningTag label="Not connected" />;
+      return summary.gbp.connected ? (
+        <StatusTag ok label="Connected" />
+      ) : (
+        <WarningTag label="Not connected" />
+      );
 
     case "page-inventory":
-      return summary.pageInventory.count > 0
-        ? <StatusTag ok label={`${summary.pageInventory.count} pages indexed`} />
-        : <WarningTag label="Not synced" />;
+      return summary.pageInventory.count > 0 ? (
+        <StatusTag ok label={`${summary.pageInventory.count} pages indexed`} />
+      ) : (
+        <WarningTag label="Not synced" />
+      );
 
     default:
       return null;
@@ -121,108 +160,126 @@ function deriveStatus(summary: TenantSummary | null | undefined, key: string): R
 }
 
 // ---------------------------------------------------------------------------
-// Client portal row — inline token management
+// Client access row — invite clients by email, list + revoke access
 // ---------------------------------------------------------------------------
 
-function ClientPortalRow({ tenantId }: { tenantId: string }) {
+function ClientAccessRow({ tenantId }: { tenantId: string }) {
   const qc = useQueryClient();
-  const genFn = useServerFn(generateClientPortalToken);
-  const revokeFn = useServerFn(revokeClientPortalToken);
-  const infoFn = useServerFn(getClientPortalInfo);
+  const inviteFn = useServerFn(inviteClientToTenant);
+  const listFn = useServerFn(listClientMembers);
+  const revokeFn = useServerFn(revokeClientAccess);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"client_viewer" | "client_approver">("client_viewer");
+  const [showing, setShowing] = useState(false);
 
-  const infoQ = useQuery({
-    queryKey: ["client-portal-info", tenantId],
-    queryFn: () => infoFn({ data: { tenantId } }),
+  const membersQ = useQuery({
+    queryKey: ["client-members", tenantId],
+    queryFn: () => listFn({ data: { tenantId } }),
     staleTime: 30_000,
   });
+  const members = membersQ.data?.members ?? [];
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["client-members", tenantId] });
 
-  const token = infoQ.data?.portalToken ?? null;
-  const portalUrl = token && typeof window !== "undefined"
-    ? `${window.location.origin}/portal/${token}`
-    : null;
-
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["client-portal-info", tenantId] });
-
-  const genMutation = useMutation({
-    mutationFn: () => genFn({ data: { tenantId } }),
-    onSuccess: () => { toast.success("Client portal link generated"); invalidate(); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed"),
+  const inviteMutation = useMutation({
+    mutationFn: () => inviteFn({ data: { tenantId, email: email.trim(), role } }),
+    onSuccess: () => {
+      toast.success(`Invite sent to ${email}`);
+      setEmail("");
+      invalidate();
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Invite failed"),
   });
 
   const revokeMutation = useMutation({
-    mutationFn: () => revokeFn({ data: { tenantId } }),
-    onSuccess: () => { toast.success("Portal link revoked"); invalidate(); },
+    mutationFn: (userId: string) => revokeFn({ data: { tenantId, userId } }),
+    onSuccess: () => {
+      toast.success("Access revoked");
+      invalidate();
+    },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
 
   return (
-    <div className="flex items-start justify-between gap-4 border-t border-border px-5 py-4">
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-3">
-          <p className="text-sm font-medium text-foreground">Client portal</p>
-          {token ? (
-            <StatusTag ok label="Active · link ready" />
-          ) : (
-            <WarningTag label="Not generated" />
-          )}
-        </div>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Permanent dashboard link for your client. Always live data, no login required.
-        </p>
-        {portalUrl && (
-          <p className="mt-1.5 max-w-xs truncate font-mono text-[10px] text-muted-foreground">
-            {portalUrl}
+    <div className="border-t border-border px-5 py-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-3">
+            <p className="text-sm font-medium text-foreground">Client access</p>
+            {members.length > 0 ? (
+              <StatusTag ok label={`${members.length} user${members.length === 1 ? "" : "s"}`} />
+            ) : (
+              <WarningTag label="No clients invited" />
+            )}
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Invite your client to log in and see their live dashboard — leads, pages, and reports.
           </p>
-        )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowing((s) => !s)}
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+        >
+          <UserPlus className="h-3 w-3" />
+          Invite
+        </button>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {portalUrl && (
-          <>
-            <button
-              type="button"
-              onClick={() => { navigator.clipboard.writeText(portalUrl); toast.success("Portal link copied"); }}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+
+      {members.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {(members as ClientMember[]).map((m) => (
+            <li
+              key={m.userId}
+              className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2"
             >
-              <Copy className="h-3 w-3" /> Copy
-            </button>
-            <a
-              href={`/portal/${token}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
-            >
-              Preview →
-            </a>
-            <button
-              type="button"
-              onClick={() => genMutation.mutate()}
-              disabled={genMutation.isPending}
-              title="Regenerate link (invalidates old link)"
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted"
-            >
-              <RefreshCw className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              onClick={() => revokeMutation.mutate()}
-              disabled={revokeMutation.isPending}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-status-red hover:border-status-red/30 hover:bg-status-red-soft/20"
-            >
-              <Link2Off className="h-3 w-3" /> Revoke
-            </button>
-          </>
-        )}
-        {!token && (
+              <div className="flex min-w-0 items-center gap-2">
+                <Mail className="h-3 w-3 shrink-0 text-muted-foreground" />
+                <span className="truncate text-xs text-foreground">{m.email ?? m.userId}</span>
+                <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                  {m.role === "client_approver" ? "Approver" : "Viewer"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => revokeMutation.mutate(m.userId)}
+                disabled={revokeMutation.isPending}
+                className="shrink-0 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                title="Revoke access"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {showing && (
+        <div className="mt-3 flex gap-2">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="client@example.com"
+            className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:border-accent focus:outline-none"
+          />
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as "client_viewer" | "client_approver")}
+            className="rounded-md border border-border bg-background px-2 py-1.5 text-xs focus:border-accent focus:outline-none"
+          >
+            <option value="client_viewer">Viewer</option>
+            <option value="client_approver">Approver</option>
+          </select>
           <button
             type="button"
-            onClick={() => genMutation.mutate()}
-            disabled={genMutation.isPending}
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+            disabled={!email.trim() || inviteMutation.isPending}
+            onClick={() => inviteMutation.mutate()}
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
-            {genMutation.isPending ? "Generating…" : "Generate link →"}
+            {inviteMutation.isPending ? "Sending…" : "Send"}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -356,6 +413,22 @@ function buildGroups(): Group[] {
 // Component
 // ---------------------------------------------------------------------------
 
+function formatRelativeCompact(iso: string): string {
+  try {
+    const diff = Date.now() - new Date(iso).getTime();
+    const min = Math.floor(diff / 60_000);
+    if (min < 1) return "just now";
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const d = Math.floor(hr / 24);
+    if (d < 30) return `${d}d ago`;
+    return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  } catch {
+    return "";
+  }
+}
+
 function ClientSettings() {
   const { tenantId } = Route.useParams();
   const fetchSummary = useServerFn(getTenantSummary);
@@ -395,33 +468,33 @@ function ClientSettings() {
                 group.rows.map((_, i) => <SkeletonSettingsRow key={i} />)
               ) : (
                 <>
-                {group.rows.map((row, i) => (
-                  <div
-                    key={row.key}
-                    className={`flex items-center justify-between gap-4 px-5 py-4 ${
-                      i > 0 ? "border-t border-border" : ""
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-baseline gap-3">
-                        <p className="text-sm font-medium text-foreground">{row.title}</p>
-                        {deriveStatus(summary, row.key)}
-                      </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {row.description}
-                      </p>
-                    </div>
-                    <Link
-                      to={row.to}
-                      className="shrink-0 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+                  {group.rows.map((row, i) => (
+                    <div
+                      key={row.key}
+                      className={`flex items-center justify-between gap-4 px-5 py-4 ${
+                        i > 0 ? "border-t border-border" : ""
+                      }`}
                     >
-                      Open →
-                    </Link>
-                  </div>
-                ))}
-                {group.label === "Delivery" && (
-                  <ClientPortalRow tenantId={tenantId} />
-                )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-baseline gap-3">
+                          <p className="text-sm font-medium text-foreground">{row.title}</p>
+                          {deriveStatus(summary, row.key)}
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{row.description}</p>
+                      </div>
+                      <Link
+                        to={row.to}
+                        className="shrink-0 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+                      >
+                        Open →
+                      </Link>
+                    </div>
+                  ))}
+                  {group.label === "Delivery" && (
+                    <>
+                      <ClientAccessRow tenantId={tenantId} />
+                    </>
+                  )}
                 </>
               )}
             </div>

@@ -23,6 +23,19 @@ export const Route = createFileRoute("/_authenticated")({
     if ((count ?? 0) === 0) {
       throw redirect({ to: "/onboarding/welcome" });
     }
+
+    // Client-only users don't belong in the operator app
+    const { data: opMembership } = await supabase
+      .from("memberships")
+      .select("role")
+      .eq("user_id", data.user.id)
+      .in("role", ["owner", "operator"])
+      .limit(1)
+      .maybeSingle();
+
+    if (!opMembership) {
+      throw redirect({ to: "/client" as any });
+    }
   },
   component: AuthedLayout,
 });

@@ -1,24 +1,21 @@
 /**
- * LLMRouter — thin abstraction over Lovable AI Gateway.
- * Server-only. Pluggable backends; MVP target is Lovable Gateway via LOVABLE_API_KEY.
- *
- * Usage:
- *   const reply = await llmComplete({ task: "default", prompt: "Hello" });
+ * LLMRouter — thin abstraction over the Anthropic Messages API.
+ * Server-only. Set ANTHROPIC_API_KEY in .env to enable AI features.
  */
 
 export type LlmTask = "default" | "cheap" | "reasoning";
 
 const TASK_MODEL: Record<LlmTask, string> = {
-  default: "google/gemini-2.5-pro",
-  cheap: "google/gemini-2.5-flash",
-  reasoning: "openai/gpt-5",
+  default:   "claude-sonnet-4-6",
+  cheap:     "claude-haiku-4-5-20251001",
+  reasoning: "claude-opus-4-8",
 };
 
 export interface LlmCompleteOptions {
   task?: LlmTask;
   prompt: string;
   system?: string;
-  model?: string; // override
+  model?: string;
   temperature?: number;
   maxTokens?: number;
   jsonMode?: boolean;
@@ -29,75 +26,76 @@ export interface LlmCompleteOptions {
 export interface LlmCompleteResult {
   text: string;
   model: string;
-  // cost-logging placeholder; populate when gateway returns usage info
   usage?: { promptTokens?: number; completionTokens?: number };
 }
 
-const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
 export async function llmComplete(opts: LlmCompleteOptions): Promise<LlmCompleteResult> {
-  const apiKey = process.env.LOVABLE_API_KEY;
-  if (!apiKey) {
-    throw new Error("LOVABLE_API_KEY is not configured");
-  }
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured");
 
   const model = opts.model ?? TASK_MODEL[opts.task ?? "default"];
-
-  const messages: Array<{ role: "system" | "user"; content: string }> = [];
-  if (opts.system) messages.push({ role: "system", content: opts.system });
-  messages.push({ role: "user", content: opts.prompt });
+  const maxTokens = opts.maxTokens ?? 4096;
 
   const body: Record<string, unknown> = {
     model,
-    messages,
-    temperature: opts.temperature,
-    max_tokens: opts.maxTokens,
+    max_tokens: maxTokens,
+    messages: [{ role: "user", content: opts.prompt }],
   };
+  if (opts.system) body.system = opts.system;
+  if (opts.temperature != null) body.temperature = opts.temperature;
   if (opts.jsonMode) {
-    body.response_format = { type: "json_object" };
+    // Anthropic JSON mode — instruct via system prompt if not already set
+    if (!opts.system) {
+      body.system = "Respond with valid JSON only. No explanation, no markdown.";
+    }
   }
 
-
-  // Minimal retry: default 1 retry on 5xx / network error. Callers with tight
-  // server-function budgets can set retries=0 + timeoutMs.
   let lastErr: unknown;
   const attempts = Math.max(1, (opts.retries ?? 1) + 1);
+
   for (let attempt = 0; attempt < attempts; attempt++) {
     const ctl = new AbortController();
     const timeoutMs = opts.timeoutMs ?? 45_000;
     const timer = setTimeout(() => ctl.abort(), timeoutMs);
+
     try {
-      const res = await fetch(GATEWAY_URL, {
+      const res = await fetch(ANTHROPIC_URL, {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          authorization: `Bearer ${apiKey}`,
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify(body),
         signal: ctl.signal,
       });
+
       if (res.status === 429) throw new Error("LLM rate limit (429)");
-      if (res.status === 402) throw new Error("LLM credits exhausted (402)");
+      if (res.status === 402 || res.status === 403) throw new Error("LLM auth/credits error");
       if (!res.ok && res.status >= 500) {
-        const text = await res.text().catch(() => "");
-        lastErr = new Error(`LLM gateway ${res.status}${text ? `: ${text.slice(0, 200)}` : ""}`);
+        lastErr = new Error(`Anthropic ${res.status}`);
         continue;
       }
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(`LLM gateway ${res.status}: ${text}`);
+        throw new Error(`Anthropic ${res.status}: ${text}`);
       }
+
       const json = (await res.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
-        usage?: { prompt_tokens?: number; completion_tokens?: number };
+        content?: Array<{ type: string; text?: string }>;
+        usage?: { input_tokens?: number; output_tokens?: number };
+        model?: string;
       };
-      const text = json.choices?.[0]?.message?.content ?? "";
+
+      const text = json.content?.find((b) => b.type === "text")?.text ?? "";
       return {
         text,
-        model,
+        model: json.model ?? model,
         usage: {
-          promptTokens: json.usage?.prompt_tokens,
-          completionTokens: json.usage?.completion_tokens,
+          promptTokens: json.usage?.input_tokens,
+          completionTokens: json.usage?.output_tokens,
         },
       };
     } catch (err) {
@@ -109,5 +107,6 @@ export async function llmComplete(opts: LlmCompleteOptions): Promise<LlmComplete
       clearTimeout(timer);
     }
   }
+
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }

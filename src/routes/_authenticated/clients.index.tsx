@@ -9,34 +9,33 @@ import {
   getClientHealthSummaries,
   type ClientHealthSummary,
 } from "@/lib/shared/execution/operatorQueue.functions";
-import { StatusDot, type StatusTone } from "@/components/execution/StatusPill";
 
 export const Route = createFileRoute("/_authenticated/clients/")({
   component: ClientsIndexPage,
   head: () => ({ meta: [{ title: "Clients — LeadLayer" }] }),
 });
 
-const HEALTH_TONE: Record<ClientHealthSummary["health"], StatusTone> = {
-  green: "green",
-  amber: "amber",
-  red: "red",
+const HEALTH_TOP_BORDER: Record<ClientHealthSummary["health"], string> = {
+  green: "border-t-2 border-t-[#27A644]",
+  amber: "border-t-2 border-t-[#E8B94A]",
+  red:   "border-t-2 border-t-[#E54D4D]",
+};
+
+const HEALTH_BADGE: Record<ClientHealthSummary["health"], string> = {
+  green: "bg-[rgba(39,166,68,0.12)] text-[#27A644]",
+  amber: "bg-[rgba(232,185,74,0.12)] text-[#E8B94A]",
+  red:   "bg-[rgba(229,77,77,0.12)] text-[#E54D4D]",
 };
 
 function ClientsIndexPage() {
   const navigate = useNavigate();
   const fetchTenants = useServerFn(listMyTenants);
-  const fetchHealth = useServerFn(getClientHealthSummaries);
+  const fetchHealth  = useServerFn(getClientHealthSummaries);
 
-  const tenantsQuery = useQuery({
-    queryKey: ["my-tenants"],
-    queryFn: () => fetchTenants(),
-  });
-  const healthQuery = useQuery({
-    queryKey: ["client-health"],
-    queryFn: () => fetchHealth({ data: {} }),
-  });
+  const tenantsQuery = useQuery({ queryKey: ["my-tenants"],    queryFn: () => fetchTenants() });
+  const healthQuery  = useQuery({ queryKey: ["client-health"], queryFn: () => fetchHealth({ data: {} }) });
 
-  const tenants = tenantsQuery.data?.tenants ?? [];
+  const tenants   = tenantsQuery.data?.tenants ?? [];
   const summaries = healthQuery.data?.summaries ?? [];
   const summaryById = new Map(summaries.map((s) => [s.tenantId, s]));
 
@@ -44,23 +43,22 @@ function ClientsIndexPage() {
   const isEmpty = !loading && tenants.length === 0 && summaries.length === 0;
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-up-in px-8 py-12">
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-8">
+    <div className="mx-auto max-w-7xl animate-fade-up-in px-6 py-8 lg:px-8">
+
+      {/* Page header */}
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-            § Clients · Portfolio
+          <p className="font-mono text-[10px] uppercase tracking-widest text-[rgba(255,255,255,0.30)]">
+            Portfolio
           </p>
-          <h1 className="mt-3 font-display text-4xl font-bold tracking-tight text-foreground">
-            Your client portfolio.
+          <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-[#F5F5F5]">
+            Your clients
           </h1>
-          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
-            Pick a client to open their command center: overview, execution, pages, leads, reports, and settings.
-          </p>
         </div>
         <button
           type="button"
           onClick={() => navigate({ to: "/onboarding/welcome" })}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.16em] text-primary-foreground hover:opacity-90"
+          className="inline-flex items-center gap-2 rounded-[6px] bg-[#E8913A] px-3.5 py-2 font-mono text-[11px] uppercase tracking-wide text-white transition hover:bg-[#F0A050]"
         >
           <Plus className="h-3.5 w-3.5" />
           Add client
@@ -68,28 +66,33 @@ function ClientsIndexPage() {
       </div>
 
       {loading && (
-        <div className="mt-10 grid gap-0 border border-border bg-card sm:grid-cols-2 lg:grid-cols-3">
-          {[...Array(4)].map((_, i) => <SkeletonClientCard key={i} />)}
+        <div className="overflow-hidden rounded-[8px] border border-[rgba(255,255,255,0.06)]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {[...Array(4)].map((_, i) => <SkeletonClientCard key={i} />)}
+          </div>
         </div>
       )}
 
       {isEmpty && (
-        <div className="mt-10 border border-dashed border-border bg-card/60 p-10 text-center">
-          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-            No clients yet.
-          </p>
+        <div className="rounded-[8px] border border-dashed border-[rgba(255,255,255,0.08)] px-6 py-12 text-center">
+          <p className="text-sm text-[rgba(255,255,255,0.30)]">No clients yet.</p>
+          <button
+            type="button"
+            onClick={() => navigate({ to: "/onboarding/welcome" })}
+            className="mt-3 inline-flex items-center gap-1.5 text-sm text-[#E8913A] hover:underline"
+          >
+            Add your first client <ArrowRight className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
 
       {tenants.length > 0 && (
-        <section className="mt-10 grid gap-0 border border-border bg-card sm:grid-cols-2 lg:grid-cols-3">
-          {tenants.map((t) => (
-            <ClientCard
-              key={t.id}
-              tenant={t}
-              summary={summaryById.get(t.id) ?? null}
-            />
-          ))}
+        <section className="overflow-hidden rounded-[8px] border border-[rgba(255,255,255,0.06)]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {tenants.map((t) => (
+              <ClientCard key={t.id} tenant={t} summary={summaryById.get(t.id) ?? null} />
+            ))}
+          </div>
         </section>
       )}
     </div>
@@ -104,89 +107,79 @@ function ClientCard({
   summary: ClientHealthSummary | null;
 }) {
   const lastActivity = summary?.lastDeliveryAt ?? summary?.lastActivityAt ?? null;
+
   return (
     <Link
       to="/clients/$tenantId"
       params={{ tenantId: tenant.id }}
-      className="group flex flex-col gap-4 border-b border-r border-border p-5 transition hover:bg-muted/40"
+      className="group block border-b border-r border-[rgba(255,255,255,0.06)] bg-[#161719] p-4 transition hover:bg-[#1E1F22]"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate font-display text-base font-semibold tracking-tight text-foreground">
-            {tenant.name}
-          </h3>
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            {tenant.geo && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                {tenant.geo}
-              </span>
-            )}
-            {tenant.vertical && (
-              <span className="inline-flex items-center gap-1">
-                <Briefcase className="h-3 w-3" />
-                {tenant.vertical}
-              </span>
-            )}
-          </div>
-        </div>
+      {/* Name + health badge */}
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="truncate font-display text-sm font-semibold text-[#F5F5F5]">
+          {tenant.name}
+        </h3>
         {summary && (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <StatusDot tone={HEALTH_TONE[summary.health]} />
-            <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              {summary.health}
-            </span>
-          </div>
+          <span className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide ${HEALTH_BADGE[summary.health]}`}>
+            {summary.health}
+          </span>
         )}
       </div>
 
+      {/* Tags */}
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[rgba(255,255,255,0.30)]">
+        {tenant.geo && (
+          <span className="inline-flex items-center gap-1">
+            <MapPin className="h-3 w-3" />{tenant.geo}
+          </span>
+        )}
+        {tenant.vertical && (
+          <span className="inline-flex items-center gap-1">
+            <Briefcase className="h-3 w-3" />{tenant.vertical}
+          </span>
+        )}
+      </div>
+
+      {/* Metrics */}
       {summary && (
-        <div className="grid grid-cols-2 gap-3 text-xs">
-          {summary.tier && <Stat label="Tier" value={summary.tier} />}
-          <Stat label="Leads MTD" value={String(summary.leadsThisMonth)} />
-          <Stat
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <Metric label="Leads MTD" value={String(summary.leadsThisMonth)} />
+          <Metric
             label="Pending"
             value={String(summary.pendingActionCount)}
-            accent={summary.pendingActionCount > 0}
+            highlight={summary.pendingActionCount > 0}
           />
         </div>
       )}
 
-      <div className="mt-auto flex items-center justify-between border-t border-border pt-3">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+      {/* Footer */}
+      <div className="mt-3 flex items-center justify-between border-t border-[rgba(255,255,255,0.04)] pt-3">
+        <span className="text-xs text-[rgba(255,255,255,0.30)]">
           {lastActivity
             ? `Last activity ${new Date(lastActivity).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}`
-            : summary
-              ? "No activity yet"
-              : "Health pending"}
+            : summary ? "No activity yet" : "Health pending"}
         </span>
-        <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground transition group-hover:text-accent">
-          Open <ArrowRight className="h-3 w-3" />
-        </span>
+        <ArrowRight className="h-3.5 w-3.5 text-[rgba(255,255,255,0.20)] transition group-hover:text-[#E8913A]" />
       </div>
     </Link>
   );
 }
 
-function Stat({
+function Metric({
   label,
   value,
-  accent = false,
+  highlight = false,
 }: {
   label: string;
   value: string;
-  accent?: boolean;
+  highlight?: boolean;
 }) {
   return (
     <div>
-      <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+      <p className="font-mono text-[10px] uppercase tracking-wide text-[rgba(255,255,255,0.30)]">
         {label}
       </p>
-      <p
-        className={`mt-1 font-display text-base font-semibold tracking-tight ${
-          accent ? "text-accent" : "text-foreground"
-        }`}
-      >
+      <p className={`mt-1 font-display text-2xl font-bold leading-none ${highlight ? "text-[#E8913A]" : "text-[#F5F5F5]"}`}>
         {value}
       </p>
     </div>

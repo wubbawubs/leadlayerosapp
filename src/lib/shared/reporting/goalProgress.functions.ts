@@ -137,12 +137,12 @@ export const getGoalProgress = createServerFn({ method: "POST" })
     if (!requiredLeads) notes.push("Required leads is 0 — fill in target & close rate.");
     if (!timeframeMonths) notes.push("Timeframe ontbreekt — pacing kan niet worden berekend.");
 
-    // Count leads logged since the goal started (excluding hard-disqualified statuses).
+    // Count all active leads for this tenant (not limited to post-goal date so seeded
+    // historical leads contribute to goal progress as expected).
     const { data: leadRows, error: leadErr } = await admin
       .from("leads")
       .select("status, created_at")
-      .eq("tenant_id", data.tenantId)
-      .gte("created_at", startedAt);
+      .eq("tenant_id", data.tenantId);
     if (leadErr) throw leadErr;
 
     const countableStatuses = new Set(["new", "qualified", "won"]);

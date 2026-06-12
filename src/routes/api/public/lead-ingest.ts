@@ -75,7 +75,10 @@ export const Route = createFileRoute("/api/public/lead-ingest")({
           const ct = request.headers.get("content-type") ?? "";
           if (ct.includes("application/json")) {
             raw = await request.json();
-          } else if (ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data")) {
+          } else if (
+            ct.includes("application/x-www-form-urlencoded") ||
+            ct.includes("multipart/form-data")
+          ) {
             const form = await request.formData();
             const obj: Record<string, string> = {};
             for (const [k, v] of form.entries()) {
@@ -100,7 +103,11 @@ export const Route = createFileRoute("/api/public/lead-ingest")({
 
         // Require at least one contact field
         if (!payload.name && !payload.phone && !payload.email && !payload.message) {
-          return jsonErr("At least one contact field required: name, phone, email, or message", 400, origin);
+          return jsonErr(
+            "At least one contact field required: name, phone, email, or message",
+            400,
+            origin,
+          );
         }
 
         // Look up ingestion source by publicKey (active only)
@@ -151,22 +158,20 @@ export const Route = createFileRoute("/api/public/lead-ingest")({
         };
 
         // Insert lead — service_role bypasses RLS
-        const { error: leadErr } = await admin
-          .from("leads")
-          .insert({
-            tenant_id: tenantId,
-            source: effectiveSource,
-            status: effectiveStatus,
-            name: payload.name ?? null,
-            email: payload.email ?? null,
-            phone: payload.phone ?? null,
-            payload: {
-              logged_via: "webhook",
-              ingestion_source_id: ingestionSourceId,
-              message: payload.message ?? null,
-            },
-            attribution,
-          });
+        const { error: leadErr } = await admin.from("leads").insert({
+          tenant_id: tenantId,
+          source: effectiveSource,
+          status: effectiveStatus,
+          name: payload.name ?? null,
+          email: payload.email ?? null,
+          phone: payload.phone ?? null,
+          payload: {
+            logged_via: "webhook",
+            ingestion_source_id: ingestionSourceId,
+            message: payload.message ?? null,
+          },
+          attribution,
+        });
 
         if (leadErr) {
           console.error("[lead-ingest] insert error:", leadErr.message);
@@ -186,10 +191,11 @@ export const Route = createFileRoute("/api/public/lead-ingest")({
             if (goalRow?.notify_on_lead && goalRow?.notification_email) {
               const { data: tenantRow } = await admin
                 .from("tenants")
-                .select("name")
+                .select("name, geo")
                 .eq("id", tenantId)
                 .maybeSingle();
               const businessName = (tenantRow?.name as string | null) ?? "your business";
+              const locale = tenantRow?.geo === "NL" ? ("nl" as const) : ("en" as const);
               const appBaseUrl = process.env.APP_BASE_URL ?? "https://app.leadlayer.app";
               const emailContent = buildLeadNotificationEmail({
                 businessName,
@@ -199,7 +205,9 @@ export const Route = createFileRoute("/api/public/lead-ingest")({
                 email: payload.email ?? null,
                 message: payload.message ?? null,
                 receivedAt: new Date().toISOString(),
-                appUrl: `${appBaseUrl}/growth/leads`,
+                // Notification goes to the client — link them to the client portal
+                appUrl: `${appBaseUrl}/client/leads`,
+                locale,
               });
               await sendEmail({
                 to: goalRow.notification_email as string,

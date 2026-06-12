@@ -1,25 +1,22 @@
 @import "tailwindcss" source(none);
 @import "tw-animate-css";
-/* Fonts are loaded via <link> in src/routes/__root.tsx head() — keeping an
- * @import url() here would land after Tailwind's generated rules in the
- * bundled output, which PostCSS rejects ("@import must precede all other
- * statements") and breaks SSR with a 500. */
+/* Fonts loaded via <link> in __root.tsx — @import url() here breaks PostCSS/SSR */
 
 @source "../src";
 
 @custom-variant dark (&:is(.dark *));
 
 /*
- * LeadLayer OS — brand tokens 1:1 from leadlayer.lovable.app
- * Light default + dark variant. All colors oklch.
- * Display = Space Grotesk (italic black for hero). Body = Inter.
+ * LeadLayer OS — Design System v2
+ * See DESIGN.md for the rules behind every decision here.
+ * Two surfaces: Operator (dark) and Client (light).
+ * Fonts: Plus Jakarta Sans (display + body), system mono (data labels only).
  */
 
-
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
   --radius-xl: calc(var(--radius) + 4px);
 
   --color-background: var(--background);
@@ -41,12 +38,6 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-
-  --color-brand-deep: var(--brand-deep);
-  --color-brand-blue: var(--brand-blue);
-  --color-brand-blue-soft: var(--brand-blue-soft);
-  --color-brand-orange: var(--brand-orange);
-  --color-brand-orange-deep: var(--brand-orange-deep);
 
   --color-status-green: var(--status-green);
   --color-status-green-soft: var(--status-green-soft);
@@ -71,137 +62,258 @@
   --font-display: var(--font-display);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+
+  /* ── Paper surface (customer-facing) — see DESIGN.md v3 ────── */
+  --color-paper: var(--paper-base);
+  --color-paper-raised: var(--paper-raised);
+  --color-paper-subtle: var(--paper-subtle);
+  --color-paper-inset: var(--paper-inset);
+  --color-paper-line: var(--paper-line);
+  --color-paper-line-strong: var(--paper-line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-charcoal: var(--charcoal);
+  --color-charcoal-soft: var(--charcoal-soft);
+  --color-charcoal-deep: var(--charcoal-deep);
+  --color-charcoal-line: var(--charcoal-line);
+  --color-ondark: var(--ondark);
+  --color-ondark-2: var(--ondark-2);
+  --color-ondark-3: var(--ondark-3);
+  --color-amber: var(--amber);
+  --color-amber-bright: var(--amber-bright);
+  --color-amber-deep: var(--amber-deep);
+  --color-amber-signal: var(--amber-signal);
+  --color-paper-success: var(--paper-success);
+  --color-paper-danger: var(--paper-danger);
+  --color-paper-info: var(--paper-info);
 }
 
+/* ================================================================
+   LIGHT MODE (auth pages, onboarding, client portal)
+   ================================================================ */
 :root {
-  --radius: 0.875rem;
+  /* Radius: 8px base. No 16px+. See DESIGN.md. */
+  --radius: 0.5rem;
 
-  /* Brand */
-  --brand-deep: oklch(34% 0.18 262);
-  --brand-blue: oklch(46% 0.22 260);
-  --brand-blue-soft: oklch(62% 0.2 258);
-  --brand-orange: oklch(72% 0.2 48);
-  --brand-orange-deep: oklch(66% 0.21 42);
+  /* Brand constants — never change per theme */
+  --brand-orange: #E8913A;
+  --brand-blue:   #3B5FD6;
 
-  /* Light theme — warm cream operator surface (matches leadlayer.studio) */
-  --background: oklch(94% 0.018 80);
-  --foreground: oklch(18% 0.012 80);
+  /* Light surface — used by auth, onboarding, client portal */
+  --background:        #FAFAFA;
+  --foreground:        #1A1A1A;
+  --card:              #FFFFFF;
+  --card-foreground:   #1A1A1A;
+  --popover:           #FFFFFF;
+  --popover-foreground:#1A1A1A;
 
-  --card: oklch(97% 0.012 80);
-  --card-foreground: oklch(18% 0.012 80);
+  --primary:           #1A1A1A;
+  --primary-foreground:#FAFAFA;
 
-  --popover: oklch(97% 0.012 80);
-  --popover-foreground: oklch(18% 0.012 80);
+  --secondary:         #F5F5F5;
+  --secondary-foreground:#1A1A1A;
 
-  /* Primary = near-black (used for primary CTA / trapezoid button) */
-  --primary: oklch(18% 0.012 80);
-  --primary-foreground: oklch(97% 0.012 80);
-  --primary-glow: oklch(30% 0.014 80);
+  --muted:             #F5F5F5;
+  --muted-foreground:  #6B7280;
 
-  --secondary: oklch(91% 0.016 80);
-  --secondary-foreground: oklch(18% 0.012 80);
+  --accent:            #E8913A;
+  --accent-foreground: #FFFFFF;
+  --brand-orange-deep: #B86D1E;
 
-  --muted: oklch(91% 0.016 80);
-  --muted-foreground: oklch(42% 0.012 80);
+  --destructive:       #DC2626;
+  --destructive-foreground:#FFFFFF;
 
-  /* Accent = LeadLayer orange */
-  --accent: oklch(72% 0.16 55);
-  --accent-foreground: oklch(18% 0.012 80);
-  --accent-glow: oklch(78% 0.15 60);
+  --border:            #E8E8E8;
+  --input:             #E8E8E8;
+  --ring:              #E8913A;
 
-  --destructive: oklch(57.7% 0.245 27.325);
-  --destructive-foreground: oklch(98% 0.005 80);
+  --sidebar:           #F5F5F5;
+  --sidebar-foreground:#1A1A1A;
+  --sidebar-primary:   #E8913A;
+  --sidebar-primary-foreground:#FFFFFF;
+  --sidebar-accent:    #EBEBEB;
+  --sidebar-accent-foreground: #1A1A1A;
+  --sidebar-border:    #E8E8E8;
+  --sidebar-ring:      #E8913A;
 
-  /* Hairline border — slightly darker than bg for editorial feel */
-  --border: oklch(82% 0.018 80);
-  --input: oklch(82% 0.018 80);
-  --ring: oklch(72% 0.16 55);
+  /* Status — light mode */
+  --status-green:      #16A34A;
+  --status-green-soft: #F0FDF4;
+  --status-amber:      #D97706;
+  --status-amber-soft: #FFFBEB;
+  --status-red:        #DC2626;
+  --status-red-soft:   #FEF2F2;
+  --status-info:       #2563EB;
+  --status-info-soft:  #EFF6FF;
+  --status-neutral:    #6B7280;
+  --status-neutral-soft:#F9FAFB;
 
-  --sidebar: oklch(92% 0.018 80);
-  --sidebar-foreground: oklch(18% 0.012 80);
-  --sidebar-primary: oklch(18% 0.012 80);
-  --sidebar-primary-foreground: oklch(97% 0.012 80);
-  --sidebar-accent: oklch(88% 0.02 80);
-  --sidebar-accent-foreground: oklch(18% 0.012 80);
-  --sidebar-border: oklch(82% 0.018 80);
-  --sidebar-ring: oklch(72% 0.16 55);
-
-  /* Gradients */
-  --gradient-primary: linear-gradient(135deg, oklch(18% 0.012 80), oklch(30% 0.014 80));
-  --gradient-accent: linear-gradient(135deg, oklch(66% 0.18 50), oklch(78% 0.15 60));
-  --gradient-hero:
-    radial-gradient(900px 500px at 85% 10%, oklch(72% 0.16 55 / 0.35), transparent 60%),
-    radial-gradient(1100px 700px at 0% 0%, oklch(46% 0.22 260 / 0.25), transparent 60%),
-    linear-gradient(180deg, oklch(94% 0.018 80), oklch(91% 0.016 80));
-
-  --shadow-elegant: 0 10px 30px -10px oklch(18% 0.012 80 / 0.18);
-  --shadow-glow: 0 0 60px oklch(72% 0.16 55 / 0.35);
-
-  /* Operator status palette — calm, premium, distinct from brand accent.
-   * Used for run/stage/item status pills, badges, and review callouts. */
-  --status-green: oklch(62% 0.14 150);
-  --status-green-soft: oklch(94% 0.04 150);
-  --status-amber: oklch(72% 0.16 70);
-  --status-amber-soft: oklch(95% 0.05 80);
-  --status-red: oklch(58% 0.21 25);
-  --status-red-soft: oklch(95% 0.04 25);
-  --status-info: oklch(54% 0.16 255);
-  --status-info-soft: oklch(95% 0.03 255);
-  --status-neutral: oklch(58% 0.01 260);
-  --status-neutral-soft: oklch(95% 0.005 260);
-
+  /* Fonts */
   --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-hero: "Bebas Neue", "Plus Jakarta Sans", sans-serif;
-  --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans:    "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-grotesk: "Hanken Grotesk", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+
+  /* ── Paper palette — brand constants from leadlayer.studio ──
+   * Customer-facing surfaces only. Theme-independent.            */
+  --paper-base:        #F5F0E8;   /* page background — warm cream */
+  --paper-raised:      #FBF7EE;   /* cards, headers */
+  --paper-subtle:      #EDE6D8;   /* secondary fills, chips */
+  --paper-inset:       #E8DFD0;   /* progress tracks, wells */
+  --paper-line:        #DDD4C2;   /* hairline borders */
+  --paper-line-strong: #C4B89E;   /* emphasized borders */
+
+  --ink:   #1A1A1C;               /* primary text on paper */
+  --ink-2: #5A554E;               /* secondary text */
+  --ink-3: #8C8884;               /* tertiary text, timestamps */
+
+  --charcoal:      #2D2D2D;       /* dark panels (hero, header bands) */
+  --charcoal-soft: #353535;       /* raised-on-charcoal */
+  --charcoal-deep: #1F1F1F;       /* inset-on-charcoal */
+  --charcoal-line: #3D3D3D;       /* borders on charcoal */
+
+  --ondark:   #F5F0E8;            /* primary text on charcoal */
+  --ondark-2: #B5AEA3;            /* secondary text on charcoal */
+  --ondark-3: #7A7670;            /* faint text on charcoal */
+
+  --amber:        #D97706;        /* primary accent */
+  --amber-bright: #F59E0B;
+  --amber-deep:   #B45309;
+  --amber-signal: #E85D04;        /* live dots, urgent */
+
+  --paper-success: #1F7A36;
+  --paper-danger:  #B23A3A;
+  --paper-info:    #2F5A75;
 }
 
+/* ================================================================
+   PAPER SCOPE — customer-facing surfaces (landing, auth, client
+   portal, public reports). Warm paper, charcoal, amber. Immune to
+   the operator .dark theme: every semantic token is pinned here.
+   ================================================================ */
+.paper {
+  --background: var(--paper-base);
+  --foreground: var(--ink);
+  --card: var(--paper-raised);
+  --card-foreground: var(--ink);
+  --popover: var(--paper-raised);
+  --popover-foreground: var(--ink);
+  --primary: var(--charcoal);
+  --primary-foreground: var(--ondark);
+  --secondary: var(--paper-subtle);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper-subtle);
+  --muted-foreground: var(--ink-2);
+  --accent: var(--amber);
+  --accent-foreground: #FFFFFF;
+  --brand-orange-deep: var(--amber-deep);
+  --destructive: var(--paper-danger);
+  --destructive-foreground: #FFFFFF;
+  --border: var(--paper-line);
+  --input: var(--paper-line-strong);
+  --ring: var(--amber);
+  --radius: 0.25rem;              /* 4px — sharp, editorial */
+
+  --font-display: var(--font-grotesk);
+  --font-sans: var(--font-grotesk);
+
+  background-color: var(--paper-base);
+  color: var(--ink);
+  font-family: var(--font-grotesk);
+}
+
+/* Charcoal panel inside paper — flips the ink scale automatically,
+   so text-ink / text-ink-2 / borders just work. */
+.surface-charcoal {
+  --ink: var(--ondark);
+  --ink-2: var(--ondark-2);
+  --ink-3: var(--ondark-3);
+  --paper-raised: var(--charcoal-soft);
+  --paper-subtle: var(--charcoal-soft);
+  --paper-inset: var(--charcoal-deep);
+  --paper-line: var(--charcoal-line);
+  --paper-line-strong: #4D4D4D;
+  background-color: var(--charcoal);
+  color: var(--ondark);
+}
+
+/* ================================================================
+   DARK MODE — Operator surface
+   4-step surface ladder. No shadows. Accent < 10%. See DESIGN.md.
+   ================================================================ */
 .dark {
-  --background: oklch(12.9% 0.042 264.695);
-  --foreground: oklch(98.4% 0.003 247.858);
+  /* ── Surface ladder ──────────────────────────────────────────
+   * Step 1: canvas   → base page background
+   * Step 2: surface  → cards, panels           (bg-card)
+   * Step 3: elevated → hover rows, active rows  (bg-secondary)
+   * Step 4: overlay  → dropdowns, tooltips      (bg-popover)
+   * Elevation = stepping up one level, NOT adding shadow.
+   * ─────────────────────────────────────────────────────────── */
+  --background:         #0D0E10;   /* canvas */
+  --foreground:         #F5F5F5;   /* text-primary */
 
-  --card: oklch(20.8% 0.042 265.755);
-  --card-foreground: oklch(98.4% 0.003 247.858);
+  --card:               #161719;   /* surface */
+  --card-foreground:    #F5F5F5;
 
-  --popover: oklch(20.8% 0.042 265.755);
-  --popover-foreground: oklch(98.4% 0.003 247.858);
+  --popover:            #28292D;   /* overlay */
+  --popover-foreground: #F5F5F5;
 
-  --primary: oklch(92.9% 0.013 255.508);
-  --primary-foreground: oklch(20.8% 0.042 265.755);
+  --primary:            #F5F5F5;
+  --primary-foreground: #0D0E10;
 
-  --secondary: oklch(27.9% 0.041 260.031);
-  --secondary-foreground: oklch(98.4% 0.003 247.858);
+  --secondary:          #1E1F22;   /* elevated — hover states, active rows */
+  --secondary-foreground:#F5F5F5;
 
-  --muted: oklch(27.9% 0.041 260.031);
-  --muted-foreground: oklch(70.4% 0.04 256.788);
+  /* muted = same as elevated; muted-foreground = text-secondary */
+  --muted:              #1E1F22;
+  --muted-foreground:   rgba(255, 255, 255, 0.55);
 
-  --accent: oklch(27.9% 0.041 260.031);
-  --accent-foreground: oklch(98.4% 0.003 247.858);
+  /* Accent = LeadLayer orange. Used on ≤10% of any view. */
+  --accent:             #E8913A;
+  --accent-foreground:  #0D0E10;
+  --brand-orange-deep:  #B86D1E;
 
-  --destructive: oklch(70.4% 0.191 22.216);
-  --destructive-foreground: oklch(98.4% 0.003 247.858);
+  --destructive:        #E54D4D;
+  --destructive-foreground:#F5F5F5;
 
-  --border: oklch(100% 0 0 / 0.1);
-  --input: oklch(100% 0 0 / 0.14);
-  --ring: oklch(55.1% 0.027 264.364);
+  /* Borders: hairline only. No shadows. */
+  --border:             rgba(255, 255, 255, 0.06);
+  --input:              rgba(255, 255, 255, 0.08);
+  --ring:               #E8913A;
 
-  --sidebar: oklch(20.8% 0.042 265.755);
-  --sidebar-foreground: oklch(98.4% 0.003 247.858);
-  --sidebar-primary: oklch(48.8% 0.243 264.376);
-  --sidebar-primary-foreground: oklch(98.4% 0.003 247.858);
-  --sidebar-accent: oklch(27.9% 0.041 260.031);
-  --sidebar-accent-foreground: oklch(98.4% 0.003 247.858);
-  --sidebar-border: oklch(100% 0 0 / 0.1);
-  --sidebar-ring: oklch(70.4% 0.04 256.788);
+  /* Sidebar: one step darker than canvas */
+  --sidebar:                  #0A0B0D;
+  --sidebar-foreground:       #F5F5F5;
+  --sidebar-primary:          #E8913A;
+  --sidebar-primary-foreground:#0D0E10;
+  --sidebar-accent:           #1E1F22;
+  --sidebar-accent-foreground: #F5F5F5;
+  --sidebar-border:           rgba(255, 255, 255, 0.05);
+  --sidebar-ring:             #E8913A;
+
+  /* Status — dark mode
+   * Foreground colors readable on dark cards.
+   * Soft = low-opacity tint for card backgrounds.               */
+  --status-green:      #27A644;
+  --status-green-soft: rgba(39, 166, 68, 0.10);
+  --status-amber:      #E8B94A;
+  --status-amber-soft: rgba(232, 185, 74, 0.10);
+  --status-red:        #E54D4D;
+  --status-red-soft:   rgba(229, 77, 77, 0.10);
+  --status-info:       #4B8BF5;
+  --status-info-soft:  rgba(75, 139, 245, 0.10);
+  --status-neutral:    rgba(255, 255, 255, 0.40);
+  --status-neutral-soft:rgba(255, 255, 255, 0.06);
 }
 
+/* ================================================================
+   BASE
+   ================================================================ */
 @layer base {
-  * {
-    border-color: var(--color-border);
-  }
+  * { border-color: var(--color-border); }
 
-  html,
-  body {
+  html, body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
@@ -210,27 +322,25 @@
 
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
   }
 }
 
-/* ─── Keyframes ─────────────────────────────────────────────────────────── */
-
-/* Layer cascade: used by AnimatedMark — each parallelogram pulses in stagger */
+/* ================================================================
+   KEYFRAMES
+   ================================================================ */
 @keyframes layer-pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.25; }
 }
 
-/* Page content enters: subtle rise + fade for main content areas */
 @keyframes fade-up-in {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(5px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Nav progress bar sweeps across and stalls before completing */
 @keyframes nav-bar-sweep {
-  0%   { width: 0%; opacity: 1; }
+  0%   { width: 0%;  opacity: 1; }
   30%  { width: 55%; }
   70%  { width: 75%; }
   95%  { width: 88%; }
@@ -241,75 +351,198 @@
   to   { width: 100%; opacity: 0; }
 }
 
-/* Red dot ring pulse — signals urgency without being alarming */
 @keyframes dot-ring-pulse {
-  0%   { box-shadow: 0 0 0 0 var(--status-red, oklch(58% 0.21 25)) ; opacity: 0.8; }
+  0%   { box-shadow: 0 0 0 0 rgba(229,77,77,0.7); opacity: 0.8; }
   70%  { box-shadow: 0 0 0 5px transparent; opacity: 0; }
   100% { box-shadow: 0 0 0 0 transparent; opacity: 0; }
 }
 
-/* Skeleton shimmer — directional sweep, more premium than flat pulse */
 @keyframes shimmer {
   0%   { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
+  100% { background-position:  400px 0; }
 }
 
-@layer utilities {
-  .font-display {
-    font-family: var(--font-display);
-  }
-  .font-hero {
-    font-family: var(--font-hero);
-    font-style: italic;
-    letter-spacing: -0.01em;
-    line-height: 0.9;
-  }
+@keyframes page-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
-  /* Blueprint dots — on auth/onboarding backgrounds */
+/* Login mark entrance — each layer slides in from its stacking direction */
+@keyframes mark-layer-1 {
+  from { opacity: 0; transform: translate(-10px, -10px); }
+  to   { opacity: 1; transform: translate(0, 0); }
+}
+@keyframes mark-layer-2 {
+  from { opacity: 0; transform: scaleX(0.7); }
+  to   { opacity: 1; transform: scaleX(1); }
+}
+@keyframes mark-layer-3 {
+  from { opacity: 0; transform: translate(10px, 10px); }
+  to   { opacity: 1; transform: translate(0, 0); }
+}
+@keyframes mark-wordmark {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes login-card-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes progress-fill {
+  to { width: var(--progress-target); }
+}
+
+/* ================================================================
+   UTILITIES
+   ================================================================ */
+@layer utilities {
+  .font-display { font-family: var(--font-display); }
+
+  /* ── Background patterns ─────────────────────────────────── */
+  /* Blueprint dots for auth/onboarding pages */
   .bg-blueprint {
-    background-image:
-      radial-gradient(oklch(46% 0.22 260 / 0.06) 1px, transparent 1px);
+    background-image: radial-gradient(rgba(59,95,214,0.07) 1px, transparent 1px);
     background-size: 26px 26px;
   }
-  /* Very faint blueprint for operator app background — more subtle than auth */
+  .dark .bg-blueprint {
+    background-image: radial-gradient(rgba(232,145,58,0.06) 1px, transparent 1px);
+    background-size: 26px 26px;
+  }
+  /* Paper surfaces use warm amber dots */
+  .paper .bg-blueprint, .paper.bg-blueprint {
+    background-image: radial-gradient(rgba(180,83,9,0.10) 1px, transparent 1px);
+    background-size: 26px 26px;
+  }
+  /* Faint dot grid for operator app background */
   .bg-blueprint-subtle {
-    background-image:
-      radial-gradient(oklch(46% 0.22 260 / 0.025) 1px, transparent 1px);
+    background-image: radial-gradient(rgba(59,95,214,0.025) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .dark .bg-blueprint-subtle {
+    background-image: radial-gradient(rgba(232,145,58,0.035) 1px, transparent 1px);
     background-size: 32px 32px;
   }
 
+  /* ── Surface utilities (operator dark — surface ladder) ───── */
+  /* Use these instead of bg-card/bg-secondary in operator views */
+  .ll-surface         { background-color: #161719; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; }
+  .ll-surface-elevated{ background-color: #1E1F22; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; }
+
+  /* ── Text hierarchy utilities ─────────────────────────────── */
+  .text-primary-op   { color: #F5F5F5; }
+  .text-secondary-op { color: rgba(255,255,255,0.55); }
+  .text-tertiary-op  { color: rgba(255,255,255,0.30); }
+
+  /* ── Action type indicators (dashboard queue) ─────────────── */
+  /* See DESIGN.md: amber=review, blue=create/apply, orange=publish */
+  .action-dot-review  { background-color: #E8B94A; }
+  .action-dot-create  { background-color: #4B8BF5; }
+  .action-dot-publish { background-color: #E8913A; }
+
+  /* ── Paper surface utilities (customer-facing) ────────────── */
+  /* Mono section label — the editorial kicker from leadlayer.studio */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  /* Hairline rule */
+  .rule-hair {
+    height: 1px;
+    width: 100%;
+    background: var(--paper-line);
+  }
+
+  /* Faint warm grain on paper backgrounds */
+  .paper-grain {
+    background-image:
+      radial-gradient(circle at 25% 30%, rgba(180,140,80,0.04), transparent 40%),
+      radial-gradient(circle at 75% 70%, rgba(120,100,60,0.035), transparent 45%);
+  }
+
+  /* Standard paper card */
+  .paper-card {
+    background-color: var(--paper-raised);
+    border: 1px solid var(--paper-line);
+    border-radius: 4px;
+  }
+  a.paper-card, button.paper-card {
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  a.paper-card:hover, button.paper-card:hover {
+    border-color: var(--paper-line-strong);
+    transform: translateY(-1px);
+  }
+
+  /* ── Sheared CTA — the layered-parallelogram brand button ──── */
+  .cta-shear {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 52px;
+    padding: 0 calc(24px + 14px);
+    clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 100%, 14px 100%);
+    background-color: var(--charcoal);
+    color: var(--ondark);
+    font-family: var(--font-grotesk);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: background-color 0.18s ease, color 0.18s ease;
+  }
+  .cta-shear:hover:not(:disabled) {
+    background-color: var(--amber);
+    color: #1A1A1C;
+  }
+  .cta-shear:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--amber);
+  }
+  .cta-shear:disabled { opacity: 0.55; cursor: default; }
+
+  .cta-shear-amber { background-color: var(--amber); color: #1F1F1F; }
+  .cta-shear-amber:hover:not(:disabled) {
+    background-color: var(--amber-signal);
+    color: #FFFFFF;
+  }
+  .cta-shear-success { background-color: var(--paper-success); color: #FFFFFF; }
+  .cta-shear-success:hover:not(:disabled) {
+    background-color: #186230;
+    color: #FFFFFF;
+  }
+  .cta-shear-sm {
+    height: 44px;
+    padding: 0 calc(18px + 12px);
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 100%, 12px 100%);
+    font-size: 14px;
+  }
+
+  /* ── Misc ─────────────────────────────────────────────────── */
   .text-balance { text-wrap: balance; }
 
-  .bg-hero           { background-image: var(--gradient-hero); }
-  .bg-gradient-primary { background-image: var(--gradient-primary); }
-  .bg-gradient-accent  { background-image: var(--gradient-accent); }
-
-  .bg-dots {
-    background-image: radial-gradient(oklch(100% 0 0 / 0.08) 1px, transparent 1px);
-    background-size: 22px 22px;
-  }
-
-  .shadow-elegant { box-shadow: var(--shadow-elegant); }
-  .shadow-glow    { box-shadow: var(--shadow-glow); }
-
-  /* Page enter — apply to main content wrappers on load */
   .animate-fade-up-in {
-    animation: fade-up-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: fade-up-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
-  /* Skeleton shimmer — more directional/premium than Tailwind animate-pulse */
   .skeleton-shimmer {
     background: linear-gradient(
       90deg,
-      var(--muted) 25%,
-      oklch(from var(--muted) calc(l + 0.04) c h) 50%,
-      var(--muted) 75%
+      var(--color-muted) 25%,
+      var(--color-secondary) 50%,
+      var(--color-muted) 75%
     );
     background-size: 400px 100%;
     animation: shimmer 1.4s ease-in-out infinite;
   }
 
-  /* Red dot with animated ring — shows on urgent/failed states */
   .dot-ring-pulse::after {
     content: "";
     position: absolute;
@@ -318,11 +551,53 @@
     animation: dot-ring-pulse 1.8s ease-out infinite;
   }
 
-  /* Nav progress bar states */
-  .nav-bar-loading {
-    animation: nav-bar-sweep 8s cubic-bezier(0.1, 0, 0.2, 1) forwards;
+  .nav-bar-loading  { animation: nav-bar-sweep 8s cubic-bezier(0.1, 0, 0.2, 1) forwards; }
+  .nav-bar-finishing{ animation: nav-bar-finish 0.3s ease-out forwards; }
+
+  /* ── Page load animation (client portal + operator tabs) ──── */
+  .page-fade-up {
+    animation: page-fade-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
-  .nav-bar-finishing {
-    animation: nav-bar-finish 0.3s ease-out forwards;
+  /* Staggered activity feed items */
+  .stagger-1 { animation-delay: 0ms; }
+  .stagger-2 { animation-delay: 50ms; }
+  .stagger-3 { animation-delay: 100ms; }
+  .stagger-4 { animation-delay: 150ms; }
+  .stagger-5 { animation-delay: 200ms; }
+  /* Progress bar fill */
+  .progress-fill {
+    width: 0;
+    animation: progress-fill 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards;
+  }
+  /* Card hover lift */
+  .card-lift {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .card-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  /* Won celebration flash */
+  @keyframes won-flash {
+    0%   { background-color: #F0FDF4; }
+    30%  { background-color: #DCFCE7; }
+    100% { background-color: #F0FDF4; }
+  }
+  .won-flash { animation: won-flash 0.7s ease-out; }
+
+  /* ── DEPRECATED — kept so existing usages don't hard-crash ── */
+  /* card-glass: replace with ll-surface in operator views      */
+  .card-glass {
+    background-color: #161719;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+  }
+  /* glow-blob-accent: do not use in operator views (see DESIGN.md) */
+  .glow-blob-accent {
+    position: absolute;
+    border-radius: 9999px;
+    background-color: rgba(232,145,58,0.06);
+    filter: blur(64px);
+    pointer-events: none;
   }
 }

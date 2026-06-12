@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -62,8 +62,8 @@ function PagesTab() {
           Page inventory
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          New pages built by LeadLayer and existing pages optimized through the
-          execution board. Source of truth is WordPress.
+          New pages built by LeadLayer and existing pages optimized through the execution board.
+          Source of truth is WordPress.
         </p>
       </div>
 
@@ -82,9 +82,11 @@ function PagesTab() {
               }`}
             >
               {f.label}
-              <span className="font-mono text-[10px] text-muted-foreground/80">
-                {counts[f.id]}
-              </span>
+              {!inventoryQuery.isLoading && (
+                <span className="font-mono text-[10px] text-muted-foreground/80">
+                  {counts[f.id]}
+                </span>
+              )}
             </button>
           );
         })}
@@ -94,7 +96,9 @@ function PagesTab() {
         <div className="mt-6 overflow-x-auto border border-border bg-card">
           <table className="w-full border-collapse">
             <tbody>
-              {[...Array(4)].map((_, i) => <SkeletonPageRow key={i} />)}
+              {[...Array(4)].map((_, i) => (
+                <SkeletonPageRow key={i} />
+              ))}
             </tbody>
           </table>
         </div>
@@ -112,8 +116,16 @@ function PagesTab() {
             No pages yet
           </p>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-            No pages yet. Review and publish the first page from Execution.
+            Connect WordPress to sync existing pages, or approve a page brief from the Execution
+            board to create the first draft.
           </p>
+          <Link
+            to="/clients/$tenantId/execution"
+            params={{ tenantId }}
+            className="mt-4 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-accent hover:underline"
+          >
+            Open execution board →
+          </Link>
         </div>
       )}
 
@@ -123,20 +135,12 @@ function PagesTab() {
         </p>
       )}
 
-      {filtered.length > 0 && (
-        <PageInventoryTable tenantId={tenantId} pages={filtered} />
-      )}
+      {filtered.length > 0 && <PageInventoryTable tenantId={tenantId} pages={filtered} />}
     </div>
   );
 }
 
-function PageInventoryTable({
-  tenantId,
-  pages,
-}: {
-  tenantId: string;
-  pages: PageInventoryItem[];
-}) {
+function PageInventoryTable({ tenantId, pages }: { tenantId: string; pages: PageInventoryItem[] }) {
   return (
     <div className="mt-6 overflow-x-auto border border-border bg-card">
       <table className="w-full border-collapse text-sm">
@@ -160,36 +164,27 @@ function PageInventoryTable({
   );
 }
 
-function PageRow({
-  tenantId,
-  page,
-}: {
-  tenantId: string;
-  page: PageInventoryItem;
-}) {
+function PageRow({ tenantId, page }: { tenantId: string; page: PageInventoryItem }) {
   const queryClient = useQueryClient();
   const publishFn = useServerFn(publishWordpressDraftFromLeadLayer);
   const publishMutation = useMutation({
-    mutationFn: () =>
-      publishFn({ data: { tenantId, draftId: page.id } }),
+    mutationFn: () => publishFn({ data: { tenantId, draftId: page.id } }),
     onSuccess: () => {
       toast.success("Page published");
       queryClient.invalidateQueries({ queryKey: ["page-inventory", tenantId] });
     },
     onError: (e: unknown) => {
-      toast.error(
-        e instanceof Error ? e.message : "Failed to publish page",
-      );
+      toast.error(e instanceof Error ? e.message : "Failed to publish page");
     },
   });
 
   const statusTone: StatusTone =
-    page.status === "live" ? "green"
-    : page.status === "failed" ? "red"
-    : "amber";
+    page.status === "live" ? "green" : page.status === "failed" ? "red" : "amber";
 
-  const isNewDraft =
-    page.source === "leadlayer_new" && page.status === "draft";
+  const isNewDraft = page.source === "leadlayer_new" && page.status === "draft";
+  // Publishing Gate: only approved drafts can be published from here;
+  // approval itself happens on the Execution board.
+  const isApprovedForPublish = page.draftStatus === "approved_for_publish";
 
   return (
     <tr className="border-b border-border last:border-b-0 hover:bg-muted/30">
@@ -201,9 +196,7 @@ function PageRow({
             <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           )}
           <div className="min-w-0">
-            <div className="truncate font-medium text-foreground">
-              {page.title ?? "Untitled"}
-            </div>
+            <div className="truncate font-medium text-foreground">{page.title ?? "Untitled"}</div>
             {page.slug && (
               <div className="truncate font-mono text-[11px] text-muted-foreground">
                 /{page.slug}
@@ -230,16 +223,10 @@ function PageRow({
       </td>
       <td className="px-4 py-3 align-top">
         <div className="flex flex-wrap items-center justify-end gap-1.5">
-          {page.url && (
-            <RowAction href={page.url} icon={ExternalLink} label="Live" />
-          )}
-          {page.wpPreviewLink && (
-            <RowAction href={page.wpPreviewLink} icon={Eye} label="Preview" />
-          )}
-          {page.wpEditLink && (
-            <RowAction href={page.wpEditLink} icon={Pencil} label="Edit in WP" />
-          )}
-          {isNewDraft && (
+          {page.url && <RowAction href={page.url} icon={ExternalLink} label="Live" />}
+          {page.wpPreviewLink && <RowAction href={page.wpPreviewLink} icon={Eye} label="Preview" />}
+          {page.wpEditLink && <RowAction href={page.wpEditLink} icon={Pencil} label="Edit in WP" />}
+          {isNewDraft && isApprovedForPublish && (
             <Button
               size="sm"
               variant="default"
@@ -250,6 +237,14 @@ function PageRow({
               <Rocket className="h-3 w-3" />
               {publishMutation.isPending ? "Publishing…" : "Publish"}
             </Button>
+          )}
+          {isNewDraft && !isApprovedForPublish && (
+            <span
+              title="Approve this draft on the Execution board before publishing"
+              className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+            >
+              {page.draftStatus === "needs_review" ? "Changes requested" : "Awaiting approval"}
+            </span>
           )}
         </div>
       </td>

@@ -76,9 +76,7 @@ function ReportsTab() {
 
       <LatestReportSection tenantId={tenantId} latest={latest} loading={reportsQuery.isLoading} />
 
-      {history.length > 0 && (
-        <ReportHistorySection tenantId={tenantId} reports={history} />
-      )}
+      <ReportHistorySection tenantId={tenantId} reports={history} />
 
       <ExecutionPlanSection
         tenantId={tenantId}
@@ -410,11 +408,22 @@ function ReportHistorySection({
           Past reports
         </h3>
       </div>
-      <div className="space-y-4">
-        {reports.map((r) => (
-          <ReportCard key={r.id} tenantId={tenantId} report={r} />
-        ))}
-      </div>
+      {reports.length === 0 ? (
+        <div className="border border-dashed border-border bg-card/60 px-6 py-8 text-center">
+          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+            No previous reports
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Previous months will appear here as a timeline.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {reports.map((r) => (
+            <ReportCard key={r.id} tenantId={tenantId} report={r} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -610,8 +619,9 @@ function nextFullMonth(): { periodStart: string; periodEnd: string } {
   const now = new Date();
   const y = now.getUTCFullYear();
   const m = now.getUTCMonth();
-  const start = new Date(Date.UTC(y, m + 1, 1));
-  const end = new Date(Date.UTC(y, m + 2, 0));
+  // Generate plan for current month (operators plan current month's work)
+  const start = new Date(Date.UTC(y, m, 1));
+  const end = new Date(Date.UTC(y, m + 1, 0));
   return { periodStart: ymd(start), periodEnd: ymd(end) };
 }
 
@@ -634,9 +644,9 @@ function formatPeriodLabel(start: string, end: string): string {
 
 function formatMoney(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("nl-NL", {
     style: "currency",
-    currency: "USD",
+    currency: "EUR",
     maximumFractionDigits: 0,
   }).format(n);
 }

@@ -9,7 +9,10 @@
  */
 import type { ExecutionBoardItem } from "@/lib/shared/execution/board.functions";
 import type { PageInventoryItem } from "@/lib/shared/wordpressDrafts/pageInventory.functions";
-import type { ClientHealthSummary, ActionQueueItem } from "@/lib/shared/execution/operatorQueue.functions";
+import type {
+  ClientHealthSummary,
+  ActionQueueItem,
+} from "@/lib/shared/execution/operatorQueue.functions";
 import type { LeadSummary as LeadRow } from "@/lib/shared/leads/repo.functions";
 
 // ------------------------------------------------------------------
@@ -43,10 +46,15 @@ export const DEMO_GOAL = {
   requiredLeads: 29,
   serviceFocus: ["AC repair", "Emergency HVAC", "Boiler installation", "HVAC maintenance"],
   locations: ["Dallas, TX", "Plano, TX", "Frisco, TX"],
-  goodFitLeads: ["Homeowners needing AC repair or installation", "Property managers", "Small commercial"],
+  goodFitLeads: [
+    "Homeowners needing AC repair or installation",
+    "Property managers",
+    "Small commercial",
+  ],
   badFitLeads: ["Out-of-warranty AC units older than 15 years", "Out-of-area calls"],
   capacityNotes: "3 technicians available. Max 8 jobs per day.",
-  trackingNotes: "Calls tracked via Google Ads call extensions. Forms tracked via LeadLayer webhook on website.",
+  trackingNotes:
+    "Calls tracked via Google Ads call extensions. Forms tracked via LeadLayer webhook on website.",
   notificationEmail: "smith@smithhvac.com",
   notifyOnLead: true,
   nextCallAt: "2026-06-15T14:00:00.000Z",
@@ -62,7 +70,10 @@ export const DEMO_GOAL = {
 // Execution board items
 // ------------------------------------------------------------------
 
-const BASE_ITEM: Omit<ExecutionBoardItem, "masterplanItemId" | "title" | "type" | "executionStatus" | "nextAction"> = {
+const BASE_ITEM: Omit<
+  ExecutionBoardItem,
+  "masterplanItemId" | "title" | "type" | "executionStatus" | "nextAction"
+> = {
   priority: "high",
   effort: "medium",
   expectedImpact: "high",
@@ -103,6 +114,8 @@ const BASE_ITEM: Omit<ExecutionBoardItem, "masterplanItemId" | "title" | "type" 
   wpMetaTitle: null,
   wpMetaDescription: null,
   wpPublishSource: null,
+  wpApprovedAt: null,
+  wpReviewNotes: null,
   isOptimizationTarget: false,
   optimizationInventoryId: null,
   optimizationWpPostId: null,
@@ -141,7 +154,8 @@ export const DEMO_BOARD_ITEMS: ExecutionBoardItem[] = [
     artifactKeywordVolume: 880,
     artifactH1: "Emergency AC Repair in Dallas, TX — Same-Day Response",
     artifactMetaTitle: "Emergency AC Repair Dallas TX | Smith HVAC",
-    artifactMetaDescription: "Emergency AC repair in Dallas TX. Smith HVAC responds same-day. Licensed technicians. Call now.",
+    artifactMetaDescription:
+      "Emergency AC repair in Dallas TX. Smith HVAC responds same-day. Licensed technicians. Call now.",
     artifactSectionCount: 5,
     artifactFaqCount: 4,
     wpDraftStatus: "published",
@@ -183,11 +197,14 @@ export const DEMO_BOARD_ITEMS: ExecutionBoardItem[] = [
     artifactKeywordVolume: 590,
     artifactH1: "HVAC Repair in Plano, TX — Smith HVAC",
     artifactMetaTitle: "HVAC Repair Plano TX | Smith HVAC | Fast Response",
-    artifactMetaDescription: "Trusted HVAC repair in Plano TX. Smith HVAC serves all of Plano and surrounding areas. Same-day service available.",
-    artifactIntroPreview: "When your heating or cooling system breaks down in Plano, you need a team you can trust. Smith HVAC has been serving Plano homeowners and businesses since 2015...",
+    artifactMetaDescription:
+      "Trusted HVAC repair in Plano TX. Smith HVAC serves all of Plano and surrounding areas. Same-day service available.",
+    artifactIntroPreview:
+      "When your heating or cooling system breaks down in Plano, you need a team you can trust. Smith HVAC has been serving Plano homeowners and businesses since 2015...",
     artifactSectionCount: 5,
     artifactFaqCount: 4,
-    artifactOperatorNotes: "No Google reviews mentioned — proofBlock.items is empty. Recommend adding at least 2 verified review quotes before publishing.",
+    artifactOperatorNotes:
+      "No Google reviews mentioned — proofBlock.items is empty. Recommend adding at least 2 verified review quotes before publishing.",
     artifactRiskFlags: ["No verified review count in business profile — proof block empty"],
     artifactDeliveryReadiness: "inventory_synced",
     wpSeoMetaStatus: null,
@@ -206,11 +223,14 @@ export const DEMO_BOARD_ITEMS: ExecutionBoardItem[] = [
     artifactKeywordVolume: 320,
     artifactH1: "Boiler Installation in Dallas, TX — Expert Fitting & Setup",
     artifactMetaTitle: "Boiler Installation Dallas TX | Smith HVAC",
-    artifactMetaDescription: "Professional boiler installation in Dallas TX. Smith HVAC installs all major brands. Free quotes. Licensed & insured.",
-    artifactIntroPreview: "Installing a new boiler in your Dallas home is a significant investment. Smith HVAC's certified technicians ensure your boiler is fitted correctly the first time...",
+    artifactMetaDescription:
+      "Professional boiler installation in Dallas TX. Smith HVAC installs all major brands. Free quotes. Licensed & insured.",
+    artifactIntroPreview:
+      "Installing a new boiler in your Dallas home is a significant investment. Smith HVAC's certified technicians ensure your boiler is fitted correctly the first time...",
     artifactSectionCount: 4,
     artifactFaqCount: 4,
-    artifactOperatorNotes: "Schema uses LocalBusiness — consider HomeAndConstructionBusiness for HVAC. Phone and address auto-filled from GBP.",
+    artifactOperatorNotes:
+      "Schema uses LocalBusiness — consider HomeAndConstructionBusiness for HVAC. Phone and address auto-filled from GBP.",
     artifactRiskFlags: [],
     artifactMissingContext: [],
     artifactDeliveryReadiness: "connected",
@@ -237,6 +257,7 @@ export const DEMO_PAGES: PageInventoryItem[] = [
     source: "leadlayer_new",
     type: "new_page",
     status: "live",
+    draftStatus: "published",
     title: "Emergency AC Repair Dallas TX",
     slug: "services/emergency-ac-repair-dallas",
     url: "https://smithhvac.com/services/emergency-ac-repair-dallas",
@@ -252,6 +273,7 @@ export const DEMO_PAGES: PageInventoryItem[] = [
     source: "leadlayer_new",
     type: "new_page",
     status: "live",
+    draftStatus: "published",
     title: "AC Repair Dallas TX",
     slug: "services/ac-repair-dallas-tx",
     url: "https://smithhvac.com/services/ac-repair-dallas-tx",
@@ -267,6 +289,7 @@ export const DEMO_PAGES: PageInventoryItem[] = [
     source: "leadlayer_optimized",
     type: "optimized",
     status: "live",
+    draftStatus: null,
     title: "Homepage",
     slug: "",
     url: "https://smithhvac.com/",
@@ -282,6 +305,7 @@ export const DEMO_PAGES: PageInventoryItem[] = [
     source: "leadlayer_new",
     type: "new_page",
     status: "draft",
+    draftStatus: "approved_for_publish",
     title: "HVAC Repair Plano TX",
     slug: "locations/hvac-repair-plano-tx",
     url: null,
@@ -299,13 +323,97 @@ export const DEMO_PAGES: PageInventoryItem[] = [
 // ------------------------------------------------------------------
 
 export const DEMO_LEADS: LeadRow[] = [
-  { id: "demo-lead-1", source: "call", status: "won", name: "James T.", email: null, phone: "214-555-0101", closedAmount: 2400, closedAt: "2026-05-20T00:00:00.000Z", wonNotes: "AC replacement", createdAt: "2026-05-12T10:00:00.000Z", attribution: {} },
-  { id: "demo-lead-2", source: "form", status: "won", name: "Sara M.", email: "sara@example.com", phone: null, closedAmount: 380, closedAt: "2026-05-22T00:00:00.000Z", wonNotes: "Emergency repair", createdAt: "2026-05-14T08:00:00.000Z", attribution: {} },
-  { id: "demo-lead-3", source: "call", status: "won", name: "Paul K.", email: null, phone: "214-555-0203", closedAmount: 1750, closedAt: "2026-05-26T00:00:00.000Z", wonNotes: "Boiler service", createdAt: "2026-05-18T16:00:00.000Z", attribution: {} },
-  { id: "demo-lead-4", source: "organic", status: "qualified", name: "Lisa H.", email: "lisa@example.com", phone: "214-555-0304", closedAmount: null, closedAt: null, wonNotes: null, createdAt: "2026-05-24T09:00:00.000Z", attribution: {} },
-  { id: "demo-lead-5", source: "form", status: "new", name: "Mike B.", email: null, phone: "972-555-0405", closedAmount: null, closedAt: null, wonNotes: null, createdAt: "2026-05-28T11:00:00.000Z", attribution: {} },
-  { id: "demo-lead-6", source: "call", status: "new", name: "Chen W.", email: null, phone: "214-555-0506", closedAmount: null, closedAt: null, wonNotes: null, createdAt: "2026-05-29T07:00:00.000Z", attribution: {} },
-  { id: "demo-lead-7", source: "form", status: "lost", name: "Terry S.", email: "terry@example.com", phone: null, closedAmount: null, closedAt: null, wonNotes: null, createdAt: "2026-05-06T14:00:00.000Z", attribution: {} },
+  {
+    id: "demo-lead-1",
+    source: "call",
+    status: "won",
+    name: "James T.",
+    email: null,
+    phone: "214-555-0101",
+    closedAmount: 2400,
+    closedAt: "2026-05-20T00:00:00.000Z",
+    wonNotes: "AC replacement",
+    createdAt: "2026-05-12T10:00:00.000Z",
+    attribution: {},
+  },
+  {
+    id: "demo-lead-2",
+    source: "form",
+    status: "won",
+    name: "Sara M.",
+    email: "sara@example.com",
+    phone: null,
+    closedAmount: 380,
+    closedAt: "2026-05-22T00:00:00.000Z",
+    wonNotes: "Emergency repair",
+    createdAt: "2026-05-14T08:00:00.000Z",
+    attribution: {},
+  },
+  {
+    id: "demo-lead-3",
+    source: "call",
+    status: "won",
+    name: "Paul K.",
+    email: null,
+    phone: "214-555-0203",
+    closedAmount: 1750,
+    closedAt: "2026-05-26T00:00:00.000Z",
+    wonNotes: "Boiler service",
+    createdAt: "2026-05-18T16:00:00.000Z",
+    attribution: {},
+  },
+  {
+    id: "demo-lead-4",
+    source: "organic",
+    status: "qualified",
+    name: "Lisa H.",
+    email: "lisa@example.com",
+    phone: "214-555-0304",
+    closedAmount: null,
+    closedAt: null,
+    wonNotes: null,
+    createdAt: "2026-05-24T09:00:00.000Z",
+    attribution: {},
+  },
+  {
+    id: "demo-lead-5",
+    source: "form",
+    status: "new",
+    name: "Mike B.",
+    email: null,
+    phone: "972-555-0405",
+    closedAmount: null,
+    closedAt: null,
+    wonNotes: null,
+    createdAt: "2026-05-28T11:00:00.000Z",
+    attribution: {},
+  },
+  {
+    id: "demo-lead-6",
+    source: "call",
+    status: "new",
+    name: "Chen W.",
+    email: null,
+    phone: "214-555-0506",
+    closedAmount: null,
+    closedAt: null,
+    wonNotes: null,
+    createdAt: "2026-05-29T07:00:00.000Z",
+    attribution: {},
+  },
+  {
+    id: "demo-lead-7",
+    source: "form",
+    status: "lost",
+    name: "Terry S.",
+    email: "terry@example.com",
+    phone: null,
+    closedAmount: null,
+    closedAt: null,
+    wonNotes: null,
+    createdAt: "2026-05-06T14:00:00.000Z",
+    attribution: {},
+  },
 ];
 
 // ------------------------------------------------------------------
@@ -318,6 +426,7 @@ export const DEMO_CLIENT_HEALTH: ClientHealthSummary = {
   tier: "growth",
   health: "green",
   leadsThisMonth: 7,
+  leadsPrevMonth: 5,
   pendingActionCount: 1,
   lastDeliveryAt: "2026-05-10T09:00:00.000Z",
   lastActivityAt: "2026-05-29T07:00:00.000Z",

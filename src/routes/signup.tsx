@@ -54,14 +54,24 @@ function SignupPage() {
     <AuthShell title="Create account" subtitle="Operator access to LeadLayer OS.">
       <form onSubmit={handleSubmit} className="space-y-4">
         <Field label="Name" value={name} onChange={setName} autoComplete="name" required />
-        <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" required />
-        <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="new-password" required />
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-md bg-primary px-4 py-2.5 font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
-        >
+        <Field
+          label="Email"
+          type="email"
+          value={email}
+          onChange={setEmail}
+          autoComplete="email"
+          required
+        />
+        <Field
+          label="Password"
+          type="password"
+          value={password}
+          onChange={setPassword}
+          autoComplete="new-password"
+          required
+        />
+        {error && <p className="text-sm font-medium text-paper-danger">{error}</p>}
+        <button type="submit" disabled={loading} className="cta-shear w-full">
           {loading ? "Creating…" : "Create account"}
         </button>
       </form>
@@ -71,14 +81,14 @@ function SignupPage() {
       <button
         type="button"
         onClick={handleGoogle}
-        className="w-full rounded-md border border-border bg-card px-4 py-2.5 font-medium text-foreground hover:bg-secondary"
+        className="h-12 w-full rounded-[4px] border border-paper-line-strong bg-white text-[15px] font-medium text-ink transition hover:bg-paper-subtle"
       >
         Continue with Google
       </button>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+      <p className="mt-6 text-center text-sm text-ink-2">
         Already have an account?{" "}
-        <Link to="/login" className="font-medium text-foreground hover:text-primary">
+        <Link to="/login" className="font-medium text-ink transition hover:text-amber-deep">
           Sign in
         </Link>
       </p>

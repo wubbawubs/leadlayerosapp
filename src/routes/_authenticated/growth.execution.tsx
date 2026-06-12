@@ -18,9 +18,11 @@ import {
   updateExecutionArtifactStatus,
 } from "@/lib/shared/executionArtifacts/artifacts.functions";
 import {
+  approveWordpressDraftForPublish,
   createWordpressDraftFromArtifact,
   markWordpressDraftPublished,
   publishWordpressDraftFromLeadLayer,
+  requestWordpressDraftChanges,
 } from "@/lib/shared/wordpressDrafts/wordpressDrafts.functions";
 import {
   fetchAndSnapshotExistingWordpressPage,
@@ -62,6 +64,8 @@ function ExecutionBoardPage() {
   const createDraft = useServerFn(createWordpressDraftFromArtifact);
   const doMarkPublished = useServerFn(markWordpressDraftPublished);
   const doPublishFromLeadLayer = useServerFn(publishWordpressDraftFromLeadLayer);
+  const doApproveDraft = useServerFn(approveWordpressDraftForPublish);
+  const doRequestDraftChanges = useServerFn(requestWordpressDraftChanges);
   const qc = useQueryClient();
 
   const tenantsQuery = useQuery({
@@ -75,7 +79,6 @@ function ExecutionBoardPage() {
     queryFn: () => fetchBoard({ data: { tenantId: tenantId! } }),
     enabled: !!tenantId,
   });
-
 
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -102,7 +105,9 @@ function ExecutionBoardPage() {
     },
     onSuccess: (res) => {
       if (res.ok) {
-        toast.success(res.usedFallback ? "Page brief generated (fallback)" : "Page brief generated");
+        toast.success(
+          res.usedFallback ? "Page brief generated (fallback)" : "Page brief generated",
+        );
       } else {
         toast.error("message" in res ? res.message : "Page brief generation failed");
       }
@@ -113,7 +118,13 @@ function ExecutionBoardPage() {
   });
 
   const approveArtifact = useMutation({
-    mutationFn: async ({ artifactId, status }: { artifactId: string; status: "approved" | "rejected" | "needs_review" }) => {
+    mutationFn: async ({
+      artifactId,
+      status,
+    }: {
+      artifactId: string;
+      status: "approved" | "rejected" | "needs_review";
+    }) => {
       if (!tenantId) throw new Error("No tenant");
       return updateArtifact({ data: { tenantId, artifactId, status } });
     },
@@ -126,21 +137,65 @@ function ExecutionBoardPage() {
 
   const [draftPendingId, setDraftPendingId] = useState<string | null>(null);
   const [publishingDraftId, setPublishingDraftId] = useState<string | null>(null);
-  // Publish-from-LeadLayer confirmation state
-  const [publishConfirm, setPublishConfirm] = useState<{
+  // Publishing Gate — approval modal state (formal operator approval + checklist)
+  const [approveConfirm, setApproveConfirm] = useState<{
     draftId: string;
     seoMetaStatus: string | null;
     title: string | null;
   } | null>(null);
-  const [publishChecks, setPublishChecks] = useState({
+  const EMPTY_APPROVE_CHECKS = {
     reviewed: false,
     images: false,
     links: false,
     seo: false,
     schema: false,
     ready: false,
-  });
+  };
+  const [approveChecks, setApproveChecks] = useState(EMPTY_APPROVE_CHECKS);
+  const [approveNotes, setApproveNotes] = useState("");
+  const [approvingDraftId, setApprovingDraftId] = useState<string | null>(null);
+  const [changesPendingId, setChangesPendingId] = useState<string | null>(null);
+  // Publish-from-LeadLayer confirmation state (post-approval final confirm)
+  const [publishConfirm, setPublishConfirm] = useState<{
+    draftId: string;
+    title: string | null;
+    approvedAt: string | null;
+  } | null>(null);
+  const [publishReadyCheck, setPublishReadyCheck] = useState(false);
   const [llPublishingId, setLlPublishingId] = useState<string | null>(null);
+
+  const approveDraft = useMutation({
+    mutationFn: async ({ draftId, notes }: { draftId: string; notes?: string }) => {
+      if (!tenantId) throw new Error("No tenant");
+      setApprovingDraftId(draftId);
+      return doApproveDraft({
+        data: { tenantId, draftId, checklistConfirmed: true as const, notes: notes || undefined },
+      });
+    },
+    onSuccess: (res) => {
+      if (res.ok) toast.success("Draft approved for publish");
+      setApproveConfirm(null);
+      setApproveChecks(EMPTY_APPROVE_CHECKS);
+      setApproveNotes("");
+      void qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Approval failed"),
+    onSettled: () => setApprovingDraftId(null),
+  });
+
+  const requestDraftChanges = useMutation({
+    mutationFn: async ({ draftId, reason }: { draftId: string; reason: string }) => {
+      if (!tenantId) throw new Error("No tenant");
+      setChangesPendingId(draftId);
+      return doRequestDraftChanges({ data: { tenantId, draftId, reason } });
+    },
+    onSuccess: () => {
+      toast.success("Draft sent back for changes");
+      void qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to request changes"),
+    onSettled: () => setChangesPendingId(null),
+  });
 
   const createWpDraft = useMutation({
     mutationFn: async (artifactId: string) => {
@@ -167,7 +222,7 @@ function ExecutionBoardPage() {
     onSuccess: (res) => {
       if (res.ok) toast.success("Page published via LeadLayer");
       setPublishConfirm(null);
-      setPublishChecks({ reviewed: false, images: false, links: false, seo: false, schema: false, ready: false });
+      setPublishReadyCheck(false);
       void qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Publish failed"),
@@ -178,7 +233,9 @@ function ExecutionBoardPage() {
     mutationFn: async ({ draftId, publishedUrl }: { draftId: string; publishedUrl?: string }) => {
       if (!tenantId) throw new Error("No tenant");
       setPublishingDraftId(draftId);
-      return doMarkPublished({ data: { tenantId, draftId, publishedUrl: publishedUrl || undefined } });
+      return doMarkPublished({
+        data: { tenantId, draftId, publishedUrl: publishedUrl || undefined },
+      });
     },
     onSuccess: (res) => {
       if (res.ok) toast.success("Draft marked as published");
@@ -224,7 +281,8 @@ function ExecutionBoardPage() {
   const fetchSnapshot = useMutation({
     mutationFn: async (item: ExecutionBoardItem) => {
       if (!tenantId) throw new Error("No tenant");
-      if (!item.optimizationConnectionId) throw new Error("No WordPress connection mapped to this item");
+      if (!item.optimizationConnectionId)
+        throw new Error("No WordPress connection mapped to this item");
       if (!item.optimizationWpPostId) throw new Error("No WP post ID mapped to this item");
       setSnapPendingId(item.masterplanItemId);
       return doFetchSnapshot({
@@ -258,7 +316,11 @@ function ExecutionBoardPage() {
     },
     onSuccess: (res) => {
       if (res.ok) {
-        toast.success(res.usedFallback ? "Optimization brief generated (fallback)" : "Optimization brief generated");
+        toast.success(
+          res.usedFallback
+            ? "Optimization brief generated (fallback)"
+            : "Optimization brief generated",
+        );
       }
       void qc.invalidateQueries({ queryKey: ["execution-board", tenantId] });
     },
@@ -267,14 +329,22 @@ function ExecutionBoardPage() {
   });
 
   const applyOptimization = useMutation({
-    mutationFn: async ({ artifactId, confirmLivePage }: { artifactId: string; confirmLivePage: boolean }) => {
+    mutationFn: async ({
+      artifactId,
+      confirmLivePage,
+    }: {
+      artifactId: string;
+      confirmLivePage: boolean;
+    }) => {
       if (!tenantId) throw new Error("No tenant");
       setOptApplyPendingId(artifactId);
       return doApplyOptimization({ data: { tenantId, artifactId, confirmLivePage } });
     },
     onSuccess: (res) => {
       if (res.ok) {
-        toast.success(`Optimization applied — ${(res.fieldsUpdated as string[] | undefined)?.join(", ") ?? "fields updated"}`);
+        toast.success(
+          `Optimization applied — ${(res.fieldsUpdated as string[] | undefined)?.join(", ") ?? "fields updated"}`,
+        );
         setOptApplyConfirm(null);
         setOptApplyChecks({ reviewed: false, backup: false, liveConfirm: false, accurate: false });
       } else if ("errorCode" in res) {
@@ -316,7 +386,6 @@ function ExecutionBoardPage() {
   };
   for (const it of items) grouped[it.executionStatus as ExecutionStatus].push(it);
 
-
   return (
     <div className="min-h-screen bg-background bg-blueprint">
       <header className="container mx-auto flex items-center justify-between px-6 py-5">
@@ -326,7 +395,10 @@ function ExecutionBoardPage() {
             <Link to="/app" className="text-muted-foreground hover:text-foreground">
               Dashboard
             </Link>
-            <Link to="/settings/growth-goal" className="text-muted-foreground hover:text-foreground">
+            <Link
+              to="/settings/growth-goal"
+              className="text-muted-foreground hover:text-foreground"
+            >
               Goal
             </Link>
             <Link to="/growth/intelligence" className="text-muted-foreground hover:text-foreground">
@@ -349,13 +421,11 @@ function ExecutionBoardPage() {
         </p>
         <h1 className="font-display text-4xl text-foreground">Execution board</h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
-          Board view of Masterplan items: planned, in QA, approved, done.
-          Approved page briefs can be pushed directly to WordPress as drafts for operator review.
+          Board view of Masterplan items: planned, in QA, approved, done. Approved page briefs can
+          be pushed directly to WordPress as drafts for operator review.
         </p>
 
-        {!tenantId && (
-          <p className="mt-6 text-sm text-muted-foreground">Select a tenant first.</p>
-        )}
+        {!tenantId && <p className="mt-6 text-sm text-muted-foreground">Select a tenant first.</p>}
 
         {tenantId && !boardQuery.data?.plan && !boardQuery.isLoading && (
           <div className="mt-8 rounded-lg border border-border bg-card/70 p-6 text-sm">
@@ -390,15 +460,10 @@ function ExecutionBoardPage() {
 
             <section className="mt-8 grid gap-4 xl:grid-cols-2">
               {COLUMNS.map((col) => (
-                <div
-                  key={col.key}
-                  className="rounded-lg border border-border bg-card/40 p-4"
-                >
+                <div key={col.key} className="rounded-lg border border-border bg-card/40 p-4">
                   <div className="mb-3 flex items-baseline justify-between">
                     <h2 className={`font-semibold ${col.tone}`}>{col.label}</h2>
-                    <span className="text-xs text-muted-foreground">
-                      {grouped[col.key].length}
-                    </span>
+                    <span className="text-xs text-muted-foreground">{grouped[col.key].length}</span>
                   </div>
                   <div className="space-y-2">
                     {grouped[col.key].length === 0 && (
@@ -424,22 +489,37 @@ function ExecutionBoardPage() {
                         }
                         onApproveOptArtifact={() =>
                           it.optimizationArtifactId &&
-                          approveArtifact.mutate({ artifactId: it.optimizationArtifactId, status: "approved" })
+                          approveArtifact.mutate({
+                            artifactId: it.optimizationArtifactId,
+                            status: "approved",
+                          })
                         }
-                        onCreateDraft={() =>
-                          it.artifactId && createWpDraft.mutate(it.artifactId)
-                        }
+                        onCreateDraft={() => it.artifactId && createWpDraft.mutate(it.artifactId)}
                         onMarkPublished={(publishedUrl) =>
                           it.wpDraftId &&
                           markPublished.mutate({ draftId: it.wpDraftId, publishedUrl })
                         }
                         publishBusy={publishingDraftId === it.wpDraftId}
+                        onRequestApproveForPublish={() =>
+                          it.wpDraftId &&
+                          setApproveConfirm({
+                            draftId: it.wpDraftId,
+                            seoMetaStatus: it.wpSeoMetaStatus,
+                            title: it.title,
+                          })
+                        }
+                        approveBusy={approvingDraftId === it.wpDraftId}
+                        onRequestChanges={(reason) =>
+                          it.wpDraftId &&
+                          requestDraftChanges.mutate({ draftId: it.wpDraftId, reason })
+                        }
+                        changesBusy={changesPendingId === it.wpDraftId}
                         onRequestLeadLayerPublish={() =>
                           it.wpDraftId &&
                           setPublishConfirm({
                             draftId: it.wpDraftId,
-                            seoMetaStatus: it.wpSeoMetaStatus,
                             title: it.title,
+                            approvedAt: it.wpApprovedAt,
                           })
                         }
                         llPublishBusy={llPublishingId === it.wpDraftId}
@@ -479,152 +559,245 @@ function ExecutionBoardPage() {
             </section>
           </>
         )}
-      {/* Apply page optimization — confirmation modal */}
-      {optApplyConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
-            <h2 className="font-display text-lg text-foreground">Apply page optimization</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{optApplyConfirm.title}</p>
-            <p className="mt-3 text-xs text-muted-foreground">
-              LeadLayer will PATCH the existing page in WordPress. This is reversible via WP Revisions.
-            </p>
-            <ul className="mt-4 space-y-2.5">
-              {(
-                [
-                  { key: "reviewed", label: "I have reviewed the before and after content" },
-                  { key: "accurate", label: "The content changes are accurate and safe to apply" },
-                  { key: "backup", label: "I have confirmed a WP Revision or backup exists for this page" },
-                  { key: "liveConfirm", label: "I understand this updates the live page immediately" },
-                ] as Array<{ key: keyof typeof optApplyChecks; label: string }>
-              ).map(({ key, label }) => (
-                <li key={key} className="flex items-start gap-2.5">
-                  <input
-                    type="checkbox"
-                    id={`opt-check-${key}`}
-                    checked={optApplyChecks[key]}
-                    onChange={(e) =>
-                      setOptApplyChecks((prev) => ({ ...prev, [key]: e.target.checked }))
-                    }
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-primary"
-                  />
-                  <label htmlFor={`opt-check-${key}`} className="cursor-pointer text-xs text-foreground">
-                    {label}
-                  </label>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-6 flex gap-2">
-              <button
-                disabled={
-                  !Object.values(optApplyChecks).every(Boolean) ||
-                  applyOptimization.isPending
-                }
-                onClick={() =>
-                  applyOptimization.mutate({
-                    artifactId: optApplyConfirm.artifactId,
-                    confirmLivePage: true,
-                  })
-                }
-                className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
-              >
-                {applyOptimization.isPending ? "Applying…" : "Apply optimization"}
-              </button>
-              <button
-                onClick={() => {
-                  setOptApplyConfirm(null);
-                  setOptApplyChecks({ reviewed: false, backup: false, liveConfirm: false, accurate: false });
-                }}
-                className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
-              >
-                Cancel
-              </button>
-            </div>
-            {applyOptimization.isError && (
-              <p className="mt-2 text-xs text-destructive">
-                {(applyOptimization.error as Error).message}
+        {/* Apply page optimization — confirmation modal */}
+        {optApplyConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+            <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+              <h2 className="font-display text-lg text-foreground">Apply page optimization</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{optApplyConfirm.title}</p>
+              <p className="mt-3 text-xs text-muted-foreground">
+                LeadLayer will PATCH the existing page in WordPress. This is reversible via WP
+                Revisions.
               </p>
-            )}
-          </div>
-        </div>
-      )}
-      {/* Publish from LeadLayer — confirmation modal */}
-      {publishConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
-            <h2 className="font-display text-lg text-foreground">Publish from LeadLayer</h2>
-            {publishConfirm.title && (
-              <p className="mt-1 text-sm text-muted-foreground">{publishConfirm.title}</p>
-            )}
-            <p className="mt-3 text-xs text-muted-foreground">
-              LeadLayer will set this page to <span className="font-medium text-foreground">Published</span> in WordPress. Confirm all items below before proceeding.
-            </p>
-
-            {publishConfirm.seoMetaStatus === "manual_required" && (
-              <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
-                SEO meta was not pushed automatically — confirm you have entered it manually in your SEO plugin before publishing.
+              <ul className="mt-4 space-y-2.5">
+                {(
+                  [
+                    { key: "reviewed", label: "I have reviewed the before and after content" },
+                    {
+                      key: "accurate",
+                      label: "The content changes are accurate and safe to apply",
+                    },
+                    {
+                      key: "backup",
+                      label: "I have confirmed a WP Revision or backup exists for this page",
+                    },
+                    {
+                      key: "liveConfirm",
+                      label: "I understand this updates the live page immediately",
+                    },
+                  ] as Array<{ key: keyof typeof optApplyChecks; label: string }>
+                ).map(({ key, label }) => (
+                  <li key={key} className="flex items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      id={`opt-check-${key}`}
+                      checked={optApplyChecks[key]}
+                      onChange={(e) =>
+                        setOptApplyChecks((prev) => ({ ...prev, [key]: e.target.checked }))
+                      }
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-primary"
+                    />
+                    <label
+                      htmlFor={`opt-check-${key}`}
+                      className="cursor-pointer text-xs text-foreground"
+                    >
+                      {label}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-6 flex gap-2">
+                <button
+                  disabled={
+                    !Object.values(optApplyChecks).every(Boolean) || applyOptimization.isPending
+                  }
+                  onClick={() =>
+                    applyOptimization.mutate({
+                      artifactId: optApplyConfirm.artifactId,
+                      confirmLivePage: true,
+                    })
+                  }
+                  className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {applyOptimization.isPending ? "Applying…" : "Apply optimization"}
+                </button>
+                <button
+                  onClick={() => {
+                    setOptApplyConfirm(null);
+                    setOptApplyChecks({
+                      reviewed: false,
+                      backup: false,
+                      liveConfirm: false,
+                      accurate: false,
+                    });
+                  }}
+                  className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
               </div>
-            )}
-
-            <ul className="mt-4 space-y-2.5">
-              {(
-                [
-                  { key: "reviewed", label: "I have reviewed the draft in WP Admin" },
-                  { key: "images", label: "Images have been added or are not required" },
-                  { key: "links", label: "Internal links have been wired or noted as follow-up" },
-                  { key: "seo", label: "SEO title and description are confirmed" },
-                  { key: "schema", label: "Schema data is verified: business name, phone, address, and area served are correct" },
-                  { key: "ready", label: "This page is ready to go live" },
-                ] as Array<{ key: keyof typeof publishChecks; label: string }>
-              ).map(({ key, label }) => (
-                <li key={key} className="flex items-start gap-2.5">
-                  <input
-                    type="checkbox"
-                    id={`publish-check-${key}`}
-                    checked={publishChecks[key]}
-                    onChange={(e) =>
-                      setPublishChecks((prev) => ({ ...prev, [key]: e.target.checked }))
-                    }
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-primary"
-                  />
-                  <label
-                    htmlFor={`publish-check-${key}`}
-                    className="cursor-pointer text-xs text-foreground"
-                  >
-                    {label}
-                  </label>
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-6 flex gap-2">
-              <button
-                disabled={
-                  !Object.values(publishChecks).every(Boolean) ||
-                  publishFromLeadLayer.isPending
-                }
-                onClick={() => publishFromLeadLayer.mutate({ draftId: publishConfirm.draftId })}
-                className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
-              >
-                {publishFromLeadLayer.isPending ? "Publishing…" : "Publish now"}
-              </button>
-              <button
-                onClick={() => {
-                  setPublishConfirm(null);
-                  setPublishChecks({ reviewed: false, images: false, links: false, seo: false, schema: false, ready: false });
-                }}
-                className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
-              >
-                Cancel
-              </button>
+              {applyOptimization.isError && (
+                <p className="mt-2 text-xs text-destructive">
+                  {(applyOptimization.error as Error).message}
+                </p>
+              )}
             </div>
-            {publishFromLeadLayer.isError && (
-              <p className="mt-2 text-xs text-destructive">
-                {(publishFromLeadLayer.error as Error).message}
-              </p>
-            )}
           </div>
-        </div>
-      )}
+        )}
+        {/* Publishing Gate — formal approval modal with operator checklist */}
+        {approveConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+            <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+              <h2 className="font-display text-lg text-foreground">Approve for publish</h2>
+              {approveConfirm.title && (
+                <p className="mt-1 text-sm text-muted-foreground">{approveConfirm.title}</p>
+              )}
+              <p className="mt-3 text-xs text-muted-foreground">
+                This is the formal approval gate. Once approved, the draft can be published — by
+                LeadLayer or manually in WP Admin. Confirm all items below.
+              </p>
+
+              {approveConfirm.seoMetaStatus === "manual_required" && (
+                <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+                  SEO meta was not pushed automatically — confirm you have entered it manually in
+                  your SEO plugin before approving.
+                </div>
+              )}
+
+              <ul className="mt-4 space-y-2.5">
+                {(
+                  [
+                    { key: "reviewed", label: "I have reviewed the draft in WP Admin" },
+                    { key: "images", label: "Images have been added or are not required" },
+                    { key: "links", label: "Internal links have been wired or noted as follow-up" },
+                    { key: "seo", label: "SEO title and description are confirmed" },
+                    {
+                      key: "schema",
+                      label:
+                        "Schema data is verified: business name, phone, address, and area served are correct",
+                    },
+                    { key: "ready", label: "This page is ready to go live" },
+                  ] as Array<{ key: keyof typeof approveChecks; label: string }>
+                ).map(({ key, label }) => (
+                  <li key={key} className="flex items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      id={`approve-check-${key}`}
+                      checked={approveChecks[key]}
+                      onChange={(e) =>
+                        setApproveChecks((prev) => ({ ...prev, [key]: e.target.checked }))
+                      }
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-primary"
+                    />
+                    <label
+                      htmlFor={`approve-check-${key}`}
+                      className="cursor-pointer text-xs text-foreground"
+                    >
+                      {label}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+
+              <input
+                type="text"
+                placeholder="Approval notes (optional)"
+                value={approveNotes}
+                onChange={(e) => setApproveNotes(e.target.value)}
+                maxLength={1000}
+                className="mt-4 w-full rounded border border-border bg-background/60 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              />
+
+              <div className="mt-6 flex gap-2">
+                <button
+                  disabled={!Object.values(approveChecks).every(Boolean) || approveDraft.isPending}
+                  onClick={() =>
+                    approveDraft.mutate({ draftId: approveConfirm.draftId, notes: approveNotes })
+                  }
+                  className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {approveDraft.isPending ? "Approving…" : "Approve for publish"}
+                </button>
+                <button
+                  onClick={() => {
+                    setApproveConfirm(null);
+                    setApproveChecks(EMPTY_APPROVE_CHECKS);
+                    setApproveNotes("");
+                  }}
+                  className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+              </div>
+              {approveDraft.isError && (
+                <p className="mt-2 text-xs text-destructive">
+                  {(approveDraft.error as Error).message}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+        {/* Publish from LeadLayer — final confirmation (draft already passed the gate) */}
+        {publishConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+            <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+              <h2 className="font-display text-lg text-foreground">Publish from LeadLayer</h2>
+              {publishConfirm.title && (
+                <p className="mt-1 text-sm text-muted-foreground">{publishConfirm.title}</p>
+              )}
+              <p className="mt-3 text-xs text-muted-foreground">
+                LeadLayer will set this page to{" "}
+                <span className="font-medium text-foreground">Published</span> in WordPress.
+              </p>
+              <div className="mt-3 rounded border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+                Approved for publish
+                {publishConfirm.approvedAt &&
+                  ` on ${new Date(publishConfirm.approvedAt).toLocaleDateString()}`}{" "}
+                — operator checklist confirmed.
+              </div>
+
+              <div className="mt-4 flex items-start gap-2.5">
+                <input
+                  type="checkbox"
+                  id="publish-final-confirm"
+                  checked={publishReadyCheck}
+                  onChange={(e) => setPublishReadyCheck(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-primary"
+                />
+                <label
+                  htmlFor="publish-final-confirm"
+                  className="cursor-pointer text-xs text-foreground"
+                >
+                  Publish this page live now
+                </label>
+              </div>
+
+              <div className="mt-6 flex gap-2">
+                <button
+                  disabled={!publishReadyCheck || publishFromLeadLayer.isPending}
+                  onClick={() => publishFromLeadLayer.mutate({ draftId: publishConfirm.draftId })}
+                  className="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {publishFromLeadLayer.isPending ? "Publishing…" : "Publish now"}
+                </button>
+                <button
+                  onClick={() => {
+                    setPublishConfirm(null);
+                    setPublishReadyCheck(false);
+                  }}
+                  className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+              </div>
+              {publishFromLeadLayer.isError && (
+                <p className="mt-2 text-xs text-destructive">
+                  {(publishFromLeadLayer.error as Error).message}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
@@ -633,9 +806,7 @@ function ExecutionBoardPage() {
 function SummaryTile({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded border border-border bg-card/50 p-3">
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="font-mono text-xl text-foreground">{value}</div>
     </div>
   );
@@ -666,6 +837,10 @@ function BoardCard({
   onApproveOptArtifact,
   onCreateDraft,
   onMarkPublished,
+  onRequestApproveForPublish,
+  approveBusy,
+  onRequestChanges,
+  changesBusy,
   onRequestLeadLayerPublish,
   llPublishBusy,
   onFetchSnapshot,
@@ -690,6 +865,10 @@ function BoardCard({
   onApproveOptArtifact: () => void;
   onCreateDraft: () => void;
   onMarkPublished: (publishedUrl?: string) => void;
+  onRequestApproveForPublish: () => void;
+  approveBusy: boolean;
+  onRequestChanges: (reason: string) => void;
+  changesBusy: boolean;
   onRequestLeadLayerPublish: () => void;
   onFetchSnapshot: () => void;
   snapBusy: boolean;
@@ -702,6 +881,7 @@ function BoardCard({
   onSkip: () => void;
 }) {
   const [publishUrlInput, setPublishUrlInput] = useState("");
+  const [changesReasonInput, setChangesReasonInput] = useState("");
   return (
     <article className="rounded border border-border bg-background/60 p-3">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -768,11 +948,14 @@ function BoardCard({
               Manual mode
             </span>
           )}
-          {item.optimizationSnapshotBuilder && item.optimizationSnapshotBuilder !== "none" && item.optimizationSnapshotBuilder !== "gutenberg" && item.optimizationSnapshotBuilder !== "classic" && (
-            <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-400">
-              {item.optimizationSnapshotBuilder}
-            </span>
-          )}
+          {item.optimizationSnapshotBuilder &&
+            item.optimizationSnapshotBuilder !== "none" &&
+            item.optimizationSnapshotBuilder !== "gutenberg" &&
+            item.optimizationSnapshotBuilder !== "classic" && (
+              <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-400">
+                {item.optimizationSnapshotBuilder}
+              </span>
+            )}
           {item.optimizationDeliveryStatus === "optimized" && (
             <span className="rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-400">
               Optimized ✓
@@ -785,7 +968,9 @@ function BoardCard({
           )}
           {item.optimizationArtifactStatus && (
             <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              Brief: {ARTIFACT_STATUS_LABEL[item.optimizationArtifactStatus] ?? item.optimizationArtifactStatus}
+              Brief:{" "}
+              {ARTIFACT_STATUS_LABEL[item.optimizationArtifactStatus] ??
+                item.optimizationArtifactStatus}
             </span>
           )}
         </div>
@@ -845,276 +1030,363 @@ function BoardCard({
             </button>
           </>
         )}
-        {item.isPageBriefTarget && item.executionStatus === "approved" && (() => {
-          const dr = item.artifactDeliveryReadiness;
-          const wpOk = dr === "connected" || dr === "inventory_synced";
-          const wpReason =
-            dr === "missing"
-              ? "Connect a WordPress site from the Sites page first"
-              : dr == null
-                ? "WordPress readiness unknown — re-generate the page brief to check"
-                : null;
+        {item.isPageBriefTarget &&
+          item.executionStatus === "approved" &&
+          (() => {
+            const dr = item.artifactDeliveryReadiness;
+            const wpOk = dr === "connected" || dr === "inventory_synced";
+            const wpReason =
+              dr === "missing"
+                ? "Connect a WordPress site from the Sites page first"
+                : dr == null
+                  ? "WordPress readiness unknown — re-generate the page brief to check"
+                  : null;
 
-          if (!item.wpDraftId) {
-            return wpOk ? (
-              <button
-                disabled={draftBusy || !item.artifactId}
-                onClick={onCreateDraft}
-                className="rounded border border-primary/40 bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
-              >
-                {draftBusy ? "Creating draft…" : "Create WordPress draft"}
-              </button>
-            ) : (
-              <span
-                title={wpReason ?? undefined}
-                className="cursor-not-allowed rounded border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground"
-              >
-                {dr === "missing" ? "Connect WordPress first" : "WordPress not ready"}
-              </span>
-            );
-          }
-
-          if (item.wpDraftStatus === "published") {
-            const sourceLabel = item.wpPublishSource === "leadlayer_publish"
-              ? "via LeadLayer"
-              : item.wpPublishSource === "operator_manual"
-              ? "via WP Admin"
-              : null;
-            return (
-              <div className="flex flex-wrap gap-1">
-                <span className="rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-medium text-emerald-400">
-                  Published
-                </span>
-                {sourceLabel && (
-                  <span className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] text-muted-foreground">
-                    {sourceLabel}
-                  </span>
-                )}
-                {item.wpPublishedAt && (
-                  <span className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] text-muted-foreground">
-                    {new Date(item.wpPublishedAt).toLocaleDateString()}
-                  </span>
-                )}
-                {item.wpPublishedUrl && (
-                  <a
-                    href={item.wpPublishedUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-foreground hover:bg-secondary"
-                  >
-                    View live ↗
-                  </a>
-                )}
-                {item.wpEditLink && (
-                  <a
-                    href={item.wpEditLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
-                  >
-                    Edit in WP ↗
-                  </a>
-                )}
-              </div>
-            );
-          }
-
-          if (item.wpDraftStatus === "created") {
-            const seoStatus = item.wpSeoMetaStatus;
-            const seoOk = seoStatus === "pushed_yoast" || seoStatus === "pushed_rankmath";
-            const seoManual = seoStatus === "manual_required";
-            const seoLabel =
-              seoStatus === "pushed_yoast" ? "SEO meta: Yoast ✓"
-              : seoStatus === "pushed_rankmath" ? "SEO meta: Rank Math ✓"
-              : seoStatus === "manual_required" ? "SEO meta: enter manually"
-              : null;
-
-            return (
-              <div className="flex flex-wrap gap-1">
-                <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-400">
-                  Draft created
-                </span>
-                {item.wpEditLink && (
-                  <a
-                    href={item.wpEditLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-foreground hover:bg-secondary"
-                  >
-                    Edit in WP ↗
-                  </a>
-                )}
-                {item.wpPreviewLink && (
-                  <a
-                    href={item.wpPreviewLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
-                  >
-                    Preview ↗
-                  </a>
-                )}
-
-                {/* SEO meta status badge */}
-                {seoLabel && (
-                  <span
-                    className={`rounded border px-2 py-1 text-[11px] ${
-                      seoOk
-                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                        : "border-amber-500/30 bg-amber-500/10 text-amber-400"
-                    }`}
-                  >
-                    {seoLabel}
-                  </span>
-                )}
-
-                {/* Manual SEO checklist — shown when plugin not detected or push failed */}
-                {seoManual && (item.wpMetaTitle || item.wpMetaDescription) && (
-                  <div className="mt-1 w-full rounded border border-amber-500/20 bg-amber-500/5 p-2 text-[11px]">
-                    <p className="mb-1 font-medium text-amber-400">Enter SEO meta manually in your SEO plugin:</p>
-                    {item.wpMetaTitle && (
-                      <p className="text-muted-foreground">
-                        <span className="text-foreground">Title:</span> {item.wpMetaTitle}
-                      </p>
-                    )}
-                    {item.wpMetaDescription && (
-                      <p className="text-muted-foreground">
-                        <span className="text-foreground">Description:</span> {item.wpMetaDescription}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Publish from LeadLayer — one-click with confirmation modal */}
+            if (!item.wpDraftId) {
+              return wpOk ? (
                 <button
-                  disabled={llPublishBusy}
-                  onClick={onRequestLeadLayerPublish}
-                  className="mt-1 w-full rounded border border-primary/40 bg-primary/15 px-2 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
+                  disabled={draftBusy || !item.artifactId}
+                  onClick={onCreateDraft}
+                  className="rounded border border-primary/40 bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
                 >
-                  {llPublishBusy ? "Publishing…" : "Publish from LeadLayer →"}
+                  {draftBusy ? "Creating draft…" : "Create WordPress draft"}
                 </button>
+              ) : (
+                <span
+                  title={wpReason ?? undefined}
+                  className="cursor-not-allowed rounded border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground"
+                >
+                  {dr === "missing" ? "Connect WordPress first" : "WordPress not ready"}
+                </span>
+              );
+            }
 
-                {/* Manual path: operator publishes in WP admin, then marks here */}
-                <div className="mt-1 flex w-full items-center gap-1.5">
-                  <input
-                    type="url"
-                    placeholder="Already published? Enter URL"
-                    value={publishUrlInput}
-                    onChange={(e) => setPublishUrlInput(e.target.value)}
-                    className="flex-1 rounded border border-border bg-background/60 px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  />
-                  <button
-                    disabled={publishBusy}
-                    onClick={() => onMarkPublished(publishUrlInput || undefined)}
-                    className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
-                  >
-                    {publishBusy ? "Saving…" : "Mark manual"}
-                  </button>
+            if (item.wpDraftStatus === "published") {
+              const sourceLabel =
+                item.wpPublishSource === "leadlayer_publish"
+                  ? "via LeadLayer"
+                  : item.wpPublishSource === "operator_manual"
+                    ? "via WP Admin"
+                    : null;
+              return (
+                <div className="flex flex-wrap gap-1">
+                  <span className="rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-medium text-emerald-400">
+                    Published
+                  </span>
+                  {sourceLabel && (
+                    <span className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] text-muted-foreground">
+                      {sourceLabel}
+                    </span>
+                  )}
+                  {item.wpPublishedAt && (
+                    <span className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] text-muted-foreground">
+                      {new Date(item.wpPublishedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                  {item.wpPublishedUrl && (
+                    <a
+                      href={item.wpPublishedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-foreground hover:bg-secondary"
+                    >
+                      View live ↗
+                    </a>
+                  )}
+                  {item.wpEditLink && (
+                    <a
+                      href={item.wpEditLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                    >
+                      Edit in WP ↗
+                    </a>
+                  )}
                 </div>
-              </div>
-            );
-          }
+              );
+            }
 
-          if (item.wpDraftStatus === "failed") {
-            return wpOk ? (
-              <button
-                disabled={draftBusy}
-                onClick={onCreateDraft}
-                className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[11px] font-medium text-rose-400 hover:bg-rose-500/20 disabled:opacity-50"
-              >
-                {draftBusy ? "Retrying…" : "Retry draft creation"}
-              </button>
-            ) : (
-              <span
-                title={wpReason ?? undefined}
-                className="cursor-not-allowed rounded border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground"
-              >
-                {dr === "missing" ? "Connect WordPress first" : "WordPress not ready"}
-              </span>
-            );
-          }
+            if (
+              item.wpDraftStatus === "created" ||
+              item.wpDraftStatus === "needs_review" ||
+              item.wpDraftStatus === "approved_for_publish"
+            ) {
+              const seoStatus = item.wpSeoMetaStatus;
+              const seoOk = seoStatus === "pushed_yoast" || seoStatus === "pushed_rankmath";
+              const seoManual = seoStatus === "manual_required";
+              const seoLabel =
+                seoStatus === "pushed_yoast"
+                  ? "SEO meta: Yoast ✓"
+                  : seoStatus === "pushed_rankmath"
+                    ? "SEO meta: Rank Math ✓"
+                    : seoStatus === "manual_required"
+                      ? "SEO meta: enter manually"
+                      : null;
+              const isApproved = item.wpDraftStatus === "approved_for_publish";
+              const needsChanges = item.wpDraftStatus === "needs_review";
 
-          return null;
-        })()}
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {isApproved ? (
+                    <span className="rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-medium text-emerald-400">
+                      Approved for publish
+                      {item.wpApprovedAt &&
+                        ` · ${new Date(item.wpApprovedAt).toLocaleDateString()}`}
+                    </span>
+                  ) : needsChanges ? (
+                    <span className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1 text-[11px] font-medium text-amber-400">
+                      Changes requested
+                    </span>
+                  ) : (
+                    <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-400">
+                      Draft created
+                    </span>
+                  )}
+                  {item.wpEditLink && (
+                    <a
+                      href={item.wpEditLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-foreground hover:bg-secondary"
+                    >
+                      Edit in WP ↗
+                    </a>
+                  )}
+                  {item.wpPreviewLink && (
+                    <a
+                      href={item.wpPreviewLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                    >
+                      Preview ↗
+                    </a>
+                  )}
+
+                  {/* SEO meta status badge */}
+                  {seoLabel && (
+                    <span
+                      className={`rounded border px-2 py-1 text-[11px] ${
+                        seoOk
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                          : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                      }`}
+                    >
+                      {seoLabel}
+                    </span>
+                  )}
+
+                  {/* Manual SEO checklist — shown when plugin not detected or push failed */}
+                  {seoManual && (item.wpMetaTitle || item.wpMetaDescription) && (
+                    <div className="mt-1 w-full rounded border border-amber-500/20 bg-amber-500/5 p-2 text-[11px]">
+                      <p className="mb-1 font-medium text-amber-400">
+                        Enter SEO meta manually in your SEO plugin:
+                      </p>
+                      {item.wpMetaTitle && (
+                        <p className="text-muted-foreground">
+                          <span className="text-foreground">Title:</span> {item.wpMetaTitle}
+                        </p>
+                      )}
+                      {item.wpMetaDescription && (
+                        <p className="text-muted-foreground">
+                          <span className="text-foreground">Description:</span>{" "}
+                          {item.wpMetaDescription}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Review notes when the draft was sent back */}
+                  {needsChanges && item.wpReviewNotes && (
+                    <div className="mt-1 w-full rounded border border-amber-500/20 bg-amber-500/5 p-2 text-[11px] text-muted-foreground">
+                      <span className="font-medium text-amber-400">Requested changes:</span>{" "}
+                      {item.wpReviewNotes}
+                    </div>
+                  )}
+
+                  {/* Publishing Gate: approval comes before any publish action */}
+                  {!isApproved && (
+                    <button
+                      disabled={approveBusy}
+                      onClick={onRequestApproveForPublish}
+                      className="mt-1 w-full rounded border border-primary/40 bg-primary/15 px-2 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
+                    >
+                      {approveBusy
+                        ? "Approving…"
+                        : needsChanges
+                          ? "Re-approve for publish →"
+                          : "Approve for publish →"}
+                    </button>
+                  )}
+
+                  {/* Send back for changes (from created or approved state) */}
+                  {!needsChanges && (
+                    <div className="mt-1 flex w-full items-center gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Send back: what needs to change?"
+                        value={changesReasonInput}
+                        onChange={(e) => setChangesReasonInput(e.target.value)}
+                        className="flex-1 rounded border border-border bg-background/60 px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                      <button
+                        disabled={changesBusy || changesReasonInput.trim().length === 0}
+                        onClick={() => {
+                          onRequestChanges(changesReasonInput.trim());
+                          setChangesReasonInput("");
+                        }}
+                        className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+                      >
+                        {changesBusy ? "Sending…" : "Send back"}
+                      </button>
+                    </div>
+                  )}
+
+                  {isApproved && (
+                    <>
+                      {/* Publish from LeadLayer — final confirmation modal */}
+                      <button
+                        disabled={llPublishBusy}
+                        onClick={onRequestLeadLayerPublish}
+                        className="mt-1 w-full rounded border border-primary/40 bg-primary/15 px-2 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
+                      >
+                        {llPublishBusy ? "Publishing…" : "Publish from LeadLayer →"}
+                      </button>
+
+                      {/* Manual path: operator publishes in WP admin, then marks here */}
+                      <div className="mt-1 flex w-full items-center gap-1.5">
+                        <input
+                          type="url"
+                          placeholder="Already published? Enter URL"
+                          value={publishUrlInput}
+                          onChange={(e) => setPublishUrlInput(e.target.value)}
+                          className="flex-1 rounded border border-border bg-background/60 px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        />
+                        <button
+                          disabled={publishBusy}
+                          onClick={() => onMarkPublished(publishUrlInput || undefined)}
+                          className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+                        >
+                          {publishBusy ? "Saving…" : "Mark manual"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            }
+
+            if (item.wpDraftStatus === "failed") {
+              return wpOk ? (
+                <button
+                  disabled={draftBusy}
+                  onClick={onCreateDraft}
+                  className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[11px] font-medium text-rose-400 hover:bg-rose-500/20 disabled:opacity-50"
+                >
+                  {draftBusy ? "Retrying…" : "Retry draft creation"}
+                </button>
+              ) : (
+                <span
+                  title={wpReason ?? undefined}
+                  className="cursor-not-allowed rounded border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground"
+                >
+                  {dr === "missing" ? "Connect WordPress first" : "WordPress not ready"}
+                </span>
+              );
+            }
+
+            return null;
+          })()}
 
         {/* Existing page optimization actions */}
-        {item.isOptimizationTarget && item.optimizationDeliveryStatus !== "optimized" && item.optimizationUpdateStatus !== "applied" && (() => {
-          if (!item.optimizationSnapshotId) {
-            return (
-              <button
-                disabled={snapBusy || !item.optimizationConnectionId || !item.optimizationWpPostId}
-                onClick={onFetchSnapshot}
-                className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1 text-[11px] font-medium text-amber-400 hover:bg-amber-500/25 disabled:opacity-50"
-              >
-                {snapBusy ? "Fetching…" : "Fetch current page snapshot"}
-              </button>
-            );
-          }
-          if (!item.optimizationArtifactId) {
-            return (
-              <button
-                disabled={optBriefBusy}
-                onClick={onGenerateOptBrief}
-                className="rounded border border-primary/40 bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
-              >
-                {optBriefBusy ? "Generating…" : "Generate optimization brief"}
-              </button>
-            );
-          }
-          if (item.optimizationArtifactStatus === "needs_review" || item.optimizationArtifactStatus === "draft") {
-            return (
-              <div className="flex flex-wrap gap-1">
+        {item.isOptimizationTarget &&
+          item.optimizationDeliveryStatus !== "optimized" &&
+          item.optimizationUpdateStatus !== "applied" &&
+          (() => {
+            if (!item.optimizationSnapshotId) {
+              return (
                 <button
-                  onClick={onApproveOptArtifact}
-                  className="rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/25"
+                  disabled={
+                    snapBusy || !item.optimizationConnectionId || !item.optimizationWpPostId
+                  }
+                  onClick={onFetchSnapshot}
+                  className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1 text-[11px] font-medium text-amber-400 hover:bg-amber-500/25 disabled:opacity-50"
                 >
-                  Approve brief
+                  {snapBusy ? "Fetching…" : "Fetch current page snapshot"}
                 </button>
+              );
+            }
+            if (!item.optimizationArtifactId) {
+              return (
                 <button
                   disabled={optBriefBusy}
                   onClick={onGenerateOptBrief}
-                  className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  className="rounded border border-primary/40 bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
                 >
-                  {optBriefBusy ? "Regenerating…" : "Regenerate"}
+                  {optBriefBusy ? "Generating…" : "Generate optimization brief"}
                 </button>
-              </div>
-            );
-          }
-          if (item.optimizationArtifactStatus === "approved") {
-            if (item.optimizationDeliveryStatus === "delivery_failed") {
+              );
+            }
+            if (
+              item.optimizationArtifactStatus === "needs_review" ||
+              item.optimizationArtifactStatus === "draft"
+            ) {
+              return (
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    onClick={onApproveOptArtifact}
+                    className="rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/25"
+                  >
+                    Approve brief
+                  </button>
+                  <button
+                    disabled={optBriefBusy}
+                    onClick={onGenerateOptBrief}
+                    className="rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  >
+                    {optBriefBusy ? "Regenerating…" : "Regenerate"}
+                  </button>
+                </div>
+              );
+            }
+            if (item.optimizationArtifactStatus === "approved") {
+              if (item.optimizationDeliveryStatus === "delivery_failed") {
+                return (
+                  <button
+                    disabled={optApplyBusy}
+                    onClick={onRequestApplyOptimization}
+                    className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[11px] font-medium text-rose-400 hover:bg-rose-500/20 disabled:opacity-50"
+                  >
+                    {optApplyBusy ? "Retrying…" : "Retry optimization"}
+                  </button>
+                );
+              }
               return (
                 <button
                   disabled={optApplyBusy}
                   onClick={onRequestApplyOptimization}
-                  className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[11px] font-medium text-rose-400 hover:bg-rose-500/20 disabled:opacity-50"
+                  className="rounded border border-primary/40 bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
                 >
-                  {optApplyBusy ? "Retrying…" : "Retry optimization"}
+                  {optApplyBusy ? "Applying…" : "Apply optimization →"}
                 </button>
               );
             }
-            return (
-              <button
-                disabled={optApplyBusy}
-                onClick={onRequestApplyOptimization}
-                className="rounded border border-primary/40 bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
-              >
-                {optApplyBusy ? "Applying…" : "Apply optimization →"}
-              </button>
-            );
-          }
-          return null;
-        })()}
+            return null;
+          })()}
 
         {/* Legacy proposal path */}
-        {!item.isPageBriefTarget && item.executionStatus === "planned" && item.supportedForProposalGeneration && (
-          <button
-            disabled={busy}
-            onClick={onGenerate}
-            className="rounded border border-border bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
-          >
-            {busy ? "Generating…" : "Generate proposal"}
-          </button>
-        )}
+        {!item.isPageBriefTarget &&
+          item.executionStatus === "planned" &&
+          item.supportedForProposalGeneration && (
+            <button
+              disabled={busy}
+              onClick={onGenerate}
+              className="rounded border border-border bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/25 disabled:opacity-50"
+            >
+              {busy ? "Generating…" : "Generate proposal"}
+            </button>
+          )}
 
         {item.executionStatus === "manual_task" && (
           <span className="rounded border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground">

@@ -70,9 +70,19 @@ function rowToReport(r: Record<string, unknown>): MonthlyReport {
     leadSummary: (r.lead_summary ?? {}) as MonthlyReport["leadSummary"],
     goalProgressSummary: (r.goal_progress_summary ?? {}) as MonthlyReport["goalProgressSummary"],
     executionSummary: (r.execution_summary ?? {}) as MonthlyReport["executionSummary"],
-    wordpressSummary: (r.wordpress_summary ?? { draftsCreated: 0, draftsPublished: 0, drafts: [] }) as MonthlyReport["wordpressSummary"],
-    nextActions: Array.isArray(r.next_actions) ? r.next_actions as MonthlyReport["nextActions"] : [],
-    risks: Array.isArray(r.risks) ? r.risks as MonthlyReport["risks"] : [],
+    // Normalize drafts: legacy/seeded rows may store wordpress_summary without the array.
+    wordpressSummary: {
+      draftsCreated: 0,
+      draftsPublished: 0,
+      ...((r.wordpress_summary as object) ?? {}),
+      drafts: Array.isArray((r.wordpress_summary as { drafts?: unknown })?.drafts)
+        ? (r.wordpress_summary as { drafts: unknown[] }).drafts
+        : [],
+    } as MonthlyReport["wordpressSummary"],
+    nextActions: Array.isArray(r.next_actions)
+      ? (r.next_actions as MonthlyReport["nextActions"])
+      : [],
+    risks: Array.isArray(r.risks) ? (r.risks as MonthlyReport["risks"]) : [],
     narrative: (r.narrative as string | null) ?? null,
     shareToken: (r.share_token as string | null) ?? null,
     shareTokenCreatedAt: (r.share_token_created_at as string | null) ?? null,
@@ -250,40 +260,59 @@ export const revokeMonthlyReportShareLink = createServerFn({ method: "POST" })
 
 export async function getReportByShareToken(
   token: string,
-): Promise<MonthlyReport | null> {
+): Promise<{ report: MonthlyReport; locale: "nl" | "en" } | null> {
   if (!token || token.length !== 32 || !/^[a-f0-9]+$/.test(token)) return null;
 
   const { data: row, error } = await admin
     .from("monthly_reports")
     .select(
-      "id, period_start, period_end, status, lead_summary, goal_progress_summary, execution_summary, wordpress_summary, next_actions, risks, narrative, share_token, share_token_created_at, created_at, updated_at",
+      "tenant_id, id, period_start, period_end, status, lead_summary, goal_progress_summary, execution_summary, wordpress_summary, next_actions, risks, narrative, share_token, share_token_created_at, created_at, updated_at",
     )
     .eq("share_token", token)
     .maybeSingle();
 
   if (error || !row) return null;
 
+  // Locale comes from the tenant's geo; the tenant id itself is never returned.
+  const { data: tenantRow } = await admin
+    .from("tenants")
+    .select("geo")
+    .eq("id", row.tenant_id)
+    .maybeSingle();
+  const locale: "nl" | "en" = tenantRow?.geo === "NL" ? "nl" : "en";
+
   // Deliberately omit tenant_id from the returned object — never expose it on the public page.
   const r = row as Record<string, unknown>;
-  return {
+  const report: MonthlyReport = {
     id: r.id as string,
-    tenantId: "",                                          // not exposed on public page
-    growthGoalId: null,                                    // not exposed on public page
+    tenantId: "", // not exposed on public page
+    growthGoalId: null, // not exposed on public page
     periodStart: r.period_start as string,
     periodEnd: r.period_end as string,
     status: (r.status as MonthlyReportStatus) ?? "draft",
     leadSummary: (r.lead_summary ?? {}) as MonthlyReport["leadSummary"],
     goalProgressSummary: (r.goal_progress_summary ?? {}) as MonthlyReport["goalProgressSummary"],
     executionSummary: (r.execution_summary ?? {}) as MonthlyReport["executionSummary"],
-    wordpressSummary: (r.wordpress_summary ?? { draftsCreated: 0, draftsPublished: 0, drafts: [] }) as MonthlyReport["wordpressSummary"],
-    nextActions: Array.isArray(r.next_actions) ? r.next_actions as MonthlyReport["nextActions"] : [],
-    risks: Array.isArray(r.risks) ? r.risks as MonthlyReport["risks"] : [],
+    // Normalize drafts: legacy/seeded rows may store wordpress_summary without the array.
+    wordpressSummary: {
+      draftsCreated: 0,
+      draftsPublished: 0,
+      ...((r.wordpress_summary as object) ?? {}),
+      drafts: Array.isArray((r.wordpress_summary as { drafts?: unknown })?.drafts)
+        ? (r.wordpress_summary as { drafts: unknown[] }).drafts
+        : [],
+    } as MonthlyReport["wordpressSummary"],
+    nextActions: Array.isArray(r.next_actions)
+      ? (r.next_actions as MonthlyReport["nextActions"])
+      : [],
+    risks: Array.isArray(r.risks) ? (r.risks as MonthlyReport["risks"]) : [],
     narrative: (r.narrative as string | null) ?? null,
     shareToken: r.share_token as string,
     shareTokenCreatedAt: (r.share_token_created_at as string | null) ?? null,
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   };
+  return { report, locale };
 }
 
 // ------------------------------------------------------------------

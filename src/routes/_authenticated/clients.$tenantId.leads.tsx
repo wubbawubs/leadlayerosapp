@@ -612,9 +612,9 @@ function LogLeadDialog({
 
 function formatMoney(n: number): string {
   if (!Number.isFinite(n)) return "—";
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("nl-NL", {
     style: "currency",
-    currency: "USD",
+    currency: "EUR",
     maximumFractionDigits: 0,
   }).format(n);
 }
