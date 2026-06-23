@@ -178,9 +178,14 @@ export const Route = createFileRoute("/api/public/lead-ingest")({
           return jsonErr("Service error", 500, origin);
         }
 
-        // Best-effort lead notification — never blocks the response
-        void (async () => {
-          try {
+        // Lead notification — AWAITED on purpose. Cloudflare Workers kill
+        // unawaited background work when the isolate shuts down after the
+        // response is returned (there's no ctx.waitUntil threaded here), so a
+        // fire-and-forget send silently drops in production. The lead is
+        // already saved above and sendEmail never throws, so awaiting here can
+        // never fail lead capture — it only adds ~0.5s to the webhook response.
+        try {
+          {
             const { data: goalRow } = await admin
               .from("growth_goals")
               .select("notification_email, notify_on_lead, title")
@@ -216,10 +221,10 @@ export const Route = createFileRoute("/api/public/lead-ingest")({
                 text: emailContent.text,
               });
             }
-          } catch (notifyErr) {
-            console.error("[lead-ingest] notification error:", (notifyErr as Error).message);
           }
-        })();
+        } catch (notifyErr) {
+          console.error("[lead-ingest] notification error:", (notifyErr as Error).message);
+        }
 
         return jsonOk({ ok: true }, origin);
       },
