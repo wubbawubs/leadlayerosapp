@@ -4,4 +4,5 @@
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/server.ts",
+  "routes": [{ "pattern": "app.leadlayer.studio", "custom_domain": true }],
 }
