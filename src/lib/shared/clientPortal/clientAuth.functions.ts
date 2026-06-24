@@ -288,6 +288,83 @@ export const getMyClientAnalytics = createServerFn({ method: "POST" })
   });
 
 // ------------------------------------------------------------------
+// 4c. getMyClientStrategy — SEO & Strategy proof-of-work
+// ------------------------------------------------------------------
+
+export interface ClientStrategy {
+  summary: string | null;
+  roadmap: {
+    title: string;
+    description: string | null;
+    status: "planned" | "in_progress" | "done";
+  }[];
+  coverage: { name: string; volume: number | null; priority: string | null }[];
+}
+
+const ROADMAP_STATUS: Record<string, "planned" | "in_progress" | "done"> = {
+  proposed: "planned",
+  approved: "planned",
+  in_progress: "in_progress",
+  done: "done",
+};
+
+export const getMyClientStrategy = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { userId } = context;
+
+    const tenantId = await getClientTenantId(userId);
+    if (!tenantId) throw new Error("No client access");
+
+    const [planRes, itemRes, clusterRes] = await Promise.all([
+      admin
+        .from("master_plans")
+        .select("strategy_summary, summary")
+        .eq("tenant_id", tenantId)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      admin
+        .from("masterplan_items")
+        .select("title, description, status")
+        .eq("tenant_id", tenantId)
+        .neq("status", "skipped")
+        .limit(20),
+      admin
+        .from("market_demand_clusters")
+        .select("cluster_name, total_volume, priority")
+        .eq("tenant_id", tenantId)
+        .order("total_volume", { ascending: false })
+        .limit(6),
+    ]);
+
+    const summary =
+      (planRes.data?.strategy_summary as string | null) ??
+      (planRes.data?.summary as string | null) ??
+      null;
+
+    // Order: in progress → planned → done (active work first)
+    const order = { in_progress: 0, planned: 1, done: 2 } as const;
+    const roadmap = ((itemRes.data ?? []) as Array<Record<string, unknown>>)
+      .map((r) => ({
+        title: r.title as string,
+        description: (r.description as string | null) ?? null,
+        status: ROADMAP_STATUS[r.status as string] ?? "planned",
+      }))
+      .sort((a, b) => order[a.status] - order[b.status])
+      .slice(0, 12);
+
+    const coverage = ((clusterRes.data ?? []) as Array<Record<string, unknown>>).map((c) => ({
+      name: c.cluster_name as string,
+      volume: (c.total_volume as number | null) ?? null,
+      priority: (c.priority as string | null) ?? null,
+    }));
+
+    return { strategy: { summary, roadmap, coverage } as ClientStrategy };
+  });
+
+// ------------------------------------------------------------------
 // 5. markLeadWonAsClient (authenticated — client role)
 // ------------------------------------------------------------------
 

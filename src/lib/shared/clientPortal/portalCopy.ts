@@ -133,6 +133,20 @@ const nl = {
   liveSince: "Live sinds",
   openPage: (t: string) => `Open ${t}`,
 
+  // SEO & Strategy
+  strategy: {
+    kicker: "SEO & strategie",
+    yourStrategy: "Je groeistrategie",
+    delivered: "Opgeleverde pagina's",
+    roadmap: "Waar we aan werken",
+    statusPlanned: "Gepland",
+    statusInProgress: "Mee bezig",
+    statusDone: "Klaar",
+    coverage: "Zoektermen die we targeten",
+    searchesPerMonth: (n: number) => `${n.toLocaleString("nl-NL")} zoekopdrachten/mnd`,
+    noStrategy: "Je groeistrategie wordt opgesteld.",
+  },
+
   // Reports
   reportsKicker: "Rapporten",
   reportsTitle: "Maandelijks bewijs",
@@ -291,6 +305,19 @@ const en: typeof nl = {
   chipImproved: "Improved",
   liveSince: "Live since",
   openPage: (t: string) => `Open ${t}`,
+
+  strategy: {
+    kicker: "SEO & strategy",
+    yourStrategy: "Your growth strategy",
+    delivered: "Pages delivered",
+    roadmap: "What we're working on",
+    statusPlanned: "Planned",
+    statusInProgress: "In progress",
+    statusDone: "Done",
+    coverage: "Search terms we're targeting",
+    searchesPerMonth: (n: number) => `${n.toLocaleString("en-US")} searches/mo`,
+    noStrategy: "Your growth strategy is being prepared.",
+  },
 
   reportsKicker: "Reports",
   reportsTitle: "Monthly proof",
