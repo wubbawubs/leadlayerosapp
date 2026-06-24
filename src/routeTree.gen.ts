@@ -27,6 +27,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedSitesIndexRouteImport } from './routes/_authenticated/sites.index'
 import { Route as AuthenticatedClientsIndexRouteImport } from './routes/_authenticated/clients.index'
+import { Route as ApiPublicTrackRouteImport } from './routes/api/public/track'
 import { Route as ApiPublicRunAnalyzerJobRouteImport } from './routes/api/public/run-analyzer-job'
 import { Route as ApiPublicLeadIngestRouteImport } from './routes/api/public/lead-ingest'
 import { Route as AuthenticatedSitesNewRouteImport } from './routes/_authenticated/sites.new'
@@ -154,6 +155,11 @@ const AuthenticatedClientsIndexRoute =
     path: '/clients/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const ApiPublicTrackRoute = ApiPublicTrackRouteImport.update({
+  id: '/api/public/track',
+  path: '/api/public/track',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicRunAnalyzerJobRoute = ApiPublicRunAnalyzerJobRouteImport.update({
   id: '/api/public/run-analyzer-job',
   path: '/api/public/run-analyzer-job',
@@ -404,6 +410,7 @@ export interface FileRoutesByFullPath {
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/api/public/lead-ingest': typeof ApiPublicLeadIngestRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
+  '/api/public/track': typeof ApiPublicTrackRoute
   '/clients/': typeof AuthenticatedClientsIndexRoute
   '/sites/': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
@@ -457,6 +464,7 @@ export interface FileRoutesByTo {
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/api/public/lead-ingest': typeof ApiPublicLeadIngestRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
+  '/api/public/track': typeof ApiPublicTrackRoute
   '/clients': typeof AuthenticatedClientsIndexRoute
   '/sites': typeof AuthenticatedSitesIndexRoute
   '/audits/$auditId/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
@@ -514,6 +522,7 @@ export interface FileRoutesById {
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
   '/api/public/lead-ingest': typeof ApiPublicLeadIngestRoute
   '/api/public/run-analyzer-job': typeof ApiPublicRunAnalyzerJobRoute
+  '/api/public/track': typeof ApiPublicTrackRoute
   '/_authenticated/clients/': typeof AuthenticatedClientsIndexRoute
   '/_authenticated/sites/': typeof AuthenticatedSitesIndexRoute
   '/_authenticated/audits/$auditId_/compare': typeof AuthenticatedAuditsAuditIdCompareRoute
@@ -571,6 +580,7 @@ export interface FileRouteTypes {
     | '/sites/new'
     | '/api/public/lead-ingest'
     | '/api/public/run-analyzer-job'
+    | '/api/public/track'
     | '/clients/'
     | '/sites/'
     | '/audits/$auditId/compare'
@@ -624,6 +634,7 @@ export interface FileRouteTypes {
     | '/sites/new'
     | '/api/public/lead-ingest'
     | '/api/public/run-analyzer-job'
+    | '/api/public/track'
     | '/clients'
     | '/sites'
     | '/audits/$auditId/compare'
@@ -680,6 +691,7 @@ export interface FileRouteTypes {
     | '/_authenticated/sites/new'
     | '/api/public/lead-ingest'
     | '/api/public/run-analyzer-job'
+    | '/api/public/track'
     | '/_authenticated/clients/'
     | '/_authenticated/sites/'
     | '/_authenticated/audits/$auditId_/compare'
@@ -709,6 +721,7 @@ export interface RootRouteChildren {
   RShareTokenRoute: typeof RShareTokenRoute
   ApiPublicLeadIngestRoute: typeof ApiPublicLeadIngestRoute
   ApiPublicRunAnalyzerJobRoute: typeof ApiPublicRunAnalyzerJobRoute
+  ApiPublicTrackRoute: typeof ApiPublicTrackRoute
   ApiPublicWpcomCallbackRoute: typeof ApiPublicWpcomCallbackRoute
 }
 
@@ -839,6 +852,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/clients/'
       preLoaderRoute: typeof AuthenticatedClientsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/public/track': {
+      id: '/api/public/track'
+      path: '/api/public/track'
+      fullPath: '/api/public/track'
+      preLoaderRoute: typeof ApiPublicTrackRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/run-analyzer-job': {
       id: '/api/public/run-analyzer-job'
@@ -1248,6 +1268,7 @@ const rootRouteChildren: RootRouteChildren = {
   RShareTokenRoute: RShareTokenRoute,
   ApiPublicLeadIngestRoute: ApiPublicLeadIngestRoute,
   ApiPublicRunAnalyzerJobRoute: ApiPublicRunAnalyzerJobRoute,
+  ApiPublicTrackRoute: ApiPublicTrackRoute,
   ApiPublicWpcomCallbackRoute: ApiPublicWpcomCallbackRoute,
 }
 export const routeTree = rootRouteImport

@@ -36,6 +36,26 @@ const nl = {
   statPagesLive: "Pagina's live",
   vsLastMonth: (m: string) => `t.o.v. ${m}`,
 
+  // Dashboard analytics
+  analytics: {
+    last30: "Laatste 30 dagen",
+    visitors: "Bezoekers",
+    pageviews: "Paginaweergaven",
+    conversions: "Conversies",
+    conversionRate: "Conversieratio",
+    trafficTrend: "Verkeer & conversies",
+    ctaPerformance: "CTA-prestaties",
+    ctaSub: "Hoe elke call-to-action presteert",
+    impressions: "Vertoningen",
+    clicks: "Kliks",
+    ctr: "CTR",
+    convShort: "Conv.",
+    bySource: "Conversies per bron",
+    noPixel: "Nog geen websitedata",
+    noPixelBody:
+      "Zodra de LeadLayer-tracking op je site staat, zie je hier bezoekers, kliks en conversies per CTA.",
+  },
+
   // Sections
   latestReport: "Laatste rapport",
   recentLeads: "Nieuwste leads",
@@ -44,11 +64,14 @@ const nl = {
   comingNext: "Hierna gepland",
   howItWorks: "Zo werkt het",
   howSteps: [
-    { title: "Wij bouwen", copy: "Pagina's die scoren in Google, voor de klussen die jij wilt." },
+    {
+      title: "Wij bouwen",
+      copy: "Pagina's die scoren in Google, voor de opdrachten die jij wilt.",
+    },
     { title: "Jij wordt gevonden", copy: "Elke aanvraag en elk telefoontje komt hier binnen." },
     {
-      title: "Jij wint klussen",
-      copy: "Jij belt terug en haalt de klus binnen. Wij meten wat het oplevert.",
+      title: "Jij wint deals",
+      copy: "Jij volgt op en sluit de deal. Wij meten wat het oplevert.",
     },
   ],
 
@@ -61,10 +84,10 @@ const nl = {
   filterQualified: "In gesprek",
   filterWon: "Gewonnen",
   noLeads: "Nog geen leads in deze lijst.",
-  unknownCaller: "Onbekende beller",
+  unknownCaller: "Onbekend contact",
   callBack: "Bellen",
   emailBack: "Mailen",
-  wonButton: "Klus binnengehaald",
+  wonButton: "Gewonnen markeren",
   lostButton: "Niet doorgegaan",
   dismissing: "Even geduld…",
   leadDismissed: "Lead afgerond",
@@ -88,10 +111,10 @@ const nl = {
   } as Record<string, string>,
 
   // Won modal
-  wonModalTitle: "Mooi zo. Wat was de klus waard?",
+  wonModalTitle: "Mooi. Wat was de deal waard?",
   wonModalBody: (name: string) =>
-    `${name} — de kluswaarde telt mee in je omzet, zodat je ziet wat het systeem oplevert.`,
-  wonAmountLabel: "Kluswaarde (€)",
+    `${name} — de dealwaarde telt mee in je omzet, zodat je ziet wat het systeem oplevert.`,
+  wonAmountLabel: "Dealwaarde (€)",
   wonNotesLabel: "Notitie (optioneel)",
   wonNotesPlaceholder: "Soort klus, iets om te onthouden…",
   wonConfirm: "Bevestigen",
@@ -189,6 +212,25 @@ const en: typeof nl = {
   statPagesLive: "Pages live",
   vsLastMonth: (m: string) => `vs ${m}`,
 
+  analytics: {
+    last30: "Last 30 days",
+    visitors: "Visitors",
+    pageviews: "Pageviews",
+    conversions: "Conversions",
+    conversionRate: "Conversion rate",
+    trafficTrend: "Traffic & conversions",
+    ctaPerformance: "CTA performance",
+    ctaSub: "How each call-to-action performs",
+    impressions: "Impressions",
+    clicks: "Clicks",
+    ctr: "CTR",
+    convShort: "Conv.",
+    bySource: "Conversions by source",
+    noPixel: "No website data yet",
+    noPixelBody:
+      "Once the LeadLayer tracking is on your site, you'll see visitors, clicks, and conversions per CTA here.",
+  },
+
   latestReport: "Latest report",
   recentLeads: "Newest leads",
   allLeads: "All leads",
@@ -196,9 +238,9 @@ const en: typeof nl = {
   comingNext: "Coming next",
   howItWorks: "How it works",
   howSteps: [
-    { title: "We build", copy: "Pages that rank on Google, for the jobs you actually want." },
+    { title: "We build", copy: "Pages that rank on Google, for the work you actually want." },
     { title: "You get found", copy: "Every call and enquiry lands right here." },
-    { title: "You win jobs", copy: "You call back and close. We measure what it's worth." },
+    { title: "You win deals", copy: "You follow up and close. We measure what it's worth." },
   ],
 
   leadsTitle: "Leads",
@@ -209,10 +251,10 @@ const en: typeof nl = {
   filterQualified: "In progress",
   filterWon: "Won",
   noLeads: "No leads in this list yet.",
-  unknownCaller: "Unknown caller",
+  unknownCaller: "Unknown contact",
   callBack: "Call",
   emailBack: "Email",
-  wonButton: "I won this job",
+  wonButton: "Mark as won",
   lostButton: "Didn't go anywhere",
   dismissing: "One moment…",
   leadDismissed: "Lead closed",
@@ -228,10 +270,10 @@ const en: typeof nl = {
     junk: "Not relevant",
   },
 
-  wonModalTitle: "Nice one. What was it worth?",
+  wonModalTitle: "Nice. What was the deal worth?",
   wonModalBody: (name: string) =>
-    `${name} — the job value counts toward your revenue, so you see what the system pays back.`,
-  wonAmountLabel: "Job value ($)",
+    `${name} — the deal value counts toward your revenue, so you see what the system pays back.`,
+  wonAmountLabel: "Deal value ($)",
   wonNotesLabel: "Notes (optional)",
   wonNotesPlaceholder: "Type of job, anything worth remembering…",
   wonConfirm: "Confirm",

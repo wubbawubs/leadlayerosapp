@@ -11,9 +11,13 @@ import {
   Sparkles,
   BarChart3,
 } from "lucide-react";
-import { getMyClientDashboard } from "@/lib/shared/clientPortal/clientAuth.functions";
+import {
+  getMyClientDashboard,
+  getMyClientAnalytics,
+} from "@/lib/shared/clientPortal/clientAuth.functions";
 import { ClientShell } from "@/components/app/ClientShell";
 import { StatusChip, SectionLabel, useCountUp } from "@/components/client/bits";
+import { TrafficTrend, CtaPerformance, SourceBreakdown } from "@/components/client/dashboard";
 import {
   portalCopy,
   formatMoney,
@@ -23,7 +27,10 @@ import {
   monthShort,
   type PortalLocale,
 } from "@/lib/shared/clientPortal/portalCopy";
-import type { ClientPortalData } from "@/lib/shared/clientPortal/clientAuth.functions";
+import type {
+  ClientPortalData,
+  ClientAnalytics,
+} from "@/lib/shared/clientPortal/clientAuth.functions";
 
 export const Route = createFileRoute("/client/")({
   component: ClientHome,
@@ -32,13 +39,20 @@ export const Route = createFileRoute("/client/")({
 
 function ClientHome() {
   const fetchDashboard = useServerFn(getMyClientDashboard);
+  const fetchAnalytics = useServerFn(getMyClientAnalytics);
   const query = useQuery({
     queryKey: ["client-dashboard"],
     queryFn: () => fetchDashboard(),
     retry: false,
   });
+  const analyticsQuery = useQuery({
+    queryKey: ["client-analytics"],
+    queryFn: () => fetchAnalytics({ data: { days: 30 } }),
+    retry: false,
+  });
 
   const portal = query.data?.data ?? null;
+  const analytics = analyticsQuery.data?.analytics ?? null;
   const locale: PortalLocale = portal?.locale ?? "en";
   const c = portalCopy(locale);
 
@@ -72,13 +86,19 @@ function ClientHome() {
       locale={locale}
       hero={<HomeHero portal={portal} locale={locale} />}
     >
-      {/* Editorial stat band */}
-      <StatBand portal={portal} locale={locale} />
+      {/* Editorial KPI band */}
+      <StatBand portal={portal} analytics={analytics} locale={locale} />
 
       {/* Two-column layout on desktop, stack on mobile */}
       <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_320px]">
         {/* ── Main column ── */}
         <div className="min-w-0 space-y-10">
+          {/* Traffic & conversions trend */}
+          {analytics && <TrafficTrend analytics={analytics} locale={locale} />}
+
+          {/* CTA performance funnel */}
+          {analytics && <CtaPerformance analytics={analytics} locale={locale} />}
+
           {/* Newest leads */}
           {activeLeads.length > 0 && (
             <section>
@@ -139,6 +159,9 @@ function ClientHome() {
 
         {/* ── Side rail ── */}
         <aside className="space-y-8">
+          {/* Conversions by source */}
+          {analytics && <SourceBreakdown analytics={analytics} locale={locale} />}
+
           {/* Latest report */}
           {portal.reports.length > 0 && portal.reports[0].shareToken && (
             <section>
@@ -278,8 +301,17 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
 
 // ── Editorial stat band ─────────────────────────────────────────────
 
-function StatBand({ portal, locale }: { portal: ClientPortalData; locale: PortalLocale }) {
+function StatBand({
+  portal,
+  analytics,
+  locale,
+}: {
+  portal: ClientPortalData;
+  analytics: ClientAnalytics | null;
+  locale: PortalLocale;
+}) {
   const c = portalCopy(locale);
+  const a = c.analytics;
   const leadsDelta = portal.stats.leadsThisMonth - portal.stats.leadsLastMonth;
   const prevMonth = monthShort(
     new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1),
@@ -287,7 +319,7 @@ function StatBand({ portal, locale }: { portal: ClientPortalData; locale: Portal
   );
 
   return (
-    <div className="grid grid-cols-1 divide-y divide-paper-line border-y border-paper-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+    <div className="grid grid-cols-2 divide-paper-line border-y border-paper-line sm:grid-cols-4 sm:divide-x">
       <StatCell
         label={c.statLeadsMonth}
         value={String(portal.stats.leadsThisMonth)}
@@ -295,13 +327,17 @@ function StatBand({ portal, locale }: { portal: ClientPortalData; locale: Portal
         deltaLabel={c.vsLastMonth(prevMonth)}
       />
       <StatCell
+        label={a.conversionRate}
+        value={analytics ? `${analytics.totals.conversionRate}%` : "—"}
+      />
+      <StatCell
+        label={a.visitors}
+        value={analytics ? analytics.totals.sessions.toLocaleString() : "—"}
+      />
+      <StatCell
         label={c.statRevenue}
         value={formatMoney(portal.stats.provenRevenue, locale)}
         accent={portal.stats.provenRevenue > 0}
-      />
-      <StatCell
-        label={c.statPagesLive}
-        value={String(portal.stats.pagesLive + portal.stats.pagesOptimized)}
       />
     </div>
   );
@@ -332,11 +368,11 @@ function StatCell({
           : "text-ink-3";
 
   return (
-    <div className="flex items-baseline justify-between gap-3 py-5 sm:block sm:px-6 sm:py-6 sm:first:pl-0">
+    <div className="px-4 py-5 sm:px-6 sm:py-6 sm:first:pl-0">
       <p className="label-mono">{label}</p>
-      <div className="flex items-baseline gap-2.5 sm:mt-3">
+      <div className="mt-2.5 flex items-baseline gap-2.5">
         <p
-          className={`font-display text-3xl font-extrabold leading-none tracking-tight sm:text-4xl ${accent ? "text-paper-success" : "text-ink"}`}
+          className={`font-display text-3xl font-extrabold leading-none tracking-tight sm:text-[32px] ${accent ? "text-paper-success" : "text-ink"}`}
         >
           {value}
         </p>

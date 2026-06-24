@@ -147,6 +147,9 @@ export const Route = createFileRoute("/api/public/lead-ingest")({
           referrer: payload.referrer ?? null,
           service: payload.service ?? null,
           location: payload.location ?? null,
+          // Pixel attribution — lets the dashboard compute per-CTA conversion rates.
+          sessionId: payload.sessionId ?? null,
+          cta: payload.cta ?? null,
           utm: {
             source: payload.utm_source ?? null,
             medium: payload.utm_medium ?? null,

@@ -249,6 +249,45 @@ export const getMyClientDashboard = createServerFn({ method: "POST" })
   });
 
 // ------------------------------------------------------------------
+// 4b. getMyClientAnalytics — pixel-powered traffic + CTA analytics
+// ------------------------------------------------------------------
+
+export interface ClientAnalytics {
+  rangeDays: number;
+  trend: { date: string; pageviews: number; conversions: number }[];
+  ctas: {
+    cta: string;
+    impressions: number;
+    clicks: number;
+    conversions: number;
+    ctr: number;
+    conversionRate: number;
+  }[];
+  sources: { source: string; conversions: number }[];
+  totals: { pageviews: number; sessions: number; conversions: number; conversionRate: number };
+}
+
+export const getMyClientAnalytics = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ days: z.number().int().min(1).max(365).optional() }).parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { userId } = context;
+
+    const tenantId = await getClientTenantId(userId);
+    if (!tenantId) throw new Error("No client access");
+
+    const { data: analytics, error } = await admin.rpc("get_tenant_analytics", {
+      _tenant_id: tenantId,
+      _days: data.days ?? 30,
+    });
+    if (error) throw new Error(error.message);
+
+    return { analytics: analytics as ClientAnalytics };
+  });
+
+// ------------------------------------------------------------------
 // 5. markLeadWonAsClient (authenticated — client role)
 // ------------------------------------------------------------------
 

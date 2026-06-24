@@ -69,6 +69,9 @@ export const WebhookLeadPayloadSchema = z.object({
   utm_campaign: z.string().max(100).optional(),
   utm_term: z.string().max(100).optional(),
   utm_content: z.string().max(100).optional(),
+  // Pixel attribution — ties a conversion to the tracked session + CTA.
+  sessionId: z.string().max(64).optional(),
+  cta: z.string().max(80).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 export type WebhookLeadPayload = z.infer<typeof WebhookLeadPayloadSchema>;
