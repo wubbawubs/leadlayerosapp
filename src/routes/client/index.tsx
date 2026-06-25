@@ -515,7 +515,7 @@ function HeroKpi({
   return (
     <Link
       to={to}
-      className="paper-card group relative col-span-2 flex flex-col justify-between overflow-hidden p-5 transition-colors hover:border-amber/40 md:col-span-1 md:p-6"
+      className="paper-card group relative col-span-2 flex flex-col justify-between overflow-hidden p-4 transition-colors hover:border-amber/40 md:col-span-1 md:p-5"
       style={{
         backgroundImage:
           "radial-gradient(120% 100% at 100% 0%, rgba(217,119,6,0.10), transparent 55%)",
@@ -525,11 +525,11 @@ function HeroKpi({
         <span className="label-mono">{label}</span>
         <ArrowRight className="h-4 w-4 text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-deep" />
       </div>
-      <div className="mt-6">
-        <p className="font-display text-5xl font-extrabold leading-none tracking-[-0.02em] text-ink md:text-[56px]">
+      <div className="mt-4">
+        <p className="font-display text-4xl font-extrabold leading-none tracking-[-0.02em] text-ink md:text-[44px]">
           {value}
         </p>
-        <span className={`mt-3 flex items-center gap-1 text-[13px] font-semibold ${deltaColor}`}>
+        <span className={`mt-2 flex items-center gap-1 text-[13px] font-semibold ${deltaColor}`}>
           <DeltaIcon className="h-3.5 w-3.5 shrink-0" />
           {delta > 0 ? "+" : ""}
           {delta} {deltaLabel}
@@ -561,8 +561,9 @@ function SecondaryKpi({
   accent?: boolean;
   to?: "/client/leads" | "/client/pages" | "/client/reports";
 }) {
+  const isEmpty = value === "—" || value === "-";
   const inner = (
-    <div className="paper-card flex h-full flex-col justify-between p-4 transition-colors hover:border-paper-line-strong sm:p-5">
+    <div className="paper-card flex h-full flex-col justify-between p-3.5 transition-colors hover:border-paper-line-strong sm:p-4">
       <div className="flex items-center justify-between">
         <span className="label-mono">{label}</span>
         <span
@@ -572,9 +573,9 @@ function SecondaryKpi({
         </span>
       </div>
       <p
-        className={`mt-4 font-display text-[26px] font-extrabold leading-none tracking-tight sm:text-[30px] ${accent ? "text-paper-success" : "text-ink"}`}
+        className={`mt-3 font-display font-extrabold leading-none tracking-tight ${isEmpty ? "text-base text-ink-3" : "text-[22px] sm:text-[26px]"} ${accent && !isEmpty ? "text-paper-success" : isEmpty ? "" : "text-ink"}`}
       >
-        {value}
+        {isEmpty ? "Nog geen data" : value}
       </p>
     </div>
   );
