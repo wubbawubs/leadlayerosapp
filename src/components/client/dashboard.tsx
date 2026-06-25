@@ -11,11 +11,19 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  ReferenceDot,
 } from "recharts";
-import { MousePointerClick, Eye, Target } from "lucide-react";
+import { Sparkles, FilePlus, BarChart3, ArrowRight, Trophy } from "lucide-react";
 import { SectionLabel } from "@/components/client/bits";
-import { portalCopy, type PortalLocale } from "@/lib/shared/clientPortal/portalCopy";
-import type { ClientAnalytics } from "@/lib/shared/clientPortal/clientAuth.functions";
+import {
+  portalCopy,
+  formatMoney,
+  type PortalLocale,
+} from "@/lib/shared/clientPortal/portalCopy";
+import type {
+  ClientAnalytics,
+  ClientPortalData,
+} from "@/lib/shared/clientPortal/clientAuth.functions";
 
 const AMBER = "#D97706";
 const INK3 = "#8C8884";
