@@ -35,9 +35,12 @@ const SUCCESS = "#1F7A36";
 export function TrafficTrend({
   analytics,
   locale,
+  events = [],
 }: {
   analytics: ClientAnalytics;
   locale: PortalLocale;
+  /** Publish / optimization events, mapped onto trend dates as amber ticks. */
+  events?: { date: string; label: string; kind: "published" | "optimized" }[];
 }) {
   const a = portalCopy(locale).analytics;
   const data = analytics.trend.map((d) => ({
@@ -48,6 +51,13 @@ export function TrafficTrend({
   // Keep conversion bars visually secondary to the visitors area (they're
   // a much smaller absolute number) by giving the right axis headroom.
   const maxConv = Math.max(...data.map((d) => d.conversions), 1);
+
+  // Match events to chart dates (YYYY-MM-DD); only events that align with a
+  // visible trend day are rendered, so the chart can't lie.
+  const trendDates = new Set(data.map((d) => d.date));
+  const annotated = events
+    .map((e) => ({ ...e, date: e.date.slice(0, 10) }))
+    .filter((e) => trendDates.has(e.date));
 
   const fmtDay = (iso: string) =>
     new Date(iso).toLocaleDateString(locale === "nl" ? "nl-NL" : "en-GB", {
@@ -117,11 +127,25 @@ export function TrafficTrend({
                 fill="url(#llVisitors)"
                 dot={false}
               />
+              {/* Publish / optimization annotations */}
+              {annotated.map((e, i) => (
+                <ReferenceDot
+                  key={`evt-${i}`}
+                  yAxisId="left"
+                  x={e.date}
+                  y={0}
+                  r={4}
+                  fill={AMBER}
+                  stroke="#FBF7EE"
+                  strokeWidth={2}
+                  ifOverflow="visible"
+                />
+              ))}
             </ComposedChart>
           </ResponsiveContainer>
         </div>
         {/* Legend */}
-        <div className="mt-3 flex items-center gap-5 border-t border-paper-line pt-3 text-[13px]">
+        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-paper-line pt-3 text-[13px]">
           <span className="flex items-center gap-1.5 text-ink-2">
             <span className="h-2 w-2 rounded-full" style={{ background: AMBER }} /> {a.visitors}
           </span>
@@ -129,11 +153,21 @@ export function TrafficTrend({
             <span className="h-2 w-2 rounded-full" style={{ background: SUCCESS }} />{" "}
             {a.conversions}
           </span>
+          {annotated.length > 0 && (
+            <span className="flex items-center gap-1.5 text-ink-3">
+              <span
+                className="h-2 w-2 rounded-full ring-2 ring-paper"
+                style={{ background: AMBER }}
+              />
+              {locale === "nl" ? "pagina live" : "page shipped"}
+            </span>
+          )}
         </div>
       </div>
     </section>
   );
 }
+
 
 // ── CTA performance funnel ──────────────────────────────────────────
 
