@@ -152,17 +152,17 @@
   /* Fonts */
   --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-sans:    "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mono:    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-mono:    "Hanken Grotesk", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-grotesk: "Hanken Grotesk", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 
   /* ── Paper palette — brand constants from leadlayer.studio ──
    * Customer-facing surfaces only. Theme-independent.            */
   --paper-base:        #F5F0E8;   /* page background — warm cream */
-  --paper-raised:      #FBF7EE;   /* cards, headers */
-  --paper-subtle:      #EDE6D8;   /* secondary fills, chips */
-  --paper-inset:       #E8DFD0;   /* progress tracks, wells */
-  --paper-line:        #DDD4C2;   /* hairline borders */
-  --paper-line-strong: #C4B89E;   /* emphasized borders */
+  --paper-raised:      #F5F0E8;   /* cards sit flush on the page (no double-cream) */
+  --paper-subtle:      #ECE5D5;   /* secondary fills, chips */
+  --paper-inset:       #E5DCC8;   /* progress tracks, wells */
+  --paper-line:        #D8CFBC;   /* hairline borders */
+  --paper-line-strong: #BFB395;   /* emphasized borders */
 
   --ink:   #1A1A1C;               /* primary text on paper */
   --ink-2: #5A554E;               /* secondary text */
@@ -475,26 +475,20 @@
       radial-gradient(circle at 75% 70%, rgba(120,100,60,0.035), transparent 45%);
   }
 
-  /* Standard paper card — subtle elevation for figure/ground depth.
-     Light dashboards (Stripe, Linear) use a soft border + whisper shadow
-     so cards read as grouped, lifted modules instead of flat regions. */
+  /* Editorial card — sits flush on the page, defined by a hairline only.
+     No double-cream block; cards read as editorial cells, not panels. */
   .paper-card {
-    background-color: var(--paper-raised);
+    background-color: transparent;
     border: 1px solid var(--paper-line);
     border-radius: 10px;
-    box-shadow:
-      0 1px 2px rgba(26, 26, 28, 0.04),
-      0 1px 3px rgba(26, 26, 28, 0.03);
+    box-shadow: none;
   }
   a.paper-card, button.paper-card {
-    transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
   }
   a.paper-card:hover, button.paper-card:hover {
     border-color: var(--paper-line-strong);
-    transform: translateY(-1px);
-    box-shadow:
-      0 2px 4px rgba(26, 26, 28, 0.05),
-      0 6px 16px -6px rgba(26, 26, 28, 0.10);
+    background-color: rgba(255, 255, 255, 0.35);
   }
 
   /* Panel — a larger module container with stronger elevation. Use for the
