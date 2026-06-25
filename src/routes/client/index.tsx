@@ -12,7 +12,6 @@ import {
   BarChart3,
   Target,
   Eye,
-  Euro,
 } from "lucide-react";
 import {
   getMyClientDashboard,
