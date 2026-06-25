@@ -306,22 +306,6 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
             ? c.statusBehind
             : c.statusProgress;
 
-  // Sub-headline that gives the number meaning — derived from data already
-  // on the page, so it never lies.
-  const subInsight = (() => {
-    if (!target || target <= 0) return c.insightFirst;
-    const gap = target - actual;
-    if (gap <= 0) return c.insightComplete;
-    const days = goal?.daysRemaining ?? null;
-    // Expected pace = target * (1 - daysRemaining/30); over = ahead.
-    if (days != null && days > 0) {
-      const expected = Math.max(0, target * (1 - days / 30));
-      const overUnder = Math.round(actual - expected);
-      if (overUnder >= 1) return c.insightAhead(overUnder);
-      if (overUnder <= -1) return c.insightBehind(Math.abs(overUnder));
-    }
-    return c.insightOnTrack(gap);
-  })();
 
   // Primary hero CTA — picks the next most useful destination
   const heroCta = portal.reports.length > 0 && portal.reports[0].shareToken
