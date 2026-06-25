@@ -358,8 +358,6 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
           <span className="font-display text-lg font-semibold text-ink-2">{c.leadsWord}</span>
         </div>
 
-        {/* Narrative sub-headline — gives the number meaning */}
-        <p className="mt-3 max-w-md text-[15px] leading-snug text-ondark-2">{subInsight}</p>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <span

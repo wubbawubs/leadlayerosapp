@@ -451,13 +451,13 @@
   .action-dot-publish { background-color: #E8913A; }
 
   /* ── Paper surface utilities (customer-facing) ────────────── */
-  /* Mono section label — the editorial kicker from leadlayer.studio */
+  /* Soft section label — warm sans, sentence-case (no mono, no shouting) */
   .label-mono {
-    font-family: var(--font-mono);
-    font-size: 11px;
+    font-family: var(--font-grotesk);
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    text-transform: none;
     color: var(--ink-3);
   }
 
@@ -512,11 +512,11 @@
   /* Section heading — pairs the mono eyebrow with a display title so each
      section is a clear anchor (stronger hierarchy than the eyebrow alone). */
   .panel-eyebrow {
-    font-family: var(--font-mono);
-    font-size: 11px;
+    font-family: var(--font-grotesk);
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    text-transform: none;
     color: var(--amber-deep);
   }
 
