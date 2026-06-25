@@ -1,10 +1,12 @@
 /**
- * Client shell v3 — "charcoal frame, paper sheet".
+ * Client shell v4 — dark-sidebar dashboard.
  *
- * The charcoal band frames the app: brand + nav on top, an optional
- * page hero inside it (greeting, headline numbers). The paper sheet
- * slides up over the frame and carries the content. Mobile gets a
- * charcoal bottom tab bar; desktop gets inline nav in the masthead.
+ * Desktop: a fixed charcoal sidebar (brand + vertical nav + sign out) with a
+ * paper content area. Each page may pass a `hero` which renders as a charcoal
+ * header band at the top of the content — the dark sidebar + dark header frame
+ * the light dashboard, the high-end SaaS pattern (Linear / Stripe / Vercel).
+ *
+ * Mobile: sidebar collapses to a slim top bar + a charcoal bottom tab bar.
  *
  * See DESIGN.md (client surface). Copy comes from portalCopy.ts.
  */
@@ -21,6 +23,11 @@ const TABS = [
   { id: "reports", icon: FileText, to: "/client/reports" as const },
 ] as const;
 
+async function signOut() {
+  await supabase.auth.signOut();
+  window.location.href = "/login";
+}
+
 export function ClientShell({
   children,
   businessName,
@@ -35,76 +42,108 @@ export function ClientShell({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const c = portalCopy(locale);
   const tabLabel = (id: (typeof TABS)[number]["id"]) => c.tabs[id];
-
   const isActive = (to: string) => pathname === to || (to !== "/client" && pathname.startsWith(to));
 
   return (
-    <div className="paper flex min-h-screen flex-col">
-      {/* ── Charcoal frame ── */}
-      <div className="surface-charcoal">
-        {/* Masthead */}
-        <header className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <Mark className="h-7 w-7 shrink-0" />
-            <span className="truncate font-display text-base font-bold tracking-tight text-ink">
+    <div className="paper flex min-h-screen">
+      {/* ── Desktop sidebar ── */}
+      <aside className="surface-charcoal sticky top-0 hidden h-screen w-60 shrink-0 flex-col lg:flex">
+        {/* Brand */}
+        <div className="flex h-16 items-center gap-2.5 px-5">
+          <Mark className="h-7 w-7 shrink-0" />
+          <span className="truncate font-display text-[15px] font-bold tracking-tight text-ink">
+            {businessName ?? "LeadLayer"}
+          </span>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 space-y-1 px-3 pt-4">
+          {TABS.map((t) => {
+            const active = isActive(t.to);
+            return (
+              <Link
+                key={t.id}
+                to={t.to}
+                className={`relative flex items-center gap-3 rounded-[6px] px-3 py-2.5 text-[15px] font-medium transition-colors ${
+                  active
+                    ? "bg-paper-subtle text-ink"
+                    : "text-ink-2 hover:bg-paper-subtle/60 hover:text-ink"
+                }`}
+              >
+                {active && (
+                  <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-amber" />
+                )}
+                <t.icon
+                  className={`h-[18px] w-[18px] shrink-0 ${active ? "text-amber-bright" : ""}`}
+                />
+                {tabLabel(t.id)}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Footer */}
+        <div className="space-y-2 px-3 pb-4">
+          <button
+            type="button"
+            onClick={signOut}
+            className="flex w-full items-center gap-3 rounded-[6px] px-3 py-2.5 text-[15px] font-medium text-ink-2 transition-colors hover:bg-paper-subtle/60 hover:text-ink"
+          >
+            <LogOut className="h-[18px] w-[18px] shrink-0" />
+            {c.signOut}
+          </button>
+          <div className="flex items-center gap-2 px-3 pt-2">
+            <Mark className="h-3.5 w-3.5 opacity-70" />
+            <span className="text-[12px] text-ink-3">{c.poweredBy}</span>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Main column ── */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile top bar */}
+        <header className="surface-charcoal sticky top-0 z-20 flex h-14 items-center justify-between px-4 lg:hidden">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Mark className="h-6 w-6 shrink-0" />
+            <span className="truncate font-display text-sm font-bold tracking-tight text-ink">
               {businessName ?? "LeadLayer"}
             </span>
           </div>
-
-          {/* Desktop nav, inline in the masthead */}
-          <nav className="hidden items-center gap-1 sm:flex">
-            {TABS.map((t) => {
-              const active = isActive(t.to);
-              return (
-                <Link
-                  key={t.id}
-                  to={t.to}
-                  className={`relative px-4 py-2 text-[15px] font-medium transition-colors ${
-                    active ? "text-ink" : "text-ink-2 hover:text-ink"
-                  }`}
-                >
-                  {tabLabel(t.id)}
-                  {active && <span className="absolute inset-x-4 -bottom-0.5 h-0.5 bg-amber" />}
-                </Link>
-              );
-            })}
-          </nav>
-
           <button
             type="button"
-            onClick={async () => {
-              await supabase.auth.signOut();
-              window.location.href = "/login";
-            }}
-            className="flex shrink-0 items-center gap-1.5 rounded-[4px] px-2.5 py-1.5 text-sm text-ink-3 transition hover:bg-charcoal-soft hover:text-ink"
+            onClick={signOut}
+            className="flex items-center gap-1.5 rounded-[4px] px-2.5 py-1.5 text-sm text-ink-3 transition hover:text-ink"
           >
             <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">{c.signOut}</span>
           </button>
         </header>
 
-        {/* Page hero inside the frame */}
-        {hero && <div className="mx-auto w-full max-w-5xl px-5 pb-12 pt-6 sm:pt-10">{hero}</div>}
+        {/* Page hero — charcoal header band */}
+        {hero && (
+          <div className="surface-charcoal">
+            <div className="mx-auto w-full max-w-5xl px-5 pb-12 pt-8 sm:pt-10 lg:px-10">{hero}</div>
+          </div>
+        )}
+
+        {/* Content */}
+        <main
+          className={`flex-1 bg-paper paper-grain pb-28 lg:pb-0 ${hero ? "-mt-4 rounded-t-[12px] border-t border-paper-line" : ""}`}
+        >
+          <div className="page-fade-up mx-auto w-full max-w-5xl px-5 py-8 lg:px-10">{children}</div>
+
+          {/* Footer (mobile only — desktop footer lives in the sidebar) */}
+          <footer className="mx-auto w-full max-w-5xl px-5 pb-10 lg:hidden">
+            <div className="rule-hair" />
+            <div className="flex items-center gap-2 pt-4">
+              <Mark className="h-4 w-4 opacity-80" />
+              <span className="text-[13px] text-ink-3">{c.poweredBy}</span>
+            </div>
+          </footer>
+        </main>
       </div>
 
-      {/* ── Paper sheet ── */}
-      <main
-        className={`relative z-[1] flex-1 bg-paper paper-grain pb-28 sm:pb-0 ${hero ? "-mt-4 rounded-t-[10px] border-t border-paper-line" : ""}`}
-      >
-        <div className="page-fade-up mx-auto w-full max-w-5xl px-5 py-8">{children}</div>
-
-        {/* Footer */}
-        <footer className="mx-auto w-full max-w-5xl px-5 pb-10 sm:pb-8">
-          <div className="rule-hair" />
-          <div className="flex items-center gap-2 pt-4">
-            <Mark className="h-4 w-4 opacity-80" />
-            <span className="text-[13px] text-ink-3">{c.poweredBy}</span>
-          </div>
-        </footer>
-      </main>
-
-      {/* ── Mobile bottom tab bar (charcoal, matches the frame) ── */}
-      <nav className="surface-charcoal fixed bottom-0 left-0 right-0 z-10 grid grid-cols-4 border-t border-charcoal-line pb-[env(safe-area-inset-bottom)] sm:hidden">
+      {/* ── Mobile bottom tab bar ── */}
+      <nav className="surface-charcoal fixed bottom-0 left-0 right-0 z-20 grid grid-cols-4 border-t border-charcoal-line pb-[env(safe-area-inset-bottom)] lg:hidden">
         {TABS.map((t) => {
           const active = isActive(t.to);
           return (
