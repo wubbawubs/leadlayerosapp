@@ -164,6 +164,10 @@
   --paper-line:        #D8CFBC;   /* hairline borders */
   --paper-line-strong: #BFB395;   /* emphasized borders */
 
+  /* Magazine band tones — used by <DashboardBand> for editorial rhythm. */
+  --paper-deep:        #EDE5D3;   /* one step darker than base — KPI bands */
+  --paper-sage:        #ECE9DD;   /* cool cream wash — timeline / calm sections */
+
   --ink:   #1A1A1C;               /* primary text on paper */
   --ink-2: #5A554E;               /* secondary text */
   --ink-3: #8C8884;               /* tertiary text, timestamps */
