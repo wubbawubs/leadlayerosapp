@@ -552,6 +552,14 @@ function LeadAvatar({ name, source }: { name: string; source?: string | null }) 
 
 // ── Hero (rendered inside the charcoal frame) ─────────────────────
 
+/**
+ * "Cover of the report" hero. Editorial composition:
+ *  - eyebrow row (greeting + live pulse showing last lead)
+ *  - oversized goal headline as the lede sentence
+ *  - massive count + target, anchored by a full-width amber progress rail
+ *  - meta row of hairline-divided facts (status / days left / weekly delta)
+ *  - CTA pinned bottom-right, sparkline above it as a quiet rhythm chart
+ */
 function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: PortalLocale }) {
   const c = portalCopy(locale);
   const goal = portal.goal;
@@ -565,6 +573,7 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
   const isBehind = goal?.status === "behind";
   const isComplete = goal?.status === "complete";
   const statusColor = isGood ? "#7BC796" : isBehind ? "#E8B94A" : "var(--ondark-2)";
+  const statusDot = isGood ? "#7BC796" : isBehind ? "#E8B94A" : "#B5AEA3";
   const statusLabel = !goal
     ? c.statusProgress
     : goal.status === "ahead"
@@ -582,51 +591,135 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
       ? { label: c.viewLatestReport, to: "/client/reports" as const }
       : { label: c.viewLeads, to: "/client/leads" as const };
 
-  const statusTint = isGood
-    ? "rgba(123,199,150,0.16)"
-    : isBehind
-      ? "rgba(232,185,74,0.16)"
-      : "rgba(255,255,255,0.08)";
+  // Progress rail: actual vs target if there's a goal, otherwise vs last month.
+  const percent =
+    target && target > 0
+      ? Math.min(100, Math.round((actual / target) * 100))
+      : Math.min(100, Math.round(goal?.progressPercent ?? 0));
+
+  // Lede sentence — prefer the configured goal title, otherwise generate one.
+  const lede =
+    goal?.title ??
+    (locale === "nl"
+      ? "Nieuwe klanten deze maand"
+      : "New customers this month");
+
+  // Weekly delta (this week vs last 7 days prior) — small but factual.
+  const now = Date.now();
+  const wk = 7 * 24 * 3600 * 1000;
+  let thisWeek = 0;
+  let prevWeek = 0;
+  for (const l of portal.leads) {
+    if (l.status === "junk") continue;
+    const age = now - new Date(l.createdAt).getTime();
+    if (age < wk) thisWeek++;
+    else if (age < 2 * wk) prevWeek++;
+  }
+  const weekDelta = thisWeek - prevWeek;
+
+  // "Last lead X ago" — live pulse signalling activity. Hidden if no leads.
+  const mostRecent = portal.leads
+    .filter((l) => l.status !== "junk")
+    .map((l) => new Date(l.createdAt).getTime())
+    .sort((a, b) => b - a)[0];
 
   return (
-    <div className="flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
-      <div className="min-w-0">
+    <div className="flex flex-col gap-8">
+      {/* Row 1 — eyebrow + live pulse */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="label-mono">
           {greeting(locale)} · {formatDayline(locale)}
         </p>
-
-        {goal?.title && <p className="mt-4 text-[15px] text-ink-2">{goal.title}</p>}
-
-        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3">
-          <span className="font-display text-5xl font-extrabold leading-none tracking-[-0.03em] text-ink sm:text-6xl">
-            <span className="text-amber-bright">{animated}</span>
-            {target != null && <span className="text-ink-2"> / {target}</span>}
-          </span>
-          <span className="font-display text-lg font-semibold text-ink-2">{c.leadsWord}</span>
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <span
-            className={`rounded-full px-3 py-1 text-[13px] font-semibold ${isComplete ? "animate-pulse-soft" : ""}`}
-            style={{ color: statusColor, backgroundColor: statusTint }}
-          >
-            {statusLabel}
-          </span>
-          {goal?.daysRemaining != null && (
-            <span className="text-sm text-ink-3">{c.daysLeft(goal.daysRemaining)}</span>
-          )}
-          <Link
-            to={heroCta.to}
-            className="ml-1 flex items-center gap-1.5 rounded-[6px] bg-amber px-3.5 py-1.5 text-[13px] font-semibold text-paper transition-colors hover:bg-amber-deep"
-          >
-            {heroCta.label}
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
+        {mostRecent && (
+          <div className="flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[12px] text-ondark-2">
+            <span className="relative flex h-1.5 w-1.5">
+              <span
+                className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
+                style={{ backgroundColor: "#E85D04" }}
+              />
+              <span
+                className="relative inline-flex h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: "#E85D04" }}
+              />
+            </span>
+            {locale === "nl" ? "Laatste lead" : "Last lead"}{" "}
+            <span className="text-ink">
+              {formatRelative(new Date(mostRecent).toISOString(), locale)}
+            </span>
+          </div>
+        )}
       </div>
 
-      <div className="hidden shrink-0 sm:block">
-        <HeroSparkline leads={portal.leads} locale={locale} />
+      {/* Row 2 — lede + huge number */}
+      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:gap-12">
+        <div className="min-w-0">
+          <h1 className="font-display text-[28px] font-extrabold leading-[1.05] tracking-[-0.02em] text-ink sm:text-[34px]">
+            {lede}
+          </h1>
+
+          <div className="mt-6 flex items-baseline gap-4">
+            <span className="font-display text-[88px] font-extrabold leading-[0.85] tracking-[-0.04em] text-ink sm:text-[112px]">
+              <span className="text-amber-bright">{animated}</span>
+              {target != null && (
+                <span className="ml-2 text-[40px] font-bold text-ondark-3 sm:text-[52px]">
+                  / {target}
+                </span>
+              )}
+            </span>
+          </div>
+
+          {/* Full-width progress rail */}
+          <div className="mt-6">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
+              <div
+                className={`h-full rounded-full bg-amber transition-[width] duration-[900ms] ease-out ${isComplete ? "animate-pulse-soft" : ""}`}
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[12px] font-medium text-ondark-3">
+              <span>{percent}% {c.ofGoal}</span>
+              {goal?.daysRemaining != null && (
+                <span>{c.daysLeft(goal.daysRemaining)}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Hairline meta row + primary CTA */}
+          <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
+            <span
+              className="flex items-center gap-2 text-[13px] font-semibold"
+              style={{ color: statusColor }}
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: statusDot }}
+              />
+              {statusLabel}
+            </span>
+            <span className="h-3 w-px bg-white/10" />
+            <span className="text-[13px] text-ondark-2">
+              {weekDelta >= 0 ? "+" : ""}
+              {weekDelta}{" "}
+              <span className="text-ondark-3">
+                {locale === "nl" ? "vs vorige week" : "vs last week"}
+              </span>
+            </span>
+            <Link
+              to={heroCta.to}
+              className="ml-auto flex items-center gap-1.5 rounded-[6px] bg-amber px-4 py-2 text-[13px] font-semibold text-paper transition-colors hover:bg-amber-deep"
+            >
+              {heroCta.label}
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Right — sparkline panel, sits as a quiet rhythm chart */}
+        <div className="hidden lg:flex lg:flex-col lg:justify-end lg:pb-2">
+          <div className="rounded-[6px] border border-white/8 bg-white/[0.03] p-5">
+            <HeroSparkline leads={portal.leads} locale={locale} />
+          </div>
+        </div>
       </div>
     </div>
   );
