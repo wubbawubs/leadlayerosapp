@@ -506,14 +506,18 @@ function HeroKpi({
         <ArrowRight className="h-4 w-4 text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-deep" />
       </div>
       <div className="mt-4">
-        <p className="font-display text-4xl font-extrabold leading-none tracking-[-0.02em] text-ink md:text-[44px]">
+        <p
+          className={`font-display text-4xl font-extrabold leading-none tracking-[-0.02em] md:text-[44px] ${accent ? "text-paper-success" : "text-ink"}`}
+        >
           {value}
         </p>
-        <span className={`mt-2 flex items-center gap-1 text-[13px] font-semibold ${deltaColor}`}>
-          <DeltaIcon className="h-3.5 w-3.5 shrink-0" />
-          {delta > 0 ? "+" : ""}
-          {delta} {deltaLabel}
-        </span>
+        {delta !== 0 && (
+          <span className={`mt-2 flex items-center gap-1 text-[13px] font-semibold ${deltaColor}`}>
+            <DeltaIcon className="h-3.5 w-3.5 shrink-0" />
+            {delta > 0 ? "+" : ""}
+            {delta} {deltaLabel}
+          </span>
+        )}
       </div>
     </Link>
   );
