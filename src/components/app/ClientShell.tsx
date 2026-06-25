@@ -118,10 +118,19 @@ export function ClientShell({
           </button>
         </header>
 
-        {/* Page hero — charcoal header band */}
+        {/* Page hero — charcoal header band with a warm amber glow filling
+            the open space (otherwise it reads as a dead grey void). */}
         {hero && (
-          <div className="surface-charcoal">
-            <div className="mx-auto w-full max-w-5xl px-5 pb-10 pt-7 sm:pt-9 lg:px-10">{hero}</div>
+          <div
+            className="surface-charcoal"
+            style={{
+              backgroundImage:
+                "radial-gradient(80% 140% at 88% -20%, rgba(217,119,6,0.16), transparent 60%)",
+            }}
+          >
+            <div className="mx-auto w-full max-w-[1600px] px-5 pb-10 pt-7 sm:pt-9 lg:px-10">
+              {hero}
+            </div>
           </div>
         )}
 
@@ -129,10 +138,12 @@ export function ClientShell({
         <main
           className={`flex-1 bg-paper paper-grain pb-28 lg:pb-0 ${hero ? "-mt-4 rounded-t-[12px] border-t border-paper-line" : ""}`}
         >
-          <div className="page-fade-up mx-auto w-full max-w-5xl px-5 py-8 lg:px-10">{children}</div>
+          <div className="page-fade-up mx-auto w-full max-w-[1600px] px-5 py-8 lg:px-10">
+            {children}
+          </div>
 
           {/* Footer (mobile only — desktop footer lives in the sidebar) */}
-          <footer className="mx-auto w-full max-w-5xl px-5 pb-10 lg:hidden">
+          <footer className="mx-auto w-full max-w-[1600px] px-5 pb-10 lg:hidden">
             <div className="rule-hair" />
             <div className="flex items-center gap-2 pt-4">
               <Mark className="h-4 w-4 opacity-80" />

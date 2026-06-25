@@ -28,6 +28,7 @@ const nl = {
   statusBehind: "Nog niet op schema — wij zitten erbovenop",
   statusComplete: "Doel gehaald",
   statusProgress: "In volle gang",
+  ofGoal: "van doel",
   daysLeft: (d: number) => `nog ${d} ${d === 1 ? "dag" : "dagen"}`,
 
   // Stats
@@ -219,6 +220,7 @@ const en: typeof nl = {
   statusBehind: "Not on pace yet — we're on it",
   statusComplete: "Goal reached",
   statusProgress: "In full swing",
+  ofGoal: "of goal",
   daysLeft: (d: number) => `${d} ${d === 1 ? "day" : "days"} left`,
 
   statLeadsMonth: "Leads this month",

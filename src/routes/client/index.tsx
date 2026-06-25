@@ -261,43 +261,90 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
             ? c.statusBehind
             : c.statusProgress;
 
+  // Ring mirrors the headline fraction (actual/target) so it can't contradict
+  // the "7 / 8" shown next to it; falls back to the goal's own progress.
+  const percent =
+    target && target > 0
+      ? Math.min(100, Math.round((actual / target) * 100))
+      : Math.min(100, Math.round(goal?.progressPercent ?? 0));
+  const statusTint = isGood
+    ? "rgba(123,199,150,0.16)"
+    : isBehind
+      ? "rgba(232,185,74,0.16)"
+      : "rgba(255,255,255,0.08)";
+
   return (
-    <div>
-      <p className="label-mono">
-        {greeting(locale)} · {formatDayline(locale)}
-      </p>
+    <div className="flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
+      {/* Left — greeting + goal */}
+      <div className="min-w-0">
+        <p className="label-mono">
+          {greeting(locale)} · {formatDayline(locale)}
+        </p>
 
-      {goal?.title && <p className="mt-4 text-[15px] text-ink-2">{goal.title}</p>}
+        {goal?.title && <p className="mt-4 text-[15px] text-ink-2">{goal.title}</p>}
 
-      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3">
-        <span className="font-display text-5xl font-extrabold leading-none tracking-[-0.03em] text-ink sm:text-6xl">
-          <span className="text-amber-bright">{animated}</span>
-          {target != null && <span className="text-ink-2"> / {target}</span>}
-        </span>
-        <span className="font-display text-lg font-semibold text-ink-2">{c.leadsWord}</span>
-      </div>
-
-      {/* Progress to goal */}
-      <div className="mt-5 max-w-xl">
-        <div className="h-2 overflow-hidden rounded-full bg-paper-inset">
-          <div
-            className="progress-fill h-full rounded-full"
-            style={
-              {
-                "--progress-target": `${Math.min(100, goal?.progressPercent ?? 0)}%`,
-                background: "var(--amber)",
-              } as React.CSSProperties
-            }
-          />
+        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3">
+          <span className="font-display text-5xl font-extrabold leading-none tracking-[-0.03em] text-ink sm:text-6xl">
+            <span className="text-amber-bright">{animated}</span>
+            {target != null && <span className="text-ink-2"> / {target}</span>}
+          </span>
+          <span className="font-display text-lg font-semibold text-ink-2">{c.leadsWord}</span>
         </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[15px] font-semibold" style={{ color: statusColor }}>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <span
+            className="rounded-full px-3 py-1 text-[13px] font-semibold"
+            style={{ color: statusColor, backgroundColor: statusTint }}
+          >
             {statusLabel}
           </span>
           {goal?.daysRemaining != null && (
             <span className="text-sm text-ink-3">{c.daysLeft(goal.daysRemaining)}</span>
           )}
         </div>
+      </div>
+
+      {/* Right — goal progress ring */}
+      <div className="shrink-0">
+        <GoalRing percent={percent} label={c.ofGoal} />
+      </div>
+    </div>
+  );
+}
+
+function GoalRing({ percent, label }: { percent: number; label: string }) {
+  const r = 54;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - percent / 100);
+  return (
+    <div className="relative h-36 w-36">
+      <svg viewBox="0 0 128 128" className="h-36 w-36 -rotate-90">
+        <circle
+          cx="64"
+          cy="64"
+          r={r}
+          fill="none"
+          stroke="rgba(255,255,255,0.08)"
+          strokeWidth="12"
+        />
+        <circle
+          cx="64"
+          cy="64"
+          r={r}
+          fill="none"
+          stroke="var(--amber)"
+          strokeWidth="12"
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 0.9s cubic-bezier(0.16,1,0.3,1)" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-display text-3xl font-extrabold leading-none text-ink">
+          {percent}%
+        </span>
+        <span className="label-mono mt-1">{label}</span>
       </div>
     </div>
   );
@@ -325,6 +372,7 @@ function StatBand({
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
       <KpiCard
+        tone="amber"
         icon={<Users className="h-4 w-4" />}
         label={c.statLeadsMonth}
         value={String(portal.stats.leadsThisMonth)}
@@ -332,16 +380,19 @@ function StatBand({
         deltaLabel={c.vsLastMonth(prevMonth)}
       />
       <KpiCard
+        tone="info"
         icon={<Target className="h-4 w-4" />}
         label={a.conversionRate}
         value={analytics ? `${analytics.totals.conversionRate}%` : "—"}
       />
       <KpiCard
+        tone="neutral"
         icon={<Eye className="h-4 w-4" />}
         label={a.visitors}
         value={analytics ? analytics.totals.sessions.toLocaleString() : "—"}
       />
       <KpiCard
+        tone="success"
         icon={<Euro className="h-4 w-4" />}
         label={c.statRevenue}
         value={formatMoney(portal.stats.provenRevenue, locale)}
@@ -351,10 +402,18 @@ function StatBand({
   );
 }
 
+const KPI_TONE: Record<string, string> = {
+  amber: "bg-[rgba(217,119,6,0.12)] text-amber-deep",
+  info: "bg-[rgba(47,90,117,0.10)] text-paper-info",
+  success: "bg-[rgba(31,122,54,0.12)] text-paper-success",
+  neutral: "bg-paper-subtle text-ink-3",
+};
+
 function KpiCard({
   icon,
   label,
   value,
+  tone = "neutral",
   accent = false,
   delta,
   deltaLabel,
@@ -362,6 +421,7 @@ function KpiCard({
   icon: React.ReactNode;
   label: string;
   value: string;
+  tone?: "amber" | "info" | "success" | "neutral";
   accent?: boolean;
   delta?: number;
   deltaLabel?: string;
@@ -382,7 +442,7 @@ function KpiCard({
       <div className="flex items-center justify-between">
         <span className="label-mono">{label}</span>
         <span
-          className={`flex h-7 w-7 items-center justify-center rounded-[8px] ${accent ? "bg-[rgba(31,122,54,0.12)] text-paper-success" : "bg-paper-subtle text-ink-3"}`}
+          className={`flex h-7 w-7 items-center justify-center rounded-[8px] ${KPI_TONE[tone]}`}
         >
           {icon}
         </span>
