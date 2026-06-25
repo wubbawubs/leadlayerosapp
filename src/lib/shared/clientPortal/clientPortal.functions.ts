@@ -260,11 +260,26 @@ export const markLeadWonFromPortal = createServerFn({ method: "POST" })
 
 // Shared data assembly — called by both token-based portal and authenticated dashboard
 export async function assembleClientData(tenantId: string): Promise<ClientPortalData | null> {
-  const { data: tenantRow } = await admin
+  let { data: tenantRow, error: tenantError } = await admin
     .from("tenants")
     .select("name, geo, portal_token_created_at")
     .eq("id", tenantId)
     .maybeSingle();
+
+  // Some older demo databases predate the public portal token columns. The
+  // authenticated /client dashboard does not need a token, so fall back to the
+  // base tenant fields instead of rendering the empty-state for a valid client.
+  if (tenantError) {
+    const fallback = await admin
+      .from("tenants")
+      .select("name, geo")
+      .eq("id", tenantId)
+      .maybeSingle();
+    tenantRow = fallback.data;
+    tenantError = fallback.error;
+  }
+
+  if (tenantError) return null;
   if (!tenantRow) return null;
 
   const businessName = (tenantRow.name as string) || "Your business";
@@ -274,7 +289,9 @@ export async function assembleClientData(tenantId: string): Promise<ClientPortal
     tenantId,
     businessName,
     locale,
-    (tenantRow.portal_token_created_at as string | null) ?? null,
+    ("portal_token_created_at" in tenantRow
+      ? (tenantRow.portal_token_created_at as string | null)
+      : null) ?? null,
   );
 }
 
