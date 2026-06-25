@@ -33,16 +33,21 @@ export function ClientShell({
   businessName,
   locale = "en",
   hero,
+  bleed = false,
 }: {
   children: React.ReactNode;
   businessName?: string;
   locale?: PortalLocale;
   hero?: React.ReactNode;
+  /** When true, the page renders its own full-bleed `<DashboardBand>`s and
+   *  ClientShell skips the centered max-width wrapper around children. */
+  bleed?: boolean;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const c = portalCopy(locale);
   const tabLabel = (id: (typeof TABS)[number]["id"]) => c.tabs[id];
   const isActive = (to: string) => pathname === to || (to !== "/client" && pathname.startsWith(to));
+
 
   return (
     <div className="paper flex min-h-screen">
@@ -137,9 +142,16 @@ export function ClientShell({
         {/* Content — pages render full-bleed <DashboardBand>s directly so
             section background colors can change without breaking the gutter. */}
         <main
-          className={`flex-1 bg-paper pb-28 lg:pb-0 ${hero ? "" : ""}`}
+          className={`flex-1 bg-paper pb-28 lg:pb-0 ${bleed ? "" : "paper-grain"}`}
         >
-          <div className="page-fade-up">{children}</div>
+          {bleed ? (
+            <div className="page-fade-up">{children}</div>
+          ) : (
+            <div className="page-fade-up mx-auto w-full max-w-[1600px] px-5 py-8 lg:px-10">
+              {children}
+            </div>
+          )}
+
 
           {/* Footer (mobile only — desktop footer lives in the sidebar) */}
           <footer className="mx-auto w-full max-w-[1600px] px-5 pb-10 lg:hidden">
