@@ -1326,6 +1326,8 @@ export type Database = {
       leads: {
         Row: {
           attribution: Json | null
+          closed_amount: number | null
+          closed_at: string | null
           created_at: string
           email: string | null
           id: string
@@ -1337,9 +1339,12 @@ export type Database = {
           status: Database["public"]["Enums"]["lead_status"]
           tenant_id: string
           updated_at: string
+          won_notes: string | null
         }
         Insert: {
           attribution?: Json | null
+          closed_amount?: number | null
+          closed_at?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -1351,9 +1356,12 @@ export type Database = {
           status?: Database["public"]["Enums"]["lead_status"]
           tenant_id: string
           updated_at?: string
+          won_notes?: string | null
         }
         Update: {
           attribution?: Json | null
+          closed_amount?: number | null
+          closed_at?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -1365,6 +1373,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["lead_status"]
           tenant_id?: string
           updated_at?: string
+          won_notes?: string | null
         }
         Relationships: [
           {
