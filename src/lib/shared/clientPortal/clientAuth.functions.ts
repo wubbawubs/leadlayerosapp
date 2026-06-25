@@ -282,7 +282,9 @@ export const getMyClientAnalytics = createServerFn({ method: "POST" })
       _tenant_id: tenantId,
       _days: data.days ?? 30,
     });
-    if (error) throw new Error(error.message);
+    // Soft-fail: if the analytics RPC is missing or errors, return null so the
+    // dashboard renders without a runtime error toast.
+    if (error) return { analytics: null as unknown as ClientAnalytics };
 
     return { analytics: analytics as ClientAnalytics };
   });

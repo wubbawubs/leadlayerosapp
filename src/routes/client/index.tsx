@@ -306,22 +306,6 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
             ? c.statusBehind
             : c.statusProgress;
 
-  // Sub-headline that gives the number meaning — derived from data already
-  // on the page, so it never lies.
-  const subInsight = (() => {
-    if (!target || target <= 0) return c.insightFirst;
-    const gap = target - actual;
-    if (gap <= 0) return c.insightComplete;
-    const days = goal?.daysRemaining ?? null;
-    // Expected pace = target * (1 - daysRemaining/30); over = ahead.
-    if (days != null && days > 0) {
-      const expected = Math.max(0, target * (1 - days / 30));
-      const overUnder = Math.round(actual - expected);
-      if (overUnder >= 1) return c.insightAhead(overUnder);
-      if (overUnder <= -1) return c.insightBehind(Math.abs(overUnder));
-    }
-    return c.insightOnTrack(gap);
-  })();
 
   // Primary hero CTA — picks the next most useful destination
   const heroCta = portal.reports.length > 0 && portal.reports[0].shareToken
@@ -358,8 +342,6 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
           <span className="font-display text-lg font-semibold text-ink-2">{c.leadsWord}</span>
         </div>
 
-        {/* Narrative sub-headline — gives the number meaning */}
-        <p className="mt-3 max-w-md text-[15px] leading-snug text-ondark-2">{subInsight}</p>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <span
@@ -517,7 +499,7 @@ function HeroKpi({
   return (
     <Link
       to={to}
-      className="paper-card group relative col-span-2 flex flex-col justify-between overflow-hidden p-5 transition-colors hover:border-amber/40 md:col-span-1 md:p-6"
+      className="paper-card group relative col-span-2 flex flex-col justify-between overflow-hidden p-4 transition-colors hover:border-amber/40 md:col-span-1 md:p-5"
       style={{
         backgroundImage:
           "radial-gradient(120% 100% at 100% 0%, rgba(217,119,6,0.10), transparent 55%)",
@@ -527,11 +509,11 @@ function HeroKpi({
         <span className="label-mono">{label}</span>
         <ArrowRight className="h-4 w-4 text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-deep" />
       </div>
-      <div className="mt-6">
-        <p className="font-display text-5xl font-extrabold leading-none tracking-[-0.02em] text-ink md:text-[56px]">
+      <div className="mt-4">
+        <p className="font-display text-4xl font-extrabold leading-none tracking-[-0.02em] text-ink md:text-[44px]">
           {value}
         </p>
-        <span className={`mt-3 flex items-center gap-1 text-[13px] font-semibold ${deltaColor}`}>
+        <span className={`mt-2 flex items-center gap-1 text-[13px] font-semibold ${deltaColor}`}>
           <DeltaIcon className="h-3.5 w-3.5 shrink-0" />
           {delta > 0 ? "+" : ""}
           {delta} {deltaLabel}
@@ -563,8 +545,9 @@ function SecondaryKpi({
   accent?: boolean;
   to?: "/client/leads" | "/client/pages" | "/client/reports";
 }) {
+  const isEmpty = value === "—" || value === "-";
   const inner = (
-    <div className="paper-card flex h-full flex-col justify-between p-4 transition-colors hover:border-paper-line-strong sm:p-5">
+    <div className="paper-card flex h-full flex-col justify-between p-3.5 transition-colors hover:border-paper-line-strong sm:p-4">
       <div className="flex items-center justify-between">
         <span className="label-mono">{label}</span>
         <span
@@ -574,9 +557,9 @@ function SecondaryKpi({
         </span>
       </div>
       <p
-        className={`mt-4 font-display text-[26px] font-extrabold leading-none tracking-tight sm:text-[30px] ${accent ? "text-paper-success" : "text-ink"}`}
+        className={`mt-3 font-display font-extrabold leading-none tracking-tight ${isEmpty ? "text-base text-ink-3" : "text-[22px] sm:text-[26px]"} ${accent && !isEmpty ? "text-paper-success" : isEmpty ? "" : "text-ink"}`}
       >
-        {value}
+        {isEmpty ? "Nog geen data" : value}
       </p>
     </div>
   );
