@@ -76,6 +76,44 @@ const nl = {
     },
   ],
 
+  // Hero insight sub-headlines (one is shown under the count-up)
+  insightAhead: (n: number) => `Je ligt ${n} ${n === 1 ? "lead" : "leads"} boven je tempo.`,
+  insightBehind: (gap: number) =>
+    `Nog ${gap} ${gap === 1 ? "lead" : "leads"} nodig om op pace te komen.`,
+  insightOnTrack: (left: number) =>
+    `Op tempo — nog ${left} ${left === 1 ? "lead" : "leads"} te gaan.`,
+  insightComplete: "Doel binnen. We pakken al door op volgende maand.",
+  insightFirst: "Eerste maand. We meten alles wat binnenkomt.",
+  insightBestDay: (label: string, n: number) =>
+    `Beste dag tot nu: ${label} · ${n} ${n === 1 ? "lead" : "leads"}.`,
+
+  // Hero CTAs
+  viewLeads: "Bekijk leads",
+  viewLatestReport: "Lees laatste rapport",
+  viewPages: "Bekijk pagina's",
+
+  // Story section ("This month at {Business}")
+  storyTitle: (name: string) => `Deze maand bij ${name}`,
+  storyTopSource: (label: string, n: number) =>
+    `Meeste leads via ${label} — ${n} deze maand.`,
+  storyTopCta: (cta: string, rate: number) =>
+    `'${cta}' is je sterkste CTA met ${rate}% conversie.`,
+  storyBiggestWin: (amount: string) => `Grootste binnengehaalde deal: ${amount}.`,
+  storyPagesShipped: (n: number) =>
+    `${n} ${n === 1 ? "pagina" : "pagina's"} live of bijgewerkt deze maand.`,
+  storyMomentum: (n: number, prev: number) =>
+    `${n} leads deze maand, ${n - prev >= 0 ? "+" : ""}${n - prev} t.o.v. vorige.`,
+  storyNoData: "We zijn nog aan het verzamelen. De eerste signalen komen snel.",
+
+  // Just-won banner
+  justWonBanner: (name: string, amount: string) =>
+    `Net binnen: ${name} · ${amount} gewonnen.`,
+
+  // Mini-spark
+  weeklySpark: "Leads / week",
+  weeklySparkSub: "Laatste 4 weken",
+  pace: "Tempo",
+
   // Leads page
   leadsTitle: "Leads",
   leadsTotal: (n: number) => `${n} totaal`,
