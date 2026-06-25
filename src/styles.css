@@ -68,6 +68,8 @@
   --color-paper-raised: var(--paper-raised);
   --color-paper-subtle: var(--paper-subtle);
   --color-paper-inset: var(--paper-inset);
+  --color-paper-deep: var(--paper-deep);
+  --color-paper-sage: var(--paper-sage);
   --color-paper-line: var(--paper-line);
   --color-paper-line-strong: var(--paper-line-strong);
   --color-ink: var(--ink);
@@ -437,6 +439,15 @@
     background-image: radial-gradient(rgba(232,145,58,0.035) 1px, transparent 1px);
     background-size: 32px 32px;
   }
+
+  /* Soft dot grid for white data bands — gives the chart band texture
+     without competing with the data ink. */
+  .band-grid {
+    background-image: radial-gradient(rgba(180,140,80,0.08) 1px, transparent 1px);
+    background-size: 22px 22px;
+    background-position: 0 0;
+  }
+
 
   /* ── Surface utilities (operator dark — surface ladder) ───── */
   /* Use these instead of bg-card/bg-secondary in operator views */
