@@ -12,7 +12,6 @@ import {
   BarChart3,
   Target,
   Eye,
-  Euro,
 } from "lucide-react";
 import {
   getMyClientDashboard,
@@ -445,14 +444,16 @@ function StatBand({
   );
 
   return (
-    <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:gap-4">
-      {/* Hero KPI — Leads MTD, large, primary */}
+    <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr] md:gap-4">
+      {/* Hero KPI — Proven revenue (the outcome that matters). Hero band
+          above already owns "leads this month", so we don't repeat it here. */}
       <HeroKpi
-        label={c.statLeadsMonth}
-        value={portal.stats.leadsThisMonth}
+        label={c.statRevenue}
+        value={formatMoney(portal.stats.provenRevenue, locale)}
         delta={leadsDelta}
         deltaLabel={c.vsLastMonth(prevMonth)}
         to="/client/leads"
+        accent
       />
 
       <SecondaryKpi
@@ -467,14 +468,6 @@ function StatBand({
         value={analytics ? analytics.totals.sessions.toLocaleString() : "—"}
         tone="neutral"
       />
-      <SecondaryKpi
-        icon={<Euro className="h-4 w-4" />}
-        label={c.statRevenue}
-        value={formatMoney(portal.stats.provenRevenue, locale)}
-        tone="success"
-        accent={portal.stats.provenRevenue > 0}
-        to="/client/leads"
-      />
     </div>
   );
 }
@@ -485,12 +478,14 @@ function HeroKpi({
   delta,
   deltaLabel,
   to,
+  accent = false,
 }: {
   label: string;
-  value: number;
+  value: string | number;
   delta: number;
   deltaLabel: string;
   to: "/client/leads";
+  accent?: boolean;
 }) {
   const DeltaIcon = delta > 0 ? TrendingUp : delta < 0 ? TrendingDown : Minus;
   const deltaColor =
@@ -510,14 +505,18 @@ function HeroKpi({
         <ArrowRight className="h-4 w-4 text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-deep" />
       </div>
       <div className="mt-4">
-        <p className="font-display text-4xl font-extrabold leading-none tracking-[-0.02em] text-ink md:text-[44px]">
+        <p
+          className={`font-display text-4xl font-extrabold leading-none tracking-[-0.02em] md:text-[44px] ${accent ? "text-paper-success" : "text-ink"}`}
+        >
           {value}
         </p>
-        <span className={`mt-2 flex items-center gap-1 text-[13px] font-semibold ${deltaColor}`}>
-          <DeltaIcon className="h-3.5 w-3.5 shrink-0" />
-          {delta > 0 ? "+" : ""}
-          {delta} {deltaLabel}
-        </span>
+        {delta !== 0 && (
+          <span className={`mt-2 flex items-center gap-1 text-[13px] font-semibold ${deltaColor}`}>
+            <DeltaIcon className="h-3.5 w-3.5 shrink-0" />
+            {delta > 0 ? "+" : ""}
+            {delta} {deltaLabel}
+          </span>
+        )}
       </div>
     </Link>
   );
