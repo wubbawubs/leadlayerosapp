@@ -393,6 +393,16 @@
   to { width: var(--progress-target); }
 }
 
+/* Gentle attention pulse for celebrate states (goal complete, just-won) */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.78; }
+}
+.animate-pulse-soft {
+  animation: pulse-soft 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+
 /* ================================================================
    UTILITIES
    ================================================================ */
