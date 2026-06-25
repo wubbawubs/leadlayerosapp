@@ -13,7 +13,7 @@ import {
   Tooltip,
   ReferenceDot,
 } from "recharts";
-import { Sparkles, FilePlus, BarChart3, ArrowRight, Trophy } from "lucide-react";
+import { Sparkles, FilePlus, BarChart3, ArrowRight, Trophy, Eye, MousePointerClick, Target } from "lucide-react";
 import { SectionLabel } from "@/components/client/bits";
 import {
   portalCopy,
