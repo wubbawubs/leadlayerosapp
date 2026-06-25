@@ -1,102 +1,99 @@
-# Audit — /client (klantportaal)
 
-## Wat er nu staat
+# Client Dashboard — Magazine Layout & Section Contrast
 
-**Shell** (`ClientShell.tsx`)
+## Probleem
 
-- Linker charcoal sidebar (brand + 4 tabs + sign out) + paper content area.
-- Charcoal hero band met radiale amber glow.
-- Mobile: charcoal topbar + bottom tab bar.
+Het dashboard is technisch correct, maar visueel leest het als één doorlopend cream vel met hairlines erin. Geen ritme, geen "ik ben in een nieuwe sectie" gevoel, geen beeld. Voor een klantportaal dat als een **maandelijks rapport** moet aanvoelen, is dat te plat.
 
-**Home** (`/client`)
+## Richting (gekozen door jou)
 
-- Hero: greeting, goal titel, animated count-up `{actual} / {target}`, status chip, goal ring (SVG, 9 sec ease).
-- Stat band: 4 KPI cards (Leads MTD met delta, Conversie %, Visitors, Revenue).
-- Hoofdkolom: Traffic trend (area + bar, recharts), CTA performance funnel, Newest leads, Activity timeline.
-- Side rail: Source breakdown, latest report link, "Coming next", "How it works".
+- **Scheidingsstijl:** beeld & kleurcontrast tussen secties
+- **Sfeer:** rapport / magazine (editorial, warm, ruimte voor verhaal)
 
-Backend dekt het: `getMyClientDashboard` + `getMyClientAnalytics`.
+De charcoal hero blijft. Daaronder krijgt elke logische sectie z'n eigen "band" met een eigen achtergrondtint, zodat de pagina leest als opeenvolgende hoofdstukken in een gedrukt rapport.
 
-## Wat er goed werkt
+## Sectie-ritme (van boven naar beneden)
 
-- Sterke merkidentiteit (paper + charcoal + amber, mono labels).
-- Hero is editorial en emotioneel (count-up + ring).
-- Real-data wiring, geen fake placeholders.
-- i18n via `portalCopy` (en/nl).
+```text
+┌──────────────────────────────────────────────────┐
+│  CHARCOAL HERO  (greeting + goal + ring)         │  donker
+├──────────────────────────────────────────────────┤
+│  ░ Won banner (optioneel, groen wash)            │  groen accent
+├──────────────────────────────────────────────────┤
+│  ▓▓ KPI BAND — diepe cream + amber wash          │  warm accent
+│     omzet groot, conversie/bezoekers secundair   │
+├──────────────────────────────────────────────────┤
+│  PAPER — Story highlights (editorial copy)       │  licht cream
+│  + drop cap, pull quote, kolombreedte ~640px     │
+├──────────────────────────────────────────────────┤
+│  ▓▓ TREND BAND — wit met fijne grid              │  wit
+│     traffic chart + publish annotaties           │
+├──────────────────────────────────────────────────┤
+│  PAPER — Recent leads (cards met avatar-initial) │  licht cream
+├──────────────────────────────────────────────────┤
+│  ░░ TIMELINE BAND — donkere cream / sage         │  koel accent
+│     "Wat we deden" als magazine-lijst            │
+├──────────────────────────────────────────────────┤
+│  PAPER — side rail content (report / next up)    │  licht cream
+└──────────────────────────────────────────────────┘
+```
 
-## Wat het tegenhoudt om "next level" te zijn
+Elke band is **full-bleed** (loopt van rand tot rand binnen de main column) met een eigen achtergrond. Inhoud blijft gecentreerd in dezelfde max-width. Dat is de magazine-move: de "papierkleur" verandert, de typografie-as blijft staan.
 
-1. **Hero is statisch na 1 sec.** Count-up speelt één keer, ring animeert één keer, daarna dood frame. Geen ambient leven, geen sub-headline die context geeft ("3 leads boven pace deze week", "€8.4k binnengehaald sinds maandag").
-2. **KPI band is veilig 4-up.** Vier identieke kaarten — geen hiërarchie, geen "this is the one number that matters". Conversion en Visitors zijn cosmetisch zonder klikbare drill-down.
-3. **Side rail is een dumping ground.** Source breakdown, latest report, coming next, how it works — vier ongerelateerde blokjes onder elkaar zonder hiërarchie. "How it works" hoort op een onboarding/empty state, niet permanent in de rail.
-4. **Trend chart is generieke recharts.** Werkt, maar leest als een SaaS template — geen annotations (publish events, optimization moments, lead spikes), geen "this is why" verhaal.
-5. **CTA funnel toont nummers, geen inzicht.** Geen baseline, geen "vs vorige periode", geen winner/loser framing.
-6. **Activity timeline = chronologische lijst.** Mist grouping per week, mist visuele weight (een page-publish hoort dikker te lezen dan een micro-event).
-7. **Geen "thank you" / "celebrate" momenten.** Bij een goal-hit, een nieuwe won lead of een gepubliceerde pagina is er geen visuele beloning — de klant ziet alleen cijfers schuiven.
-8. **Side rail verdwijnt op mobile.** Source breakdown en latest report worden afgeknipt onder lg breakpoint, niet herverdeeld.
+## Wat ik concreet doe
 
-## Audit-conclusie
+### 1. Section primitives (`src/components/client/sections.tsx`, nieuw)
+- `<DashboardBand tone="paper|cream|white|sage|amber|charcoal">` — full-bleed wrapper met de juiste achtergrond + verticale padding (py-12 lg:py-16) + binnen-content op `max-w-[1600px]`.
+- `<MagazineSection eyebrow title kicker>` — editorial section-header: kleine eyebrow (amber, niet mono), grote display-titel (serif accent of Hanken bold display), optionele kicker-zin. Vervangt de huidige `SectionLabel`-only headers.
 
-Het portaal is op het niveau van een goede SaaS dashboard (Linear/Stripe-achtig). "Next level" is het tillen naar editorial/narrative dashboard — minder grid van widgets, meer "deze maand bij {Business}: hier zijn de drie dingen die ertoe doen, en hier is het bewijs". Stripe Atlas reports, Linear's changelog en Vercel's project overview zijn betere noord-sterren dan een generieke analytics tool.
+### 2. ClientShell aanpassen
+- `<main>` raakt z'n eigen `px/py` kwijt → bands beheren hun eigen padding. Dit is de enige manier om écht full-bleed kleurvlakken te krijgen zonder de side-margins te breken.
+- `children` worden niet meer in één `max-w` div gepropt; pagina's renderen direct `<DashboardBand>`'s.
 
----
+### 3. `src/routes/client/index.tsx` herstructureren
+Huidige one-column-met-aside structuur omgooien naar opeenvolgende bands:
+- **Band 1 — KPI** (cream-deep + radial amber wash, lijkt op de hero maar lichter): omzet als hero-KPI, conversie/bezoekers ernaast in glas-kaarten i.p.v. paper-cards.
+- **Band 2 — Story** (paper, editorial): `StoryHighlights` krijgt eyebrow "Hoogtepunten" + grote serif titel + smalle leeskolom (max-w-2xl).
+- **Band 3 — Trend** (wit, fijne dotgrid): chart + bron-verdeling **naast elkaar** (de side-rail verdwijnt; alles wordt verticaal ritme i.p.v. links/rechts).
+- **Band 4 — Leads** (paper): cards met een kleine gekleurde avatar-cirkel (initial in amber/sage/blauw afhankelijk van bron) → meteen visueel verschil per rij.
+- **Band 5 — Wat we deden** (sage/koel cream wash): timeline als magazine-list met grote nummering 01–06 in amber.
+- **Band 6 — Volgende editie + rapport** (paper): laatste rapport als grote "cover card" met FileText-icoon op amber vlak (mini-magazine-cover), "coming next" ernaast als genummerde lijst.
 
-# Upgrade plan
+### 4. Tokens in `src/styles.css`
+Twee nieuwe achtergrond-tokens toevoegen zodat bands semantisch blijven:
+- `--paper-deep` (een tint donkerder dan `--paper-subtle`, voor KPI-band)
+- `--paper-sage` (heel zacht koelgroen-cream, voor timeline-band)
+- Utility `.band-grid` (subtiele dot/line grid voor de trend-band).
 
-**Phase 1 — Hero: van snapshot naar narratief** (≈ 1 file)
+Bestaande tokens (`--paper`, `--paper-subtle`, `--amber`, `--charcoal`) blijven, geen breaking changes elders.
 
-- Sub-headline onder de count-up met live insight: "+3 leads boven pace deze week" / "Nog 5 leads nodig om je goal te halen" / "Best presterende dag: 12 jun, 4 leads".
-- Tweede ring of mini-spark naast de goal ring → leads-per-week trend (4 weken).
-- Hero CTA: één primaire actie (b.v. "Bekijk leads" of "Lees laatste rapport") in plaats van passieve status chips alleen.
+### 5. Editorial typografie-tweaks
+- Section-titels: groter (`text-2xl lg:text-3xl`, font-display, tracking-tight) i.p.v. de kleine SectionLabel.
+- Eyebrows: amber, kleine caps, **niet** mono (de mono-feel hebben we al verworpen).
+- Eén pull-quote per pagina in de Story-band (groot, serif-achtig via display font in italic) — geeft het "rapport" gevoel.
 
-**Phase 2 — KPI band: hiërarchie + drill-down** (≈ 1 file)
+### 6. Beeld / iconografie
+Geen stockfoto's (past niet bij operator-tool), maar wél meer visuele rust per band:
+- KPI-band: grote getallen in amber, dunne hairline-divider tussen cellen i.p.v. losse cards.
+- Trend-band: chart krijgt een lichte gradient-fill onder de lijn.
+- Leads-band: gekleurde initial-avatars per bron (telefoon/formulier/walk-in elk een eigen tint).
+- Report-card: grote vlakke amber "cover" met document-glyph — leest als magazine-cover.
 
-- 1 hero-KPI (leads MTD, groot, met sparkline) + 3 secundaire compacte stats.
-- Elke KPI wordt klikbaar → relevante tab (leads → /client/leads, revenue → leads filtered won).
-- Delta krijgt context ("+3 vs mei" → "+3 vs mei · best maand in 2026").
+## Wat ik **niet** doe
 
-**Phase 3 — "Story" sectie ipv losse panels** (≈ 1 nieuwe component + dashboard.tsx tweak)
+- Geen donker thema, geen nieuw kleurenpalet — we blijven binnen paper/cream/charcoal/amber.
+- Geen wijzigingen aan data-functies of server-fns.
+- `/client/leads`, `/client/pages`, `/client/reports` blijven deze ronde ongemoeid; eerst de home goed, daarna kunnen we hetzelfde band-systeem doortrekken.
+- Geen nieuwe dependencies.
 
-- Eén nieuwe sectie bovenaan hoofdkolom: **"Deze maand bij {Business}"** — 3 bullets gegenereerd uit data (top source, top CTA, biggest win), genummerd zoals "Coming next" al doet. Geeft narratief, niet alleen widgets.
+## Bestanden die ik raak
 
-**Phase 4 — Chart upgrade** (≈ 1 file)
+- `src/styles.css` (3 tokens + 1 utility)
+- `src/components/app/ClientShell.tsx` (main wrapper padding weg, bands nemen over)
+- `src/components/client/sections.tsx` (nieuw — `DashboardBand`, `MagazineSection`)
+- `src/routes/client/index.tsx` (herstructureren naar bands, side-rail opheffen)
+- `src/components/client/dashboard.tsx` (lichte aanpassingen: `StoryHighlights` + `TrafficTrend` headers gebruiken `MagazineSection`)
 
-- Annotations op trend: publish-events als amber tick, optimization als sparkle, eerste won lead per week als groene dot.
-- Hover state met "context": "12 jun · 4 leads · publication 'AC repair Dallas' ging live".
-- Comparison line: vorige periode in dunne dashed lijn.
+## Verwacht resultaat
 
-**Phase 5 — Side rail opschonen** (≈ 1 file)
-
-- "How it works" alleen tonen als `recentActivity.length < 3` (echte empty state).
-- Side rail wordt: Top source compact + Latest report card (groter, met period preview) + Coming next.
-- Op mobile: source breakdown herverschijnt onder de funnel ipv verdwijnt.
-
-**Phase 6 — Microcopy + celebrate moments** (≈ 2 files)
-
-- Bij `goal.status === "complete"` of `"ahead"`: hero krijgt een subtiele confetti-ish amber pulse + andere status copy ("🎯 Goal gehaald — laten we doorpakken").
-- Bij nieuwe won lead in afgelopen 24u: top-of-page banner "Net binnen: {name} · €{amount}".
-
-**Phase 7 — Empty/early states** (≈ 1 file)
-
-- Eerste 14 dagen / weinig data → vervang charts door een "we're collecting" state met what-to-expect timeline. Voorkomt dat early clients een leeg dashboard zien.
-
-## Technische details
-
-- Geen nieuwe backend nodig voor Phase 1–3,5,6,7. Alle data zit al in `getMyClientDashboard` / `getMyClientAnalytics`.
-- Phase 4 annotations vereist activity-data te joinen met trend dates → kan client-side uit `portal.recentActivity` (al beschikbaar).
-- Geen nieuwe deps. Recharts, lucide, tailwind blijven volstaan.
-- Bestaande paper/charcoal/amber tokens hergebruiken — geen nieuwe kleuren.
-
-## Volgorde
-
-Phase 1 + 2 + 3 in één pass = grootste visuele winst. Daarna 4, 5, 6, 7 los te leveren.
-
-## Buiten scope
-
-- Geen shell redesign (sidebar/nav blijft).
-- Geen nieuwe routes.
-- Geen i18n-uitbreiding behalve nieuwe copy keys in `portalCopy`.
-
-## Wat ik nog niet kon doen
-
-Live screenshot van /client kon ik niet maken — de geïnjecteerde sessie is een operator/owner en `/client` redirect operators naar `/dashboard`. Audit is daarom puur source-driven. Als je wilt dat ik visuele design-richtingen render (3 prototypes naast elkaar om uit te kiezen) voordat ik bouw, zeg het en ik genereer ze op basis van de huidige code + jouw kleur/typo voorkeuren.
+Je scrolt door duidelijk verschillende "hoofdstukken": donkere hero → warm KPI-vlak → wit leesblok → wit chartblok → cream leadsblok → koel timeline-blok. Het cream is niet weg, maar het is niet meer het hele vel — het wisselt af met witter, warmer en koeler, precies zoals een gedrukt maandrapport leest.
