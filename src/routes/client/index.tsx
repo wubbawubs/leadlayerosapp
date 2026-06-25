@@ -108,175 +108,281 @@ function ClientHome() {
       businessName={portal.businessName}
       locale={locale}
       hero={<HomeHero portal={portal} locale={locale} />}
+      bleed
     >
-      {/* Just-won celebrate banner (last 24h, if any) */}
-      <WonBanner leads={portal.leads} locale={locale} />
+      {/* Just-won celebrate banner (last 24h) — sits in its own warm strip
+          so it visibly separates the dark hero from the KPI band. */}
+      {portal.leads.some(
+        (l) => l.status === "won" && Date.now() - new Date(l.createdAt).getTime() < 24 * 3600 * 1000,
+      ) && (
+        <DashboardBand tone="amber" compact>
+          <WonBanner leads={portal.leads} locale={locale} />
+        </DashboardBand>
+      )}
 
-      {/* Editorial KPI band */}
-      <StatBand portal={portal} analytics={analytics} locale={locale} />
+      {/* ── BAND 1 · Deze maand in cijfers ───────────────────────────
+          Warm cream-deep band with amber wash. Revenue is the hero
+          outcome; conversion + visitors are secondary cells. */}
+      <DashboardBand tone="cream-deep">
+        <MagazineSection
+          eyebrow={locale === "nl" ? "Deze maand" : "This month"}
+          title={locale === "nl" ? "De cijfers achter je maand" : "The numbers behind your month"}
+          kicker={
+            locale === "nl"
+              ? "Wat er aan tafel kwam, en wat het opleverde."
+              : "What came in, and what it returned."
+          }
+        >
+          <StatBand portal={portal} analytics={analytics} locale={locale} />
+        </MagazineSection>
+      </DashboardBand>
 
-      {/* Two-column layout on desktop, stack on mobile */}
-      <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_320px]">
-        {/* ── Main column ── */}
-        <div className="min-w-0 space-y-10">
-          {/* Editorial story summary — answers "what mattered this month" */}
+      {/* ── BAND 2 · Hoogtepunten (editorial story) ─────────────────
+          Light paper band, narrow reading column, magazine feel. */}
+      <DashboardBand tone="paper" className="paper-grain">
+        <MagazineSection
+          eyebrow={locale === "nl" ? "Hoogtepunten" : "Highlights"}
+          title={c.storyTitle(portal.businessName)}
+          kicker={
+            locale === "nl"
+              ? "Drie momenten die je maand het meest hebben gevormd."
+              : "Three moments that shaped your month the most."
+          }
+        >
           <StoryHighlights portal={portal} analytics={analytics} locale={locale} />
+        </MagazineSection>
+      </DashboardBand>
 
-          {/* Traffic & conversions trend (with publish annotations) */}
-          {analytics && (
-            <TrafficTrend analytics={analytics} locale={locale} events={publishEvents} />
-          )}
+      {/* ── BAND 3 · Verkeer & conversies ───────────────────────────
+          Brightest band — chart + source breakdown side-by-side.
+          The dot grid texture marks this as the "data" chapter. */}
+      {analytics && (
+        <DashboardBand tone="white" className="band-grid">
+          <MagazineSection
+            eyebrow={locale === "nl" ? "Trend" : "Trend"}
+            title={
+              locale === "nl"
+                ? "Hoe je bezoekers en gesprekken zich bewegen"
+                : "How your visitors and conversations moved"
+            }
+            kicker={
+              locale === "nl"
+                ? "Amber markers tonen wanneer we een pagina hebben gepubliceerd of geoptimaliseerd."
+                : "Amber markers show when we shipped or optimized a page."
+            }
+          >
+            <div className="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
+              <TrafficTrend analytics={analytics} locale={locale} events={publishEvents} />
+              <SourceBreakdown analytics={analytics} locale={locale} />
+            </div>
+          </MagazineSection>
+        </DashboardBand>
+      )}
 
-          {/* CTA performance funnel */}
-          {analytics && <CtaPerformance analytics={analytics} locale={locale} />}
+      {/* ── BAND 4 · CTA-performance ───────────────────────────────── */}
+      {analytics && analytics.ctas.length > 0 && (
+        <DashboardBand tone="paper">
+          <CtaPerformance analytics={analytics} locale={locale} />
+        </DashboardBand>
+      )}
 
-          {/* Newest leads */}
-          {activeLeads.length > 0 && (
-            <section>
-              <div className="mb-4 flex items-baseline justify-between">
-                <SectionLabel>{c.recentLeads}</SectionLabel>
+      {/* ── BAND 5 · Recente leads ──────────────────────────────────
+          Cream-deep band with gekleurde initial-avatars per bron. */}
+      {activeLeads.length > 0 && (
+        <DashboardBand tone="cream-deep">
+          <MagazineSection
+            eyebrow={locale === "nl" ? "Vers binnen" : "Just in"}
+            title={c.recentLeads}
+            action={
+              <Link
+                to="/client/leads"
+                className="flex items-center gap-1 text-sm font-semibold text-amber-deep underline-offset-4 hover:underline"
+              >
+                {c.allLeads} <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            }
+          >
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {activeLeads.slice(0, 4).map((l) => (
                 <Link
+                  key={l.id}
                   to="/client/leads"
-                  className="text-sm font-medium text-amber-deep underline-offset-4 hover:underline"
+                  className="paper-card flex items-center gap-3 px-4 py-3.5"
                 >
-                  {c.allLeads} →
+                  <LeadAvatar name={l.name ?? "?"} source={l.source} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-semibold text-ink">
+                      {l.name ?? c.unknownCaller}
+                    </p>
+                    <p className="mt-0.5 truncate text-[13px] text-ink-3">
+                      {l.source ? `${c.via} ${c.sources[l.source] ?? l.source} · ` : ""}
+                      {formatRelative(l.createdAt, locale)}
+                    </p>
+                  </div>
+                  <StatusChip status={l.status} locale={locale} />
                 </Link>
-              </div>
-              <div className="space-y-2.5">
-                {activeLeads.slice(0, 4).map((l) => (
-                  <Link
-                    key={l.id}
-                    to="/client/leads"
-                    className="paper-card flex items-center justify-between px-4 py-3.5"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-semibold text-ink">
-                        {l.name ?? c.unknownCaller}
-                      </p>
-                      <p className="mt-0.5 text-[13px] text-ink-3">
-                        {l.source ? `${c.via} ${c.sources[l.source] ?? l.source} · ` : ""}
-                        {formatRelative(l.createdAt, locale)}
-                      </p>
-                    </div>
-                    <div className="ml-3 flex shrink-0 items-center gap-3">
-                      <StatusChip status={l.status} locale={locale} />
-                      <ArrowRight className="h-4 w-4 text-ink-3" />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          )}
+              ))}
+            </div>
+          </MagazineSection>
+        </DashboardBand>
+      )}
 
-          {/* Activity timeline */}
-          {portal.recentActivity.length > 0 && (
-            <section>
-              <div className="mb-4">
-                <SectionLabel>{c.whatWeDid}</SectionLabel>
-              </div>
-              <div className="divide-y divide-paper-line border-y border-paper-line">
-                {portal.recentActivity.slice(0, 6).map((a, i) => (
-                  <div
-                    key={i}
-                    className={`page-fade-up stagger-${Math.min(i + 1, 5) as 1 | 2 | 3 | 4 | 5}`}
-                  >
+      {/* ── BAND 6 · Wat we deden (timeline) ────────────────────────
+          Cool sage wash — the "quiet" chapter that explains the work. */}
+      {portal.recentActivity.length > 0 && (
+        <DashboardBand tone="sage">
+          <MagazineSection
+            eyebrow={locale === "nl" ? "Operatie" : "Operations"}
+            title={c.whatWeDid}
+            kicker={
+              locale === "nl"
+                ? "Wat we de afgelopen weken hebben gepubliceerd, geoptimaliseerd en opgeleverd."
+                : "What we shipped, tuned, and delivered over the past weeks."
+            }
+          >
+            <ol className="divide-y divide-paper-line border-y border-paper-line">
+              {portal.recentActivity.slice(0, 6).map((a, i) => (
+                <li
+                  key={i}
+                  className={`page-fade-up stagger-${Math.min(i + 1, 5) as 1 | 2 | 3 | 4 | 5} flex items-start gap-4 py-4`}
+                >
+                  <span className="mt-0.5 w-7 shrink-0 font-display text-lg font-extrabold leading-none text-amber-deep">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div className="flex-1">
                     <ActivityRow activity={a} locale={locale} />
                   </div>
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
+                </li>
+              ))}
+            </ol>
+          </MagazineSection>
+        </DashboardBand>
+      )}
 
-        {/* ── Side rail ── */}
-        <aside className="space-y-8">
-          {/* Conversions by source */}
-          {analytics && <SourceBreakdown analytics={analytics} locale={locale} />}
-
-          {/* Latest report */}
-          {portal.reports.length > 0 && portal.reports[0].shareToken && (
-            <section>
-              <div className="mb-4">
-                <SectionLabel>{c.latestReport}</SectionLabel>
-              </div>
-              <a
-                href={`/r/${portal.reports[0].shareToken}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="paper-card block p-5"
+      {/* ── BAND 7 · Rapport + volgende editie ──────────────────────
+          Two-column close: the "cover" of the latest report on the left,
+          the editorial roadmap on the right. */}
+      {(portal.reports.length > 0 || portal.nextMonthFocus.length > 0 || showHowItWorks) && (
+        <DashboardBand tone="paper" className="paper-grain">
+          <div className="grid gap-10 lg:grid-cols-2">
+            {/* Latest report — magazine cover */}
+            {portal.reports.length > 0 && portal.reports[0].shareToken && (
+              <MagazineSection
+                eyebrow={locale === "nl" ? "Maandeditie" : "Latest issue"}
+                title={portal.reports[0].periodLabel}
+                kicker={`${c.reportLeads(portal.reports[0].leadCount)} · ${c.reportPages(
+                  portal.reports[0].pagesPublished + portal.reports[0].pagesOptimized,
+                )}`}
               >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[4px] bg-paper-subtle">
-                    <FileText className="h-4 w-4 text-amber-deep" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-semibold text-ink">
-                      {portal.reports[0].periodLabel}
-                    </p>
-                    <p className="mt-1 text-[13px] text-ink-3">
-                      {c.reportLeads(portal.reports[0].leadCount)} ·{" "}
-                      {c.reportPages(
-                        portal.reports[0].pagesPublished + portal.reports[0].pagesOptimized,
-                      )}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center justify-between border-t border-paper-line pt-3 text-[13px]">
-                  <span className="text-ink-3">{formatMoney(portal.reports[0].revenue, locale)}</span>
-                  <span className="flex items-center gap-1 font-semibold text-amber-deep">
-                    {c.viewLatestReport}
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </span>
-                </div>
-              </a>
-            </section>
-          )}
-
-          {/* Coming next — numbered like the studio site */}
-          {portal.nextMonthFocus.length > 0 && (
-            <section>
-              <div className="mb-4">
-                <SectionLabel>{c.comingNext}</SectionLabel>
-              </div>
-              <ul className="space-y-3.5">
-                {portal.nextMonthFocus.map((f, i) => (
-                  <li key={i} className="flex items-start gap-3 text-[15px] leading-snug text-ink">
-                    <span className="mt-px font-mono text-sm font-semibold text-amber-deep">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {/* How it works — only shown for early accounts as a primer */}
-          {showHowItWorks && (
-            <section>
-              <div className="mb-4">
-                <SectionLabel>{c.howItWorks}</SectionLabel>
-              </div>
-              <div className="space-y-4">
-                {c.howSteps.map((s, i) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <span className="mt-px font-mono text-sm font-semibold text-amber-deep">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
+                <a
+                  href={`/r/${portal.reports[0].shareToken}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group block overflow-hidden rounded-[6px] border border-paper-line bg-[var(--amber)] text-paper transition-transform hover:-translate-y-0.5"
+                >
+                  <div
+                    className="flex items-end justify-between px-6 pb-6 pt-12"
+                    style={{
+                      backgroundImage:
+                        "radial-gradient(80% 120% at 100% 0%, rgba(255,255,255,0.18), transparent 60%)",
+                    }}
+                  >
                     <div>
-                      <p className="text-[15px] font-semibold text-ink">{s.title}</p>
-                      <p className="mt-0.5 text-sm leading-relaxed text-ink-2">{s.copy}</p>
+                      <p className="font-display text-[11px] font-semibold uppercase tracking-[0.18em] text-paper/80">
+                        LeadLayer · Report
+                      </p>
+                      <p className="mt-3 font-display text-3xl font-extrabold leading-tight">
+                        {portal.reports[0].periodLabel}
+                      </p>
+                      <p className="mt-1 text-sm text-paper/85">
+                        {formatMoney(portal.reports[0].revenue, locale)}
+                      </p>
                     </div>
+                    <FileText className="h-10 w-10 text-paper/85" />
                   </div>
-                ))}
-              </div>
-            </section>
-          )}
-        </aside>
-      </div>
+                  <div className="flex items-center justify-between bg-[#1F1F1F] px-6 py-3 text-[13px] font-semibold text-paper">
+                    {c.viewLatestReport}
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  </div>
+                </a>
+              </MagazineSection>
+            )}
+
+            {/* Coming next + onboarding primer */}
+            <div className="space-y-10">
+              {portal.nextMonthFocus.length > 0 && (
+                <MagazineSection
+                  eyebrow={locale === "nl" ? "Volgende editie" : "Next issue"}
+                  title={c.comingNext}
+                >
+                  <ul className="space-y-4">
+                    {portal.nextMonthFocus.map((f, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-4 border-b border-paper-line pb-4 text-[15px] leading-snug text-ink last:border-b-0 last:pb-0"
+                      >
+                        <span className="mt-px font-display text-base font-extrabold text-amber-deep">
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                        <span className="flex-1">{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </MagazineSection>
+              )}
+
+              {showHowItWorks && (
+                <MagazineSection
+                  eyebrow={locale === "nl" ? "Hoe het werkt" : "How it works"}
+                  title={c.howItWorks}
+                >
+                  <div className="space-y-4">
+                    {c.howSteps.map((s, i) => (
+                      <div key={i} className="flex items-start gap-3">
+                        <span className="mt-px font-display text-base font-extrabold text-amber-deep">
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                        <div>
+                          <p className="text-[15px] font-semibold text-ink">{s.title}</p>
+                          <p className="mt-0.5 text-sm leading-relaxed text-ink-2">{s.copy}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </MagazineSection>
+              )}
+            </div>
+          </div>
+        </DashboardBand>
+      )}
     </ClientShell>
   );
 }
+
+/**
+ * Small colored initial badge for a lead row — gives each row a touch of
+ * visual identity without resorting to stock avatars.
+ */
+function LeadAvatar({ name, source }: { name: string; source?: string | null }) {
+  const initial = (name?.trim()?.[0] ?? "?").toUpperCase();
+  const tint =
+    source === "phone"
+      ? { bg: "rgba(217,119,6,0.16)", fg: "var(--amber-deep)" }
+      : source === "form"
+        ? { bg: "rgba(47,90,117,0.14)", fg: "var(--paper-info)" }
+        : source === "walk_in"
+          ? { bg: "rgba(31,122,54,0.14)", fg: "var(--paper-success)" }
+          : { bg: "var(--paper-subtle)", fg: "var(--ink-2)" };
+  return (
+    <span
+      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-sm font-bold"
+      style={{ backgroundColor: tint.bg, color: tint.fg }}
+    >
+      {initial}
+    </span>
+  );
+}
+
 
 // ── Hero (rendered inside the charcoal frame) ───────────────────────
 
