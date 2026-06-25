@@ -27,7 +27,9 @@ export function StatusChip({ status, locale = "en" }: { status: string; locale?:
 }
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="label-mono">{children}</p>;
+  return (
+    <h2 className="font-display text-[15px] font-semibold tracking-tight text-ink">{children}</h2>
+  );
 }
 
 /**

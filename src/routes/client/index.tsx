@@ -10,6 +10,10 @@ import {
   FilePlus,
   Sparkles,
   BarChart3,
+  Users,
+  Target,
+  Eye,
+  Euro,
 } from "lucide-react";
 import {
   getMyClientDashboard,
@@ -263,18 +267,18 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
         {greeting(locale)} · {formatDayline(locale)}
       </p>
 
-      {goal?.title && <p className="mt-5 text-base text-ink-2">{goal.title}</p>}
+      {goal?.title && <p className="mt-4 text-[15px] text-ink-2">{goal.title}</p>}
 
-      <div className="mt-2 flex flex-wrap items-baseline gap-x-4">
-        <span className="font-display text-6xl font-extrabold leading-none tracking-[-0.03em] text-ink sm:text-7xl">
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3">
+        <span className="font-display text-5xl font-extrabold leading-none tracking-[-0.03em] text-ink sm:text-6xl">
           <span className="text-amber-bright">{animated}</span>
           {target != null && <span className="text-ink-2"> / {target}</span>}
         </span>
-        <span className="font-display text-xl font-semibold text-ink-2">{c.leadsWord}</span>
+        <span className="font-display text-lg font-semibold text-ink-2">{c.leadsWord}</span>
       </div>
 
       {/* Progress to goal */}
-      <div className="mt-7 max-w-xl">
+      <div className="mt-5 max-w-xl">
         <div className="h-2 overflow-hidden rounded-full bg-paper-inset">
           <div
             className="progress-fill h-full rounded-full"
@@ -319,22 +323,26 @@ function StatBand({
   );
 
   return (
-    <div className="grid grid-cols-2 divide-paper-line border-y border-paper-line sm:grid-cols-4 sm:divide-x">
-      <StatCell
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+      <KpiCard
+        icon={<Users className="h-4 w-4" />}
         label={c.statLeadsMonth}
         value={String(portal.stats.leadsThisMonth)}
         delta={leadsDelta}
         deltaLabel={c.vsLastMonth(prevMonth)}
       />
-      <StatCell
+      <KpiCard
+        icon={<Target className="h-4 w-4" />}
         label={a.conversionRate}
         value={analytics ? `${analytics.totals.conversionRate}%` : "—"}
       />
-      <StatCell
+      <KpiCard
+        icon={<Eye className="h-4 w-4" />}
         label={a.visitors}
         value={analytics ? analytics.totals.sessions.toLocaleString() : "—"}
       />
-      <StatCell
+      <KpiCard
+        icon={<Euro className="h-4 w-4" />}
         label={c.statRevenue}
         value={formatMoney(portal.stats.provenRevenue, locale)}
         accent={portal.stats.provenRevenue > 0}
@@ -343,13 +351,15 @@ function StatBand({
   );
 }
 
-function StatCell({
+function KpiCard({
+  icon,
   label,
   value,
   accent = false,
   delta,
   deltaLabel,
 }: {
+  icon: React.ReactNode;
   label: string;
   value: string;
   accent?: boolean;
@@ -368,22 +378,29 @@ function StatCell({
           : "text-ink-3";
 
   return (
-    <div className="px-4 py-5 sm:px-6 sm:py-6 sm:first:pl-0">
-      <p className="label-mono">{label}</p>
-      <div className="mt-2.5 flex items-baseline gap-2.5">
-        <p
-          className={`font-display text-3xl font-extrabold leading-none tracking-tight sm:text-[32px] ${accent ? "text-paper-success" : "text-ink"}`}
+    <div className="paper-card p-4 sm:p-5">
+      <div className="flex items-center justify-between">
+        <span className="label-mono">{label}</span>
+        <span
+          className={`flex h-7 w-7 items-center justify-center rounded-[8px] ${accent ? "bg-[rgba(31,122,54,0.12)] text-paper-success" : "bg-paper-subtle text-ink-3"}`}
         >
-          {value}
-        </p>
-        {DeltaIcon && delta != null && (
-          <span className={`flex items-center gap-1 text-[13px] font-semibold ${deltaColor}`}>
-            <DeltaIcon className="h-3.5 w-3.5 shrink-0" />
-            {delta > 0 ? "+" : ""}
-            {delta} {deltaLabel}
-          </span>
-        )}
+          {icon}
+        </span>
       </div>
+      <p
+        className={`mt-4 font-display text-[28px] font-extrabold leading-none tracking-tight sm:text-[32px] ${accent ? "text-paper-success" : "text-ink"}`}
+      >
+        {value}
+      </p>
+      {DeltaIcon && delta != null ? (
+        <span className={`mt-2 flex items-center gap-1 text-[13px] font-semibold ${deltaColor}`}>
+          <DeltaIcon className="h-3.5 w-3.5 shrink-0" />
+          {delta > 0 ? "+" : ""}
+          {delta} {deltaLabel}
+        </span>
+      ) : (
+        <span className="mt-2 block h-[18px]" />
+      )}
     </div>
   );
 }

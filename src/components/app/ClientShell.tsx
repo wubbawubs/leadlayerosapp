@@ -121,7 +121,7 @@ export function ClientShell({
         {/* Page hero — charcoal header band */}
         {hero && (
           <div className="surface-charcoal">
-            <div className="mx-auto w-full max-w-5xl px-5 pb-12 pt-8 sm:pt-10 lg:px-10">{hero}</div>
+            <div className="mx-auto w-full max-w-5xl px-5 pb-10 pt-7 sm:pt-9 lg:px-10">{hero}</div>
           </div>
         )}
 

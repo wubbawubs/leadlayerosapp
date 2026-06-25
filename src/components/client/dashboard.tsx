@@ -53,7 +53,7 @@ export function TrafficTrend({
         <SectionLabel>{a.trafficTrend}</SectionLabel>
         <span className="text-[13px] text-ink-3">{a.last30}</span>
       </div>
-      <div className="paper-card p-4">
+      <div className="panel p-5">
         <div className="h-[220px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
@@ -148,7 +148,7 @@ export function CtaPerformance({
         <SectionLabel>{a.ctaPerformance}</SectionLabel>
         <p className="mt-1 text-[13px] text-ink-3">{a.ctaSub}</p>
       </div>
-      <div className="paper-card divide-y divide-paper-line">
+      <div className="panel divide-y divide-paper-line">
         {ctas.map((c) => (
           <div key={c.cta} className="p-4">
             <div className="flex items-center justify-between gap-3">
