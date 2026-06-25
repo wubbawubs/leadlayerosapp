@@ -18,7 +18,8 @@ import {
   getMyClientAnalytics,
 } from "@/lib/shared/clientPortal/clientAuth.functions";
 import { ClientShell } from "@/components/app/ClientShell";
-import { StatusChip, SectionLabel, useCountUp } from "@/components/client/bits";
+import { StatusChip, useCountUp } from "@/components/client/bits";
+import { DashboardBand, MagazineSection } from "@/components/client/sections";
 import {
   TrafficTrend,
   CtaPerformance,
