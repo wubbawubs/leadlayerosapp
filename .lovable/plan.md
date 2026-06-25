@@ -1,135 +1,102 @@
+# Audit — /client (klantportaal)
 
-# LeadLayer Operator Dashboard Rebuild — Phase 1 + 2
+## Wat er nu staat
 
-Frontend-only rebuild. No backend changes, no migrations, no new server functions, no legacy route removals. Legacy `/growth/*`, `/audits/*`, `/onboarding/*`, `/settings/*`, `/sites/*`, `/r/:shareToken` stay reachable by URL but disappear from primary nav.
+**Shell** (`ClientShell.tsx`)
 
-## Brand direction (from leadlayer.studio)
+- Linker charcoal sidebar (brand + 4 tabs + sign out) + paper content area.
+- Charcoal hero band met radiale amber glow.
+- Mobile: charcoal topbar + bottom tab bar.
 
-Calm, premium, operational. Not loud. Extracted feel only — no marketing copy reused.
+**Home** (`/client`)
 
-- **Surface**: warm sand/cream `oklch(0.96 0.012 80)` for app background, soft off-white `oklch(0.985 0.005 80)` for cards.
-- **Ink**: near-black `oklch(0.18 0.01 80)` for primary text, muted ink `oklch(0.45 0.01 80)` for secondary.
-- **Accent**: LeadLayer orange `oklch(0.72 0.16 55)` (≈ `#E89A2C`) reserved for primary actions, active state, and the brand mark. Used sparingly.
-- **Border**: hairline `oklch(0.88 0.008 80)`.
-- **Radius**: restrained (`--radius: 0.5rem`).
-- **Type**: existing sans for body/headings; mono (`ui-monospace`) reserved for small caption/eyebrow labels (`§ 02 · The Cost` feel) — uppercase, tracked, muted.
-- **Logo**: recreate the stacked trapezoid mark as an inline SVG in `src/components/brand/Logo.tsx` (already exists — update if needed) using the accent + ink tokens. No raster scrape needed; the mark is 3 trapezoids — top filled accent, middle outline accent, bottom filled darker accent.
+- Hero: greeting, goal titel, animated count-up `{actual} / {target}`, status chip, goal ring (SVG, 9 sec ease).
+- Stat band: 4 KPI cards (Leads MTD met delta, Conversie %, Visitors, Revenue).
+- Hoofdkolom: Traffic trend (area + bar, recharts), CTA performance funnel, Newest leads, Activity timeline.
+- Side rail: Source breakdown, latest report link, "Coming next", "How it works".
 
-Status palette:
-- `--status-green` — live/done/healthy
-- `--status-amber` — needs attention/pending
-- `--status-red` — failed/blocker
-- `--status-info` — review/approved (indigo/blue, distinct from brand orange)
-- `--status-neutral` — planned/draft (gray)
+Backend dekt het: `getMyClientDashboard` + `getMyClientAnalytics`.
 
-All updates in `src/styles.css`. No hex in JSX.
+## Wat er goed werkt
 
-## Scope
+- Sterke merkidentiteit (paper + charcoal + amber, mono labels).
+- Hero is editorial en emotioneel (count-up + ring).
+- Real-data wiring, geen fake placeholders.
+- i18n via `portalCopy` (en/nl).
 
-**In scope**: app shell, `/dashboard`, `/clients`, `/clients/:tenantId/*`, Execution review panels, token cleanup.
+## Wat het tegenhoudt om "next level" te zijn
 
-**Out of scope**: client portal, demo, sales view, mobile-first operator UI, new server functions, DB migrations, redesigning legacy routes, inline settings forms.
+1. **Hero is statisch na 1 sec.** Count-up speelt één keer, ring animeert één keer, daarna dood frame. Geen ambient leven, geen sub-headline die context geeft ("3 leads boven pace deze week", "€8.4k binnengehaald sinds maandag").
+2. **KPI band is veilig 4-up.** Vier identieke kaarten — geen hiërarchie, geen "this is the one number that matters". Conversion en Visitors zijn cosmetisch zonder klikbare drill-down.
+3. **Side rail is een dumping ground.** Source breakdown, latest report, coming next, how it works — vier ongerelateerde blokjes onder elkaar zonder hiërarchie. "How it works" hoort op een onboarding/empty state, niet permanent in de rail.
+4. **Trend chart is generieke recharts.** Werkt, maar leest als een SaaS template — geen annotations (publish events, optimization moments, lead spikes), geen "this is why" verhaal.
+5. **CTA funnel toont nummers, geen inzicht.** Geen baseline, geen "vs vorige periode", geen winner/loser framing.
+6. **Activity timeline = chronologische lijst.** Mist grouping per week, mist visuele weight (een page-publish hoort dikker te lezen dan een micro-event).
+7. **Geen "thank you" / "celebrate" momenten.** Bij een goal-hit, een nieuwe won lead of een gepubliceerde pagina is er geen visuele beloning — de klant ziet alleen cijfers schuiven.
+8. **Side rail verdwijnt op mobile.** Source breakdown en latest report worden afgeknipt onder lg breakpoint, niet herverdeeld.
 
-## Phase 1 — Shell + command center
+## Audit-conclusie
 
-### Routes (new files)
-```
-src/routes/_authenticated/
-  dashboard.tsx                      -> /dashboard
-  clients.index.tsx                  -> /clients
-  clients.$tenantId.tsx              -> layout w/ <Outlet/>
-  clients.$tenantId.index.tsx        -> redirect to ./overview
-  clients.$tenantId.overview.tsx
-  clients.$tenantId.execution.tsx
-  clients.$tenantId.pages.tsx
-  clients.$tenantId.leads.tsx
-  clients.$tenantId.reports.tsx
-  clients.$tenantId.settings.tsx
-```
-Root `/` (already redirects via existing index route) — if authenticated and a membership exists, redirect to `/dashboard` instead of legacy `/growth/*`. `app.tsx` and all `/growth/*` routes stay untouched.
+Het portaal is op het niveau van een goede SaaS dashboard (Linear/Stripe-achtig). "Next level" is het tillen naar editorial/narrative dashboard — minder grid van widgets, meer "deze maand bij {Business}: hier zijn de drie dingen die ertoe doen, en hier is het bewijs". Stripe Atlas reports, Linear's changelog en Vercel's project overview zijn betere noord-sterren dan een generieke analytics tool.
 
-### App shell — `src/components/app/OperatorShell.tsx`
-Rendered from `_authenticated.tsx` wrapping `<Outlet/>`. Uses shadcn `Sidebar` (`collapsible="icon"`).
-- Sidebar header: brand mark + wordmark.
-- Primary nav: Dashboard, Clients. Account menu pinned bottom.
-- Top bar: `SidebarTrigger`, breadcrumb, `TenantSwitcher` only when inside `/clients/:tenantId/*`.
-- Active route via `useRouterState`.
-- Legacy `/growth/*` not surfaced.
+---
 
-### `/dashboard`
-Phase 1 shell only. Sections:
-- **Needs attention** — wired only if a cross-tenant queue function already exists and is easy to call; otherwise an empty state card with copy *"Action queue will connect in Phase 5."* No fake data.
-- **Client health** — loops `listMyTenants` and renders small status chips. Skip per-tenant queries here.
-- **Reports due** — placeholder card; wires in Phase 5.
+# Upgrade plan
 
-### `/clients`
-- Loads `listMyTenants` (existing GET server fn).
-- Try `getClientHealthSummaries` defensively — if the import is missing or it throws, fall back silently to name + Open button.
-- `ClientCard` shows only present fields: name, geo, vertical, health dot, leads-this-month, pending actions count, Open → `/clients/:tenantId`.
+**Phase 1 — Hero: van snapshot naar narratief** (≈ 1 file)
 
-### `/clients/:tenantId` command center
-Two new components under `src/components/clients/`:
-- **`ClientCommandHeader.tsx`** — back link, name, geo, vertical, health dot, goal progress bar, single status line. All fields optional.
-- **`ClientTabs.tsx`** — shadcn `Tabs` driven by router `Link`s; active via `useRouterState`. Tabs: Overview, Execution, Pages, Leads, Reports, Settings.
+- Sub-headline onder de count-up met live insight: "+3 leads boven pace deze week" / "Nog 5 leads nodig om je goal te halen" / "Best presterende dag: 12 jun, 4 leads".
+- Tweede ring of mini-spark naast de goal ring → leads-per-week trend (4 weken).
+- Hero CTA: één primaire actie (b.v. "Bekijk leads" of "Lees laatste rapport") in plaats van passieve status chips alleen.
 
-Tab files in Phase 1:
-- **Overview, Pages, Leads, Reports, Settings** → clean placeholder card explaining what will live there. No queries.
-- **Execution** → real (see Phase 2).
+**Phase 2 — KPI band: hiërarchie + drill-down** (≈ 1 file)
 
-`clients.$tenantId.index.tsx` does `throw redirect({ to: '/clients/$tenantId/overview', params })`.
+- 1 hero-KPI (leads MTD, groot, met sparkline) + 3 secundaire compacte stats.
+- Elke KPI wordt klikbaar → relevante tab (leads → /client/leads, revenue → leads filtered won).
+- Delta krijgt context ("+3 vs mei" → "+3 vs mei · best maand in 2026").
 
-## Phase 2 — Execution review workflow
+**Phase 3 — "Story" sectie ipv losse panels** (≈ 1 nieuwe component + dashboard.tsx tweak)
 
-Route: `/clients/:tenantId/execution`. Uses existing `getExecutionBoard({ tenantId })` exactly as today (no extra fetches, no new functions). All action mutations are **lifted as-is** from `src/routes/_authenticated/growth.execution.tsx` — same server-function calls, same payload shapes, same invalidation keys.
+- Eén nieuwe sectie bovenaan hoofdkolom: **"Deze maand bij {Business}"** — 3 bullets gegenereerd uit data (top source, top CTA, biggest win), genummerd zoals "Coming next" al doet. Geeft narratief, niet alleen widgets.
 
-### Components under `src/components/execution/`
+**Phase 4 — Chart upgrade** (≈ 1 file)
 
-- **`ExecutionBoard.tsx`** — loads board via `useSuspenseQuery`, groups items by phase/status, renders cards. Simple filter chips (All / Needs review / In delivery / Done).
-- **`ExecutionItemCard.tsx`** — title, type badge, `StatusPill`, next-action chip from `item.nextAction`, primary action button(s), chevron toggle for review panel. Review panel sits directly **above** the action row.
-- **`PageBriefReviewPanel.tsx`** — collapsible. Fields: `artifactPrimaryKeyword`, `artifactKeywordVolume`, `artifactH1`, `artifactMetaTitle`, `artifactMetaDescription`, `artifactIntroPreview`, `artifactSectionCount`, `artifactFaqCount`, `artifactOperatorNotes`, `artifactRiskFlags`, `artifactMissingContext`.
-- **`OptimizationReviewPanel.tsx`** — collapsible. Fields: `optimizationArtifactUpdateMode`, `optimizationArtifactRecommendedTitle`, `optimizationArtifactMetaTitle`, `optimizationArtifactMetaDescription`, `optimizationArtifactRiskFlags`, `optimizationArtifactMissingContext`, `optimizationArtifactOperatorChecklist`.
-- **`RiskFlags.tsx`** — red border-left + warning icon, prominent. Empty array → hide. Null → "Review details unavailable".
-- **`MissingContext.tsx`** — amber callout. Same empty/null rules.
-- **`StatusPill.tsx`** — maps status → token color.
+- Annotations op trend: publish-events als amber tick, optimization als sparkle, eerste won lead per week als groene dot.
+- Hover state met "context": "12 jun · 4 leads · publication 'AC repair Dallas' ging live".
+- Comparison line: vorige periode in dunne dashed lijn.
 
-### Status → action mapping (visual states)
-| State | Action(s) |
-|---|---|
-| planned | Generate brief |
-| in_review | Review brief (toggle) · Approve · Reject |
-| approved | Create WordPress draft |
-| draft_created | Preview · Edit · Publish from LeadLayer |
-| published | Open live URL |
-| optimization_brief_ready | Review optimization · Approve |
-| optimization_approved | Apply optimization |
-| failed | Retry · show error |
+**Phase 5 — Side rail opschonen** (≈ 1 file)
 
-All handlers reuse the existing server functions referenced from `growth.execution.tsx` (no signatures change). Approving when `riskFlags` is non-empty opens a client-side confirm dialog — no backend change.
+- "How it works" alleen tonen als `recentActivity.length < 3` (echte empty state).
+- Side rail wordt: Top source compact + Latest report card (groter, met period preview) + Coming next.
+- Op mobile: source breakdown herverschijnt onder de funnel ipv verdwijnt.
 
-## Technical notes
+**Phase 6 — Microcopy + celebrate moments** (≈ 2 files)
 
-- Data: follow existing convention — `queryOptions` + `useSuspenseQuery` in components, `ensureQueryData` in loaders where helpful.
-- Render `<Outlet/>` in `_authenticated.tsx` (inside `OperatorShell`) and in `clients.$tenantId.tsx`.
-- `__root.tsx` keeps its `<Outlet/>`.
-- `routeTree.gen.ts` regenerates automatically.
-- All colors via tokens; no hex in JSX.
-- Build/typecheck must stay clean.
+- Bij `goal.status === "complete"` of `"ahead"`: hero krijgt een subtiele confetti-ish amber pulse + andere status copy ("🎯 Goal gehaald — laten we doorpakken").
+- Bij nieuwe won lead in afgelopen 24u: top-of-page banner "Net binnen: {name} · €{amount}".
 
-## Acceptance
+**Phase 7 — Empty/early states** (≈ 1 file)
 
-- `/dashboard`, `/clients`, `/clients/:tenantId/*` load with the new shell.
-- Tab switching works via router links.
-- `/clients/:tenantId/execution` renders live `getExecutionBoard` data.
-- Page brief + optimization review panels render every listed field with graceful fallbacks.
-- Risk flags + missing context are visually prominent (red / amber).
-- Approve / Reject / Create draft / Publish / Apply optimization still call the existing server functions and still work.
-- No backend, schema, or server-function changes.
+- Eerste 14 dagen / weinig data → vervang charts door een "we're collecting" state met what-to-expect timeline. Voorkomt dat early clients een leeg dashboard zien.
 
-## Post-implementation summary I'll deliver
+## Technische details
 
-1. Routes created/changed
-2. Components created
-3. Existing backend functions used (names + call sites)
-4. Any missing fields or degraded fallbacks
-5. Build/typecheck status
-6. Proposed Phase 3 (likely: wire Pages tab to WordPress Delivery V2 inventory + drafts, and Leads tab to lead inbox)
+- Geen nieuwe backend nodig voor Phase 1–3,5,6,7. Alle data zit al in `getMyClientDashboard` / `getMyClientAnalytics`.
+- Phase 4 annotations vereist activity-data te joinen met trend dates → kan client-side uit `portal.recentActivity` (al beschikbaar).
+- Geen nieuwe deps. Recharts, lucide, tailwind blijven volstaan.
+- Bestaande paper/charcoal/amber tokens hergebruiken — geen nieuwe kleuren.
+
+## Volgorde
+
+Phase 1 + 2 + 3 in één pass = grootste visuele winst. Daarna 4, 5, 6, 7 los te leveren.
+
+## Buiten scope
+
+- Geen shell redesign (sidebar/nav blijft).
+- Geen nieuwe routes.
+- Geen i18n-uitbreiding behalve nieuwe copy keys in `portalCopy`.
+
+## Wat ik nog niet kon doen
+
+Live screenshot van /client kon ik niet maken — de geïnjecteerde sessie is een operator/owner en `/client` redirect operators naar `/dashboard`. Audit is daarom puur source-driven. Als je wilt dat ik visuele design-richtingen render (3 prototypes naast elkaar om uit te kiezen) voordat ik bouw, zeg het en ik genereer ze op basis van de huidige code + jouw kleur/typo voorkeuren.
