@@ -134,13 +134,12 @@ export function ClientShell({
           </div>
         )}
 
-        {/* Content */}
+        {/* Content — pages render full-bleed <DashboardBand>s directly so
+            section background colors can change without breaking the gutter. */}
         <main
-          className={`flex-1 bg-paper paper-grain pb-28 lg:pb-0 ${hero ? "-mt-4 rounded-t-[12px] border-t border-paper-line" : ""}`}
+          className={`flex-1 bg-paper pb-28 lg:pb-0 ${hero ? "" : ""}`}
         >
-          <div className="page-fade-up mx-auto w-full max-w-[1600px] px-5 py-8 lg:px-10">
-            {children}
-          </div>
+          <div className="page-fade-up">{children}</div>
 
           {/* Footer (mobile only — desktop footer lives in the sidebar) */}
           <footer className="mx-auto w-full max-w-[1600px] px-5 pb-10 lg:hidden">
@@ -151,6 +150,7 @@ export function ClientShell({
             </div>
           </footer>
         </main>
+
       </div>
 
       {/* ── Mobile bottom tab bar ── */}
