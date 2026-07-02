@@ -36,7 +36,9 @@ function useTheme() {
     const next = !dark;
     setDark(next);
     document.documentElement.classList.toggle("dark", next);
-    try { localStorage.setItem("ll-theme", next ? "dark" : "light"); } catch {}
+    try {
+      localStorage.setItem("ll-theme", next ? "dark" : "light");
+    } catch {}
   }
 
   return { dark, toggle };
@@ -67,17 +69,16 @@ function NavItems() {
   return (
     <SidebarMenu>
       {NAV.map((item) => {
-        const active =
-          pathname === item.to || pathname.startsWith(`${item.to}/`);
+        const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
         return (
           <SidebarMenuItem key={item.to}>
             <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
               <Link
                 to={item.to}
-                className={`relative flex items-center gap-3 rounded-lg px-3 py-2 transition-colors ${
+                className={`relative flex items-center gap-3 rounded-[10px] px-3 py-2 transition-colors ${
                   active
-                    ? "bg-sidebar-accent/60 text-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-foreground"
+                    ? "bg-white/10 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.12),inset_0_0_0_1px_rgba(255,255,255,0.05)]"
+                    : "text-sidebar-foreground/70 hover:bg-white/[0.06] hover:text-foreground"
                 }`}
               >
                 {active && (
@@ -138,9 +139,7 @@ function NavProgressBar() {
 
   return (
     <div className="pointer-events-none fixed left-0 right-0 top-0 z-[100] h-[2px] overflow-hidden">
-      <div
-        className={`h-full bg-accent ${finishing ? "nav-bar-finishing" : "nav-bar-loading"}`}
-      />
+      <div className={`h-full bg-accent ${finishing ? "nav-bar-finishing" : "nav-bar-loading"}`} />
     </div>
   );
 }
@@ -162,7 +161,14 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <NavProgressBar />
-      <div className="flex min-h-screen w-full bg-background bg-blueprint-subtle">
+      <div className="flex min-h-screen w-full bg-background">
+        {/* Plane 0 — faint aurora so the glass chrome has light to bend.
+            Kept subtle: operators live in this surface all day. */}
+        <div className="aurora-night opacity-40" aria-hidden>
+          <i className="an-1" />
+          <i className="an-2" />
+          <i className="an-3" />
+        </div>
         {/* Sidebar: one step darker than canvas (#0A0B0D) */}
         <Sidebar collapsible="icon" className="border-r border-[rgba(255,255,255,0.05)]">
           <SidebarHeader>
@@ -180,9 +186,9 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
           </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset className="flex min-w-0 flex-1 flex-col">
-          {/* Top bar: canvas level (#0D0E10) — does not compete with content */}
-          <header className="sticky top-0 z-10 flex h-11 items-center gap-3 border-b border-[rgba(255,255,255,0.06)] bg-[#0D0E10] px-4">
+        <SidebarInset className="flex min-w-0 flex-1 flex-col bg-transparent">
+          {/* Top bar: glass — blurs content scrolling underneath */}
+          <header className="glass-bar sticky top-0 z-10 flex h-11 items-center gap-3 border-b border-[rgba(255,255,255,0.06)] px-4">
             <SidebarTrigger className="text-[rgba(255,255,255,0.40)] hover:text-[#F5F5F5]" />
             <span className="h-3 w-px bg-[rgba(255,255,255,0.08)]" />
             <span className="font-mono text-[10px] uppercase tracking-widest text-[rgba(255,255,255,0.30)]">

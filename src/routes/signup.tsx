@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { GlassButton } from "@/components/ui/glass-button";
 import { lovable } from "@/integrations/lovable";
 import { AuthShell, Field, Divider } from "./login";
 
@@ -71,9 +72,9 @@ function SignupPage() {
           required
         />
         {error && <p className="text-sm font-medium text-paper-danger">{error}</p>}
-        <button type="submit" disabled={loading} className="cta-shear w-full">
+        <GlassButton type="submit" variant="amber" disabled={loading} className="w-full">
           {loading ? "Creating…" : "Create account"}
-        </button>
+        </GlassButton>
       </form>
 
       <Divider />

@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { GlassButton } from "@/components/ui/glass-button";
 import { AuthShell, Field } from "./login";
 
 export const Route = createFileRoute("/reset-password")({
@@ -68,9 +69,9 @@ function ResetPasswordPage() {
             required
           />
           {error && <p className="text-sm font-medium text-paper-danger">{error}</p>}
-          <button type="submit" disabled={loading} className="cta-shear w-full">
+          <GlassButton type="submit" variant="amber" disabled={loading} className="w-full">
             {loading ? "Updating…" : "Update password"}
-          </button>
+          </GlassButton>
         </form>
       </AuthShell>
     );
@@ -89,9 +90,9 @@ function ResetPasswordPage() {
         />
         {error && <p className="text-sm font-medium text-paper-danger">{error}</p>}
         {info && <p className="text-sm font-medium text-paper-success">{info}</p>}
-        <button type="submit" disabled={loading} className="cta-shear w-full">
+        <GlassButton type="submit" variant="amber" disabled={loading} className="w-full">
           {loading ? "Sending…" : "Send reset link"}
-        </button>
+        </GlassButton>
       </form>
       <p className="mt-6 text-center text-sm text-ink-2">
         <Link to="/login" className="transition hover:text-ink">

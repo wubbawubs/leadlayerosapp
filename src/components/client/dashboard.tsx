@@ -13,13 +13,18 @@ import {
   Tooltip,
   ReferenceDot,
 } from "recharts";
-import { Sparkles, FilePlus, BarChart3, ArrowRight, Trophy, Eye, MousePointerClick, Target } from "lucide-react";
-import { SectionLabel } from "@/components/client/bits";
 import {
-  portalCopy,
-  formatMoney,
-  type PortalLocale,
-} from "@/lib/shared/clientPortal/portalCopy";
+  Sparkles,
+  FilePlus,
+  BarChart3,
+  ArrowRight,
+  Trophy,
+  Eye,
+  MousePointerClick,
+  Target,
+} from "lucide-react";
+import { SectionLabel } from "@/components/client/bits";
+import { portalCopy, formatMoney, type PortalLocale } from "@/lib/shared/clientPortal/portalCopy";
 import type {
   ClientAnalytics,
   ClientPortalData,
@@ -101,9 +106,13 @@ export function TrafficTrend({
               <Tooltip
                 labelFormatter={(v) => fmtDay(v as string)}
                 contentStyle={{
-                  background: "#FBF7EE",
-                  border: `1px solid ${LINE}`,
-                  borderRadius: 4,
+                  background: "rgba(251,247,238,0.90)",
+                  backdropFilter: "blur(12px) saturate(150%)",
+                  WebkitBackdropFilter: "blur(12px) saturate(150%)",
+                  border: "1px solid rgba(191,179,149,0.45)",
+                  borderRadius: 12,
+                  boxShadow:
+                    "inset 0 1px 0 rgba(255,255,255,0.9), 0 8px 24px -8px rgba(26,26,28,0.25)",
                   fontSize: 12,
                 }}
                 formatter={(value: number, name: string) => [
@@ -167,7 +176,6 @@ export function TrafficTrend({
     </section>
   );
 }
-
 
 // ── CTA performance funnel ──────────────────────────────────────────
 
@@ -328,9 +336,7 @@ export function HeroSparkline({
   const w = 132;
   const h = 44;
   const stepX = w / (buckets.length - 1);
-  const points = buckets
-    .map((v, i) => `${i * stepX},${h - (v / max) * (h - 6) - 3}`)
-    .join(" ");
+  const points = buckets.map((v, i) => `${i * stepX},${h - (v / max) * (h - 6) - 3}`).join(" ");
   const total = buckets.reduce((a, b) => a + b, 0);
   const last = buckets[buckets.length - 1];
   const prev = buckets[buckets.length - 2];
@@ -355,10 +361,7 @@ export function HeroSparkline({
             <stop offset="100%" stopColor={AMBER} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <polygon
-          points={`0,${h} ${points} ${w},${h}`}
-          fill="url(#sparkFill)"
-        />
+        <polygon points={`0,${h} ${points} ${w},${h}`} fill="url(#sparkFill)" />
         <polyline
           points={points}
           fill="none"
@@ -401,17 +404,14 @@ export function WonBanner({
 }) {
   const c = portalCopy(locale);
   const cutoff = Date.now() - 24 * 3600 * 1000;
-  const recent = leads.find(
-    (l) => l.status === "won" && new Date(l.createdAt).getTime() > cutoff,
-  );
+  const recent = leads.find((l) => l.status === "won" && new Date(l.createdAt).getTime() > cutoff);
   if (!recent) return null;
   const amount = recent.closedAmount != null ? formatMoney(recent.closedAmount, locale) : "—";
   return (
     <div
       className="mb-6 flex items-center gap-3 rounded-[6px] border border-paper-line px-4 py-3"
       style={{
-        background:
-          "linear-gradient(90deg, rgba(217,119,6,0.10) 0%, rgba(217,119,6,0.02) 70%)",
+        background: "linear-gradient(90deg, rgba(217,119,6,0.10) 0%, rgba(217,119,6,0.02) 70%)",
       }}
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber/90 text-paper">
@@ -451,7 +451,7 @@ export function StoryHighlights({
   const wonThisMonth = portal.leads.filter(
     (l) => l.status === "won" && new Date(l.createdAt).getTime() >= monthStart,
   );
-  const biggest = wonThisMonth.reduce<typeof wonThisMonth[number] | null>(
+  const biggest = wonThisMonth.reduce<(typeof wonThisMonth)[number] | null>(
     (best, l) =>
       l.closedAmount != null && (!best || (best.closedAmount ?? 0) < l.closedAmount) ? l : best,
     null,
@@ -541,4 +541,3 @@ export function StoryHighlights({
     </section>
   );
 }
-

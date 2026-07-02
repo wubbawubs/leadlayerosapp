@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as DesignLabRouteImport } from './routes/design-lab'
 import { Route as DemoRouteImport } from './routes/demo'
 import { Route as ClientRouteImport } from './routes/client'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
@@ -78,6 +79,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DesignLabRoute = DesignLabRouteImport.update({
+  id: '/design-lab',
+  path: '/design-lab',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DemoRoute = DemoRouteImport.update({
@@ -375,6 +381,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/client': typeof ClientRouteWithChildren
   '/demo': typeof DemoRoute
+  '/design-lab': typeof DesignLabRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
@@ -430,6 +437,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
+  '/design-lab': typeof DesignLabRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
@@ -487,6 +495,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/client': typeof ClientRouteWithChildren
   '/demo': typeof DemoRoute
+  '/design-lab': typeof DesignLabRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
@@ -545,6 +554,7 @@ export interface FileRouteTypes {
     | '/'
     | '/client'
     | '/demo'
+    | '/design-lab'
     | '/login'
     | '/reset-password'
     | '/signup'
@@ -600,6 +610,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/demo'
+    | '/design-lab'
     | '/login'
     | '/reset-password'
     | '/signup'
@@ -656,6 +667,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/client'
     | '/demo'
+    | '/design-lab'
     | '/login'
     | '/reset-password'
     | '/signup'
@@ -714,6 +726,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   ClientRoute: typeof ClientRouteWithChildren
   DemoRoute: typeof DemoRoute
+  DesignLabRoute: typeof DesignLabRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
@@ -746,6 +759,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/design-lab': {
+      id: '/design-lab'
+      path: '/design-lab'
+      fullPath: '/design-lab'
+      preLoaderRoute: typeof DesignLabRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/demo': {
@@ -1261,6 +1281,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   ClientRoute: ClientRouteWithChildren,
   DemoRoute: DemoRoute,
+  DesignLabRoute: DesignLabRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
@@ -1274,3 +1295,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

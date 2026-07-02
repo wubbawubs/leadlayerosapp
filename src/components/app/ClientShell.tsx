@@ -48,7 +48,6 @@ export function ClientShell({
   const tabLabel = (id: (typeof TABS)[number]["id"]) => c.tabs[id];
   const isActive = (to: string) => pathname === to || (to !== "/client" && pathname.startsWith(to));
 
-
   return (
     <div className="paper flex min-h-screen">
       {/* ── Desktop sidebar ── */}
@@ -69,10 +68,10 @@ export function ClientShell({
               <Link
                 key={t.id}
                 to={t.to}
-                className={`relative flex items-center gap-3 rounded-[6px] px-3 py-2.5 text-[15px] font-medium transition-colors ${
+                className={`relative flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-[15px] font-medium transition-colors ${
                   active
-                    ? "bg-paper-subtle text-ink"
-                    : "text-ink-2 hover:bg-paper-subtle/60 hover:text-ink"
+                    ? "bg-white/10 text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_0_0_1px_rgba(255,255,255,0.05)]"
+                    : "text-ink-2 hover:bg-white/[0.06] hover:text-ink"
                 }`}
               >
                 {active && (
@@ -123,16 +122,10 @@ export function ClientShell({
           </button>
         </header>
 
-        {/* Page hero — charcoal header band with a warm amber glow filling
-            the open space (otherwise it reads as a dead grey void). */}
+        {/* Page hero — charcoal header band with an aurora wash so the
+            open space reads as atmosphere, not a dead grey void. */}
         {hero && (
-          <div
-            className="surface-charcoal"
-            style={{
-              backgroundImage:
-                "radial-gradient(80% 140% at 88% -20%, rgba(217,119,6,0.16), transparent 60%)",
-            }}
-          >
+          <div className="surface-charcoal aurora-charcoal">
             <div className="mx-auto w-full max-w-[1600px] px-5 pb-10 pt-7 sm:pt-9 lg:px-10">
               {hero}
             </div>
@@ -141,9 +134,7 @@ export function ClientShell({
 
         {/* Content — pages render full-bleed <DashboardBand>s directly so
             section background colors can change without breaking the gutter. */}
-        <main
-          className={`flex-1 bg-paper pb-28 lg:pb-0 ${bleed ? "" : "paper-grain"}`}
-        >
+        <main className={`flex-1 bg-paper pb-28 lg:pb-0 ${bleed ? "" : "paper-grain"}`}>
           {bleed ? (
             <div className="page-fade-up">{children}</div>
           ) : (
@@ -151,7 +142,6 @@ export function ClientShell({
               {children}
             </div>
           )}
-
 
           {/* Footer (mobile only — desktop footer lives in the sidebar) */}
           <footer className="mx-auto w-full max-w-[1600px] px-5 pb-10 lg:hidden">
@@ -162,28 +152,31 @@ export function ClientShell({
             </div>
           </footer>
         </main>
-
       </div>
 
-      {/* ── Mobile bottom tab bar ── */}
-      <nav className="surface-charcoal fixed bottom-0 left-0 right-0 z-20 grid grid-cols-4 border-t border-charcoal-line pb-[env(safe-area-inset-bottom)] lg:hidden">
-        {TABS.map((t) => {
-          const active = isActive(t.to);
-          return (
-            <Link
-              key={t.id}
-              to={t.to}
-              className={`relative flex flex-col items-center gap-1 py-3 text-[11px] font-semibold transition-colors ${
-                active ? "text-amber-bright" : "text-ink-3"
-              }`}
-            >
-              {active && <span className="absolute top-0 h-0.5 w-8 bg-amber" />}
-              <t.icon className="h-5 w-5" />
-              {tabLabel(t.id)}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* ── Mobile floating glass dock ──
+          (wrapper owns lg:hidden — .glass-dock sets display itself) */}
+      <div
+        className="fixed left-1/2 z-20 -translate-x-1/2 lg:hidden"
+        style={{ bottom: "calc(14px + env(safe-area-inset-bottom))" }}
+      >
+        <nav className="glass-dock" aria-label="Navigation">
+          {TABS.map((t) => {
+            const active = isActive(t.to);
+            return (
+              <Link
+                key={t.id}
+                to={t.to}
+                className={`glass-dock-item ${active ? "is-active" : ""}`}
+                aria-current={active ? "page" : undefined}
+              >
+                <t.icon />
+                {tabLabel(t.id)}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
     </div>
   );
 }

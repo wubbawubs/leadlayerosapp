@@ -1,262 +1,177 @@
-# LeadLayer OS — Design System
+# LeadLayer OS — Design System v5 "Liquid OS"
 
-Two surfaces, one brand. The operator app and the client portal share a font family and accent color. Everything else is audience-specific.
+> **One sentence:** content stays ink on paper; everything you **touch** becomes
+> liquid glass.
+>
+> Full rationale + audit of v3: `docs/DESIGN_V5_LIQUID_GLASS.md`.
+> Living specimen of every material and control: **`/design-lab`**.
+
+**Rollout status (2026-07-02):**
+
+| Surface                                              | Status                                                         |
+| ---------------------------------------------------- | -------------------------------------------------------------- |
+| Foundation (materials, motion, GlassButton)          | ✅ live in `styles.css` + `src/components/ui/glass-button.tsx` |
+| Client portal chrome (glass dock, aurora hero, CTAs) | ✅ live                                                        |
+| Auth pages (GlassButton CTAs)                        | ✅ live                                                        |
+| Landing `/` (night canvas + glass)                   | ✅ live                                                        |
+| Operator chrome (glass rail/toolbar/tiles)           | ⏳ Phase 3 — **v3 rules below still apply there**              |
+| Charts polish, `/demo` rebuild                       | ⏳ Phase 5                                                     |
 
 ---
 
 ## Core Principles
 
-1. **Opinion over average.** Every AI-generated UI converges to the statistical mean. LeadLayer's design decisions are explicit and rule-bound — that's what makes them look intentional.
-2. **Accent under 10%.** The orange appears on focus rings, primary CTAs, active nav indicators, and live status dots. Nowhere else. When it appears, it means something.
-3. **No drop shadows.** Elevation is expressed through the surface ladder — stepping up one level in the color stack, not by casting light.
-4. **Deltas on every number.** A bare metric is a mockup. A metric with a delta (+2 vs last month) is a tool.
-5. **Density where operators are, sparsity where clients are.** Operators live in this tool all day. Clients open it between jobs on a phone in the sun.
+1. **Three planes, like the mark.**
+   - _Plane 0 — canvas:_ a living background. Night surfaces get a drifting
+     aurora (`.night` + `.aurora-night`); paper keeps warm cream + grain.
+   - _Plane 1 — content:_ ink on surface. Text, metrics, charts. Opaque,
+     high-contrast, **never glass**. Readability rules are non-negotiable.
+   - _Plane 2 — glass:_ everything interactive — nav, docks, buttons, chips,
+     dialogs. Translucent, lit from above, responds to touch.
+2. **Elevation is light, not paint.** Higher objects gather more light:
+   stronger specular rim, deeper backdrop blur, longer/softer shadow. Use the
+   material classes; never ad-hoc `shadow-*`.
+3. **Physics, not transitions.** Every interactive element compresses under
+   the pointer (`scale 0.965`, 90 ms) and springs back (`--spring`, ~6%
+   overshoot). Things _arrive_, they don't appear.
+4. **Accent under 10%.** Unchanged from v3. One liquid-amber primary per
+   screen. When amber appears, it means something.
+5. **Deltas on every number.** Unchanged. A bare metric is a mockup.
+6. **Density where operators are, sparsity where clients are.** Unchanged.
 
 ---
 
-## OPERATOR SURFACE (Dark)
+## Materials (in `styles.css`)
 
-### Surface Ladder — 4 steps, no shadows
+| Class                                               | What                                        | Where                                        |
+| --------------------------------------------------- | ------------------------------------------- | -------------------------------------------- |
+| `.glass`                                            | Dark glass + lensing ring                   | chrome on night/charcoal contexts            |
+| `.glass-paper`                                      | Light glass + warm ring                     | chrome on the paper surface                  |
+| `.glass-dock` / `.glass-dock-item` (+ `.is-active`) | Floating charcoal-glass tab dock            | client portal mobile nav                     |
+| `.night`                                            | Night canvas scope (bg + text + brand vars) | landing, operator (Phase 3)                  |
+| `.aurora-night` (+ `i.an-1/2/3`)                    | Fixed drifting aurora layer                 | first child of `.night` pages                |
+| `.aurora-charcoal`                                  | Static aurora wash                          | charcoal hero bands on paper                 |
+| `.noise`                                            | Film grain data-URI                         | fixed overlay on night pages                 |
+| `.enter-liquid`                                     | Entrance (rise + blur-clear, 0.9 s)         | page/section mounts, pairs with `.stagger-N` |
 
-```
---canvas:           #0D0E10    base — the page background
---surface:          #161719    cards, panels
---surface-elevated: #1E1F22    hover states, active rows, input backgrounds
---surface-overlay:  #28292D    dropdowns, tooltips, modals
-```
+Rules:
 
-Never use `bg-card/60 backdrop-blur` as elevation. Use the next step in the ladder.
+- Glass is the **control plane only** — never put body copy or charts on glass.
+- Glass never nests inside glass; flatten to one layer.
+- ≤ 6 live `backdrop-filter` layers per viewport.
+- Fallbacks for `prefers-reduced-transparency` and `prefers-reduced-motion`
+  are built into the classes — don't bypass them.
 
-### Text Hierarchy — 3 opacity levels
-
-```
---text-primary:   #F5F5F5               headings, numbers, active labels
---text-secondary: rgba(255,255,255,0.55) body copy, descriptions, metadata
---text-tertiary:  rgba(255,255,255,0.30) timestamps, placeholders, disabled
-```
-
-Don't change text color for hierarchy — change opacity. This keeps the palette clean.
-
-### Accent (LeadLayer Orange)
+## Motion tokens
 
 ```
---accent:       #E8913A    active nav bar, primary CTA, live dot, focus ring
---accent-hover: #F0A050    hover state only
---accent-muted: rgba(232,145,58,0.15)  background tint for accent-heavy zones
+--spring:      cubic-bezier(0.34, 1.56, 0.64, 1)   arrives with overshoot
+--ease-liquid: cubic-bezier(0.22, 1, 0.36, 1)      standard settle
 ```
 
-**Rule:** Orange appears on ≤10% of any viewport. If you're tempted to use it on a label, a badge, or a section header — don't.
+Animate only `transform`, `opacity`, `filter`. Never layout properties.
 
-### Status Colors
+## Geometry — concentric corners
 
-```
---status-green:  #27A644    healthy, on track, won
---status-amber:  #E8B94A    attention needed, pending review
---status-red:    #E54D4D    at risk, failed, urgent
-```
-
-Status tints (for card backgrounds):
-```
---status-green-tint: rgba(39,166,68,0.08)
---status-amber-tint: rgba(232,185,74,0.08)
---status-red-tint:   rgba(229,77,77,0.08)
-```
-
-### Borders
-
-```
-1px solid rgba(255,255,255,0.06)   standard card border
-1px solid rgba(255,255,255,0.10)   elevated surface border
-```
-
-### Border Radius
-
-```
-4px   inputs, badges, chips
-6px   small cards, pills
-8px   standard cards, panels
-12px  large panels (reserved, use sparingly)
-```
-
-Never use `rounded-xl` (16px) or `rounded-2xl` (24px) in the operator app — this is the #1 "AI template" tell.
-
-### Typography
-
-```
-Font:       Plus Jakarta Sans
-Display:    font-display font-semibold tracking-tight   (headers, names)
-Body:       font-sans font-normal                        (copy, descriptions)
-Data:       font-mono text-xs uppercase tracking-widest  (section labels ONLY)
-Numbers:    font-display font-bold                        (metrics, counts)
-```
-
-**Rule:** `font-mono uppercase tracking-widest` is reserved for section-level labels only (ACTION QUEUE, CLIENT HEALTH). Not action types, not badge text, not inline labels.
-
-### Dashboard Layout Pattern
-
-```
-KPI strip (4 metrics, each with delta)
-Action queue (dense rows, color-coded by action type)
-Client health (compact cards with inline actions)
-```
-
-No decorative headlines. No atmospheric gradient glows. The data IS the headline.
-
-### Action Type Color Coding
-
-```
-🟡 amber dot   review_brief, review_opt_brief    — needs your eyes
-🔵 blue dot    create_draft, apply_optimization   — system can execute
-🟠 orange dot  publish_draft, retry_delivery      — ready to ship
-```
-
-### Interaction Density
-
-Every row in the operator app should have at least one inline action. The cursor should never be at a dead end. "OPEN →" alone is never enough.
+**Inner radius = outer radius − gap.** No more per-file radius invention.
+Standalone controls are capsules (radius = height/2): buttons, chips, docks,
+segmented controls. Example: dock 28px radius, 6px padding → 22px item wells.
 
 ---
 
-## CLIENT SURFACE — "Paper" (v3, matches leadlayer.studio)
+## Buttons — `<GlassButton>` (the one system)
 
-Different audience. Different rules entirely. The customer-facing surfaces
-(landing, auth, client portal, public reports) mirror the marketing site:
-warm paper, charcoal panels, amber accents, editorial typography.
+`src/components/ui/glass-button.tsx`. Supports `asChild` for `<Link>`/`<a>`.
 
-**Context:** Tradespeople. Checked on a phone between jobs. Outdoor, bright sun. 30 seconds at most. The question they're asking: "Is this working?"
+| Variant   | Material                                          | Use                              |
+| --------- | ------------------------------------------------- | -------------------------------- |
+| `amber`   | Liquid amber, sheen sweep on hover                | THE primary — one per screen     |
+| `success` | Liquid green                                      | won-lead / revenue confirmations |
+| `glass`   | Adaptive glass (dark ↔ paper ↔ charcoal-in-paper) | secondary (default)              |
+| `ghost`   | Hairline capsule                                  | tertiary                         |
+| `danger`  | Red-tinted glass                                  | destructive                      |
 
-**Implementation:** wrap the page in `.paper` (pins every semantic token —
-immune to the operator `.dark` theme). The `__root.tsx` inline script also
-skips dark mode entirely on customer routes. Tokens live in `styles.css`.
+Sizes: default (48px) and `sm` (38px). All get press physics, pointer
+specular, and a visible `focus-visible` ring for free.
 
-### Portal architecture — "charcoal frame, paper sheet"
-
-The client portal (`ClientShell`) frames every page in charcoal: masthead
-(brand + inline nav + sign out) and a page **hero** slot — greeting, one huge
-editorial number (count-up animated), status sentence, progress. The paper
-sheet slides up over the frame (rounded top, hairline) and carries the
-content: an editorial stat band (hairline-divided, not boxed), then a
-two-column grid on desktop (main flow left, rail right with report /
-numbered next steps / how-it-works). Mobile gets a charcoal bottom tab bar.
-Never render the portal as a single centered column on desktop.
-
-### Language
-
-The portal and public reports speak the client's language: `tenant.geo`
-NL → Dutch (informal "je"), US → English. All copy lives in
-`src/lib/shared/clientPortal/portalCopy.ts` — never hardcode portal strings
-in components. Server-generated labels (activity feed, period labels) are
-localized in `clientPortal.functions.ts`. Currency follows geo (EUR/USD).
-
-### Surface (Paper)
-
-```
---paper-base:        #F5F0E8    page background — warm cream, never white/gray
---paper-raised:      #FBF7EE    cards, headers          (.paper-card)
---paper-subtle:      #EDE6D8    chips, icon wells, secondary fills
---paper-inset:       #E8DFD0    progress tracks, inputs wells
---paper-line:        #DDD4C2    hairline borders        (.rule-hair)
---paper-line-strong: #C4B89E    emphasized borders, inputs
-```
-
-### Charcoal panel (`.surface-charcoal`)
-
-Dark editorial band for the hero moment (goal card, report masthead).
-Flips `--ink`/`--paper-*` automatically, so `text-ink`, `bg-paper-inset`,
-`label-mono` etc. just work inside it.
-
-```
---charcoal: #2D2D2D   panel    --charcoal-soft: #353535   raised
---charcoal-deep: #1F1F1F inset --charcoal-line: #3D3D3D   borders
---ondark: #F5F0E8  --ondark-2: #B5AEA3  --ondark-3: #7A7670
-```
-
-### Text (ink scale)
-
-```
---ink:   #1A1A1C    primary — readable in direct sunlight
---ink-2: #5A554E    secondary, metadata
---ink-3: #8C8884    tertiary, timestamps
-```
-
-Minimum body text size: **15–16px**. Metadata: **13–14px**. The one
-exception is `.label-mono` (11px mono uppercase section kicker — the
-editorial label from the studio site). The client is often 45+ reading
-a phone.
-
-### Accent + Status
-
-```
---amber:        #D97706    primary accent, CTAs, active nav
---amber-bright: #F59E0B    numbers on charcoal
---amber-deep:   #B45309    links, icons on paper
---amber-signal: #E85D04    urgent, live
---paper-success: #1F7A36   won leads, revenue
---paper-danger:  #B23A3A   at risk
---paper-info:    #2F5A75   new leads
-```
-
-### Signature elements
-
-- **`.cta-shear`** — the sheared-parallelogram CTA (brand mark shape).
-  Charcoal, hover amber. Variants: `-amber`, `-success`, `-sm`.
-  One per screen.
-- **`.label-mono`** — 11px mono uppercase kicker above every section.
-- **`.rule-hair`** — hairline rules instead of boxes where possible.
-- **Numbered lists** (`01` `02` `03` in mono amber) for "coming next" /
-  "next actions" — never bullet dots.
-- **Radius: 4px.** Sharp and editorial. Chips 3px. Never rounded-full
-  except progress bars and status dots.
-
-### Layout Rules
-
-- **Cards, not tables.** Every list is a stack of cards on mobile. Tables never.
-- **One CTA per screen.** The client should never wonder what to tap.
-- **Goal progress is the hero** — a charcoal panel, first thing they see.
-- **3 big numbers with deltas** — Leads / Revenue / Pages Live. ROI proof.
-- **Activity feed before "coming next"** — clients care what happened, not what's planned.
-- **Bottom tab nav** (mobile) — not sidebar, not top nav.
-- **Phone numbers are `tel:` links, emails are `mailto:`** — tap to call back.
-
-### Anti-patterns for Client Surface
-
-```
-❌ Pure white or cool gray backgrounds (paper is warm)
-❌ Gradient fills or glow effects
-❌ rounded-full filter pills, rounded-xl cards (the AI-template tell)
-❌ Charts that require explanation
-❌ Small text (< 13px) except .label-mono
-❌ Tables (use cards)
-❌ Operator language ("execution artifacts", "masterplan items", "briefs")
-❌ More than 4 tabs
-❌ Feature-heavy sections the client didn't ask for
-```
+**Deprecated:** `cta-shear` (all variants) and shadcn `Button` on customer
+surfaces. Don't add new usages. The sheared parallelogram lives on as the
+brand _mark_, not the button shape.
 
 ---
 
-## Shared Rules
+## CLIENT SURFACE — paper + liquid chrome
 
-- **Fonts:** operator = Plus Jakarta Sans; paper surfaces = Hanken Grotesk
-  (closest free match to the site's Neue Montreal), set automatically by `.paper`
-- **The layered-parallelogram mark** is the brand thread — it recolors to
-  amber inside `.paper` via the `--accent` override
-- **No drop shadows** on either surface — structure through surface color and hairlines
-- **Empty states always have a CTA** — never dead text alone
+Content plane — unchanged from v3, still the law:
+
+- Warm paper (`--paper-*`), ink scale (`--ink*`), charcoal frame
+  (`.surface-charcoal`) — tokens in `styles.css`
+- Body text ≥ 15–16px, metadata ≥ 13–14px. Client is often 45+, on a phone,
+  in the sun.
+- Cards not tables. One CTA per screen. Goal progress is the hero.
+  3 big numbers with deltas. `tel:`/`mailto:` links tap-to-act.
+- All copy from `src/lib/shared/clientPortal/portalCopy.ts` (NL/EN by
+  `tenant.geo`) — never hardcode portal strings.
+
+Chrome plane — v5:
+
+- **Mobile nav = floating glass dock** (`.glass-dock`, safe-area aware,
+  centered, inset from edges). Never a full-width bar glued to the bottom.
+- Hero band: `.surface-charcoal.aurora-charcoal` — atmosphere, not dead grey.
+- Desktop sidebar: charcoal, active item = glass pill (white/10 + inset rim).
+- Primary actions: `GlassButton variant="amber"`; won-confirms `success`.
+
+## LANDING (`/`)
+
+Night canvas (`.night` + `.aurora-night` + `.noise`), floating `.glass` nav
+capsule, one liquid-amber CTA, glass tiles for the three layers. It's the
+front door — it must feel like the product's energy.
+
+## OPERATOR SURFACE — still v3 until Phase 3
+
+The dark operator app keeps the v3 rules for now: 4-step surface ladder
+(`#0D0E10 → #161719 → #1E1F22 → #28292D`), text hierarchy by opacity
+(1 / 0.55 / 0.30), hairline borders, radius 4/6/8px, `Plus Jakarta Sans`,
+mono-uppercase for section labels only, action-dot color coding
+(amber=review, blue=create, orange=publish), every row has an inline action.
+
+Phase 3 will move its _chrome_ (sidebar → glass rail, toolbar, KPI tiles,
+queue action chips) onto the v5 materials. Its _content_ rules stay.
 
 ---
 
-## AI Prompt Rules (for future AI-assisted development)
+## Status Colors
 
-When generating any UI for LeadLayer, enforce:
+Unchanged from v3 — `--status-green/amber/red/info` + soft tints (dark), and
+`--paper-success/danger/info` (paper). See `styles.css`.
 
-1. No `rounded-xl` or `rounded-2xl` in operator app
-2. No `backdrop-blur` or `glassmorphism` effects
-3. No gradient fills on cards or headers
-4. No atmospheric glow blobs behind page titles
-5. No `uppercase tracking-widest` on anything except section labels
-6. Accent color on ≤10% of any view
-7. Every metric must have a delta or comparison
-8. Every list row must have at least one inline action
-9. Elevation = stepping to the next surface level, not `shadow-lg`
-10. Text hierarchy = opacity levels, not different colors
+---
 
-Providing this file at the start of any AI session will prevent token drift and keep output consistent with the LeadLayer system.
+## Anti-patterns (v5)
+
+```
+❌ Glass under body copy, charts, or any content-plane element
+❌ Glass nested inside glass
+❌ Ad-hoc shadow-* / blur — elevation comes from the material classes only
+❌ New cta-shear or shadcn Button usages on customer surfaces
+❌ Non-concentric nested corners; non-capsule standalone controls
+❌ Animating width/height/top/left (layout) — transform/opacity/filter only
+❌ Amber on >10% of a viewport; two amber primaries on one screen
+❌ Metrics without deltas; empty states without a CTA
+❌ Hardcoded portal copy (bypassing portalCopy.ts)
+❌ Pure white/cool-gray page backgrounds on client surfaces (paper is warm)
+```
+
+## AI Prompt Rules
+
+When generating any UI for LeadLayer:
+
+1. Interactive chrome = the v5 material classes (`.glass`, `.glass-paper`,
+   `GlassButton`, `.glass-dock`) — never hand-rolled glass or shadows
+2. Content = opaque ink on surface, v3 readability rules
+3. Concentric corners; capsules for standalone controls
+4. Press physics on everything interactive (the classes provide it)
+5. One `variant="amber"` primary per screen
+6. Every metric has a delta; every list row has an inline action
+7. Respect the reduced-motion/transparency fallbacks (don't strip them)
+8. Operator app content areas: keep v3 rules until Phase 3

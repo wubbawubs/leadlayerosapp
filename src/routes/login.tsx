@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { GlassButton } from "@/components/ui/glass-button";
 import { lovable } from "@/integrations/lovable";
 
 export const Route = createFileRoute("/login")({
@@ -74,9 +75,14 @@ function LoginPage() {
             required
           />
           {error && <p className="text-sm font-medium text-paper-danger">{error}</p>}
-          <button type="submit" disabled={loading || signingIn} className="cta-shear w-full">
+          <GlassButton
+            type="submit"
+            variant="amber"
+            disabled={loading || signingIn}
+            className="w-full"
+          >
             Sign in
-          </button>
+          </GlassButton>
         </form>
 
         <Divider />

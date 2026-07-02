@@ -11,6 +11,7 @@ import {
   dismissLeadAsClient,
 } from "@/lib/shared/clientPortal/clientAuth.functions";
 import { ClientShell } from "@/components/app/ClientShell";
+import { GlassButton } from "@/components/ui/glass-button";
 import { StatusChip, useCountUp } from "@/components/client/bits";
 import {
   portalCopy,
@@ -338,14 +339,15 @@ function MarkWonModal({
           </div>
         </div>
 
-        <button
+        <GlassButton
           type="button"
+          variant="success"
           disabled={!amount || mutation.isPending}
           onClick={() => mutation.mutate()}
-          className="cta-shear cta-shear-success mt-5 w-full"
+          className="mt-5 w-full"
         >
           {mutation.isPending ? c.wonSaving : c.wonConfirm}
-        </button>
+        </GlassButton>
       </div>
     </div>
   );

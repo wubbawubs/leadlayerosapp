@@ -12,6 +12,7 @@
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { GlassButton } from "@/components/ui/glass-button";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -30,11 +31,7 @@ import {
 } from "@/lib/shared/clientPortal/clientAuth.functions";
 import { ClientShell } from "@/components/app/ClientShell";
 import { StatusChip, useCountUp } from "@/components/client/bits";
-import {
-  TrafficTrend,
-  HeroSparkline,
-  WonBanner,
-} from "@/components/client/dashboard";
+import { TrafficTrend, HeroSparkline, WonBanner } from "@/components/client/dashboard";
 import {
   portalCopy,
   formatMoney,
@@ -95,14 +92,10 @@ function ClientHome() {
       </ClientShell>
     );
 
-  const activeLeads = portal.leads.filter(
-    (l) => l.status !== "lost" && l.status !== "junk",
-  );
+  const activeLeads = portal.leads.filter((l) => l.status !== "lost" && l.status !== "junk");
 
   const justWon = portal.leads.some(
-    (l) =>
-      l.status === "won" &&
-      Date.now() - new Date(l.createdAt).getTime() < 24 * 3600 * 1000,
+    (l) => l.status === "won" && Date.now() - new Date(l.createdAt).getTime() < 24 * 3600 * 1000,
   );
 
   const publishEvents = portal.recentActivity
@@ -110,17 +103,12 @@ function ClientHome() {
     .map((a) => ({
       date: a.date,
       label: a.label,
-      kind:
-        a.type === "page_published"
-          ? ("published" as const)
-          : ("optimized" as const),
+      kind: a.type === "page_published" ? ("published" as const) : ("optimized" as const),
     }));
 
   const showHowItWorks = portal.recentActivity.length < 3;
   const latestReport =
-    portal.reports.length > 0 && portal.reports[0].shareToken
-      ? portal.reports[0]
-      : null;
+    portal.reports.length > 0 && portal.reports[0].shareToken ? portal.reports[0] : null;
 
   return (
     <ClientShell
@@ -143,22 +131,14 @@ function ClientHome() {
         <div className="min-w-0 space-y-10">
           {analytics && (
             <Section
-              title={
-                locale === "nl"
-                  ? "Bezoekers & conversies"
-                  : "Visitors & conversions"
-              }
+              title={locale === "nl" ? "Bezoekers & conversies" : "Visitors & conversions"}
               hint={
                 locale === "nl"
                   ? "Amber-stippen markeren publicaties."
                   : "Amber dots mark publications."
               }
             >
-              <TrafficTrend
-                analytics={analytics}
-                locale={locale}
-                events={publishEvents}
-              />
+              <TrafficTrend analytics={analytics} locale={locale} events={publishEvents} />
             </Section>
           )}
 
@@ -189,9 +169,7 @@ function ClientHome() {
                           {l.name ?? c.unknownCaller}
                         </p>
                         <p className="mt-0.5 truncate text-[13px] text-ink-3">
-                          {l.source
-                            ? `${c.via} ${c.sources[l.source] ?? l.source} · `
-                            : ""}
+                          {l.source ? `${c.via} ${c.sources[l.source] ?? l.source} · ` : ""}
                           {formatRelative(l.createdAt, locale)}
                         </p>
                       </div>
@@ -203,11 +181,7 @@ function ClientHome() {
             ) : (
               <EmptyState
                 icon={<Phone className="h-4 w-4" />}
-                title={
-                  locale === "nl"
-                    ? "Nog geen leads deze maand"
-                    : "No leads yet this month"
-                }
+                title={locale === "nl" ? "Nog geen leads deze maand" : "No leads yet this month"}
                 body={
                   locale === "nl"
                     ? "Zodra er een nieuwe aanvraag binnenkomt verschijnt die hier."
@@ -263,11 +237,7 @@ function ClientHome() {
             <Section title={locale === "nl" ? "Laatste rapport" : "Latest report"}>
               <EmptyState
                 icon={<FileText className="h-4 w-4" />}
-                title={
-                  locale === "nl"
-                    ? "Nog geen rapport"
-                    : "No report yet"
-                }
+                title={locale === "nl" ? "Nog geen rapport" : "No report yet"}
                 body={
                   locale === "nl"
                     ? "Je eerste maandeditie verschijnt aan het einde van de maand."
@@ -281,10 +251,7 @@ function ClientHome() {
             <Section title={c.comingNext}>
               <ol className="space-y-3">
                 {portal.nextMonthFocus.slice(0, 4).map((f, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start gap-3 text-[14px] leading-snug text-ink"
-                  >
+                  <li key={i} className="flex items-start gap-3 text-[14px] leading-snug text-ink">
                     <span className="mt-px font-display text-[13px] font-extrabold tabular-nums text-amber-deep">
                       {String(i + 1).padStart(2, "0")}
                     </span>
@@ -305,9 +272,7 @@ function ClientHome() {
                     </span>
                     <div className="min-w-0">
                       <p className="text-[14px] font-semibold text-ink">{s.title}</p>
-                      <p className="mt-0.5 text-[13px] leading-relaxed text-ink-2">
-                        {s.copy}
-                      </p>
+                      <p className="mt-0.5 text-[13px] leading-relaxed text-ink-2">{s.copy}</p>
                     </div>
                   </li>
                 ))}
@@ -337,9 +302,7 @@ function Section({
     <section>
       <div className="mb-3 flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="font-display text-[17px] font-bold tracking-tight text-ink">
-            {title}
-          </h2>
+          <h2 className="font-display text-[17px] font-bold tracking-tight text-ink">{title}</h2>
           {hint && <p className="mt-0.5 text-[13px] text-ink-3">{hint}</p>}
         </div>
         {action}
@@ -417,9 +380,7 @@ function KpiStrip({
       <KpiCell
         label={a.conversionRate}
         value={analytics ? `${analytics.totals.conversionRate}%` : null}
-        emptyTitle={
-          locale === "nl" ? "Geen conversie-data" : "No conversion data"
-        }
+        emptyTitle={locale === "nl" ? "Geen conversie-data" : "No conversion data"}
         emptyBody={
           locale === "nl"
             ? "Koppel je formulier om dit te zien."
@@ -433,9 +394,7 @@ function KpiStrip({
       <KpiCell
         label={a.visitors}
         value={analytics ? analytics.totals.sessions.toLocaleString() : null}
-        emptyTitle={
-          locale === "nl" ? "Nog geen verkeer" : "No traffic yet"
-        }
+        emptyTitle={locale === "nl" ? "Nog geen verkeer" : "No traffic yet"}
         emptyBody={
           locale === "nl"
             ? "Verkeer komt binnen zodra een pagina live staat."
@@ -520,7 +479,10 @@ function KpiCell({
   );
 
   return to ? (
-    <Link to={to} className="group block px-5 py-5 transition-colors hover:bg-paper-subtle/40 sm:px-6">
+    <Link
+      to={to}
+      className="group block px-5 py-5 transition-colors hover:bg-paper-subtle/40 sm:px-6"
+    >
       {inner}
     </Link>
   ) : (
@@ -599,10 +561,7 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
 
   // Lede sentence — prefer the configured goal title, otherwise generate one.
   const lede =
-    goal?.title ??
-    (locale === "nl"
-      ? "Nieuwe klanten deze maand"
-      : "New customers this month");
+    goal?.title ?? (locale === "nl" ? "Nieuwe klanten deze maand" : "New customers this month");
 
   // Weekly delta (this week vs last 7 days prior) — small but factual.
   const now = Date.now();
@@ -677,10 +636,10 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
               />
             </div>
             <div className="mt-2 flex items-center justify-between text-[12px] font-medium text-ondark-3">
-              <span>{percent}% {c.ofGoal}</span>
-              {goal?.daysRemaining != null && (
-                <span>{c.daysLeft(goal.daysRemaining)}</span>
-              )}
+              <span>
+                {percent}% {c.ofGoal}
+              </span>
+              {goal?.daysRemaining != null && <span>{c.daysLeft(goal.daysRemaining)}</span>}
             </div>
           </div>
 
@@ -690,10 +649,7 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
               className="flex items-center gap-2 text-[13px] font-semibold"
               style={{ color: statusColor }}
             >
-              <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: statusDot }}
-              />
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusDot }} />
               {statusLabel}
             </span>
             <span className="h-3 w-px bg-white/10" />
@@ -704,13 +660,12 @@ function HomeHero({ portal, locale }: { portal: ClientPortalData; locale: Portal
                 {locale === "nl" ? "vs vorige week" : "vs last week"}
               </span>
             </span>
-            <Link
-              to={heroCta.to}
-              className="ml-auto flex items-center gap-1.5 rounded-[6px] bg-amber px-4 py-2 text-[13px] font-semibold text-paper transition-colors hover:bg-amber-deep"
-            >
-              {heroCta.label}
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
+            <GlassButton asChild variant="amber" size="sm" className="ml-auto">
+              <Link to={heroCta.to}>
+                {heroCta.label}
+                <ArrowRight />
+              </Link>
+            </GlassButton>
           </div>
         </div>
 

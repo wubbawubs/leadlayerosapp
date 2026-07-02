@@ -20,22 +20,22 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 const ACTION_LABELS: Record<ActionType, string> = {
-  review_brief:        "Review brief",
-  create_draft:        "Create draft",
-  publish_draft:       "Publish draft",
-  review_opt_brief:    "Review optimization",
-  apply_optimization:  "Apply optimization",
-  retry_delivery:      "Retry delivery",
+  review_brief: "Review brief",
+  create_draft: "Create draft",
+  publish_draft: "Publish draft",
+  review_opt_brief: "Review optimization",
+  apply_optimization: "Apply optimization",
+  retry_delivery: "Retry delivery",
 };
 
 // Color-coded action type dots per DESIGN.md
 const ACTION_DOT: Record<ActionType, string> = {
-  review_brief:       "action-dot-review",
-  review_opt_brief:   "action-dot-review",
-  create_draft:       "action-dot-create",
+  review_brief: "action-dot-review",
+  review_opt_brief: "action-dot-review",
+  create_draft: "action-dot-create",
   apply_optimization: "action-dot-create",
-  publish_draft:      "action-dot-publish",
-  retry_delivery:     "action-dot-publish",
+  publish_draft: "action-dot-publish",
+  retry_delivery: "action-dot-publish",
 };
 
 const URGENCY_TONE: Record<ActionQueueItem["urgency"], StatusTone> = {
@@ -47,42 +47,49 @@ const URGENCY_TONE: Record<ActionQueueItem["urgency"], StatusTone> = {
 const HEALTH_BORDER: Record<ClientHealthSummary["health"], string> = {
   green: "border-t-2 border-t-[#27A644]",
   amber: "border-t-2 border-t-[#E8B94A]",
-  red:   "border-t-2 border-t-[#E54D4D]",
+  red: "border-t-2 border-t-[#E54D4D]",
 };
 
 const HEALTH_BADGE: Record<ClientHealthSummary["health"], string> = {
   green: "bg-[rgba(39,166,68,0.12)] text-[#27A644]",
   amber: "bg-[rgba(232,185,74,0.12)] text-[#E8B94A]",
-  red:   "bg-[rgba(229,77,77,0.12)] text-[#E54D4D]",
+  red: "bg-[rgba(229,77,77,0.12)] text-[#E54D4D]",
 };
 
 function DashboardPage() {
   const fetchTenants = useServerFn(listMyTenants);
-  const fetchQueue   = useServerFn(getOperatorActionQueue);
-  const fetchHealth  = useServerFn(getClientHealthSummaries);
+  const fetchQueue = useServerFn(getOperatorActionQueue);
+  const fetchHealth = useServerFn(getClientHealthSummaries);
 
-  const tenantsQuery = useQuery({ queryKey: ["my-tenants"],           queryFn: () => fetchTenants() });
-  const queueQuery   = useQuery({ queryKey: ["operator-action-queue"],queryFn: () => fetchQueue({ data: { limit: 8 } }) });
-  const healthQuery  = useQuery({ queryKey: ["client-health"],         queryFn: () => fetchHealth({ data: {} }) });
+  const tenantsQuery = useQuery({ queryKey: ["my-tenants"], queryFn: () => fetchTenants() });
+  const queueQuery = useQuery({
+    queryKey: ["operator-action-queue"],
+    queryFn: () => fetchQueue({ data: { limit: 8 } }),
+  });
+  const healthQuery = useQuery({
+    queryKey: ["client-health"],
+    queryFn: () => fetchHealth({ data: {} }),
+  });
 
-  const tenants   = tenantsQuery.data?.tenants ?? [];
-  const actions   = queueQuery.data?.items ?? [];
+  const tenants = tenantsQuery.data?.tenants ?? [];
+  const actions = queueQuery.data?.items ?? [];
   const summaries = healthQuery.data?.summaries ?? [];
 
   const today = new Date().toLocaleDateString("en-GB", {
-    weekday: "long", day: "2-digit", month: "long",
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
   });
 
   // KPI rollup from health summaries
-  const totalLeadsThisMonth  = summaries.reduce((n, s) => n + s.leadsThisMonth, 0);
-  const totalLeadsPrevMonth  = summaries.reduce((n, s) => n + s.leadsPrevMonth, 0);
-  const totalPendingActions  = summaries.reduce((n, s) => n + s.pendingActionCount, 0);
-  const clientsAtRisk        = summaries.filter((s) => s.health === "red").length;
-  const leadsDelta           = healthQuery.isLoading ? undefined : totalLeadsThisMonth - totalLeadsPrevMonth;
+  const totalLeadsThisMonth = summaries.reduce((n, s) => n + s.leadsThisMonth, 0);
+  const totalLeadsPrevMonth = summaries.reduce((n, s) => n + s.leadsPrevMonth, 0);
+  const totalPendingActions = summaries.reduce((n, s) => n + s.pendingActionCount, 0);
+  const clientsAtRisk = summaries.filter((s) => s.health === "red").length;
+  const leadsDelta = healthQuery.isLoading ? undefined : totalLeadsThisMonth - totalLeadsPrevMonth;
 
   return (
     <div className="mx-auto max-w-7xl animate-fade-up-in px-6 py-8 lg:px-8">
-
       {/* ── Page identity ───────────────────────────────────── */}
       <div className="mb-6">
         <p className="font-mono text-[10px] uppercase tracking-widest text-[rgba(255,255,255,0.30)]">
@@ -93,20 +100,39 @@ function DashboardPage() {
         </h1>
       </div>
 
-      {/* ── KPI strip — mosaic grid ─────────────────────────── */}
-      <div className="mb-8 overflow-hidden rounded-[8px] border border-[rgba(255,255,255,0.06)]">
-        <div className="grid grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="Clients"         value={tenantsQuery.isLoading ? "—" : String(tenants.length)}          loading={tenantsQuery.isLoading} />
-          <KpiCard label="Pending actions" value={queueQuery.isLoading   ? "—" : String(totalPendingActions)}     loading={queueQuery.isLoading}   accent={totalPendingActions > 0} />
-          <KpiCard label="Leads MTD"       value={healthQuery.isLoading  ? "—" : String(totalLeadsThisMonth)}     delta={leadsDelta}  loading={healthQuery.isLoading} />
-          <KpiCard label="At risk"         value={healthQuery.isLoading  ? "—" : String(clientsAtRisk)}           loading={healthQuery.isLoading}  danger={clientsAtRisk > 0} />
+      {/* ── KPI strip — glass tiles ─────────────────────────── */}
+      <div className="mb-8">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <KpiCard
+            label="Clients"
+            value={tenantsQuery.isLoading ? "—" : String(tenants.length)}
+            loading={tenantsQuery.isLoading}
+          />
+          <KpiCard
+            label="Pending actions"
+            value={queueQuery.isLoading ? "—" : String(totalPendingActions)}
+            loading={queueQuery.isLoading}
+            accent={totalPendingActions > 0}
+          />
+          <KpiCard
+            label="Leads MTD"
+            value={healthQuery.isLoading ? "—" : String(totalLeadsThisMonth)}
+            delta={leadsDelta}
+            loading={healthQuery.isLoading}
+          />
+          <KpiCard
+            label="At risk"
+            value={healthQuery.isLoading ? "—" : String(clientsAtRisk)}
+            loading={healthQuery.isLoading}
+            danger={clientsAtRisk > 0}
+          />
         </div>
       </div>
 
       {/* ── Action queue ────────────────────────────────────── */}
       <section className="mb-8">
         <SectionLabel>Action queue</SectionLabel>
-        <div className="mt-2 overflow-hidden rounded-[8px] border border-[rgba(255,255,255,0.06)] bg-[#161719]">
+        <div className="glass-tile mt-2 overflow-hidden rounded-[14px]">
           <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.06)] px-4 py-3">
             <span className="font-display text-sm font-semibold text-[#F5F5F5]">
               {queueQuery.isLoading
@@ -116,7 +142,11 @@ function DashboardPage() {
           </div>
 
           {queueQuery.isLoading && (
-            <div>{[...Array(3)].map((_, i) => <SkeletonActionRow key={i} />)}</div>
+            <div>
+              {[...Array(3)].map((_, i) => (
+                <SkeletonActionRow key={i} />
+              ))}
+            </div>
           )}
 
           {!queueQuery.isLoading && actions.length === 0 && (
@@ -134,16 +164,14 @@ function DashboardPage() {
                   <Link
                     to="/clients/$tenantId/execution"
                     params={{ tenantId: a.tenantId }}
-                    className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-[#1E1F22]"
+                    className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-white/[0.05]"
                   >
                     {/* Action type dot */}
                     <span className={`h-2 w-2 shrink-0 rounded-full ${ACTION_DOT[a.type]}`} />
 
                     {/* Client + action */}
                     <div className="min-w-0 w-40 shrink-0">
-                      <p className="truncate text-sm font-medium text-[#F5F5F5]">
-                        {a.tenantName}
-                      </p>
+                      <p className="truncate text-sm font-medium text-[#F5F5F5]">{a.tenantName}</p>
                       <p className="mt-0.5 text-xs text-[rgba(255,255,255,0.40)]">
                         {ACTION_LABELS[a.type]}
                       </p>
@@ -194,26 +222,26 @@ function DashboardPage() {
         </div>
 
         {healthQuery.isLoading && tenants.length === 0 && (
-          <div className="overflow-hidden rounded-[8px] border border-[rgba(255,255,255,0.06)]">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              {[...Array(3)].map((_, i) => <SkeletonClientCard key={i} />)}
-            </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[...Array(3)].map((_, i) => (
+              <SkeletonClientCard key={i} />
+            ))}
           </div>
         )}
 
         {summaries.length > 0 && (
-          <div className="overflow-hidden rounded-[8px] border border-[rgba(255,255,255,0.06)]">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              {summaries.map((s) => <HealthCard key={s.tenantId} summary={s} />)}
-            </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {summaries.map((s) => (
+              <HealthCard key={s.tenantId} summary={s} />
+            ))}
           </div>
         )}
 
         {summaries.length === 0 && tenants.length > 0 && (
-          <div className="overflow-hidden rounded-[8px] border border-[rgba(255,255,255,0.06)]">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              {tenants.map((t) => <FallbackCard key={t.id} tenant={t} />)}
-            </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {tenants.map((t) => (
+              <FallbackCard key={t.id} tenant={t} />
+            ))}
           </div>
         )}
 
@@ -259,21 +287,31 @@ function KpiCard({
   loading?: boolean;
 }) {
   const numColor = danger ? "text-[#E54D4D]" : accent ? "text-[#E8913A]" : "text-[#F5F5F5]";
-  const deltaColor = delta == null ? "" : delta > 0 ? "text-[#27A644]" : delta < 0 ? "text-[#E54D4D]" : "text-[rgba(255,255,255,0.30)]";
+  const deltaColor =
+    delta == null
+      ? ""
+      : delta > 0
+        ? "text-[#27A644]"
+        : delta < 0
+          ? "text-[#E54D4D]"
+          : "text-[rgba(255,255,255,0.30)]";
   const deltaSign = delta != null && delta > 0 ? "↑" : delta != null && delta < 0 ? "↓" : "→";
 
   return (
-    <div className="border-b border-r border-[rgba(255,255,255,0.06)] bg-[#161719] px-4 py-4">
+    <div className="glass-tile rounded-[14px] px-4 py-4">
       <p className="font-mono text-[10px] uppercase tracking-widest text-[rgba(255,255,255,0.40)]">
         {label}
       </p>
       <div className="mt-2 flex items-baseline gap-2">
-        <p className={`font-display text-3xl font-bold leading-none ${loading ? "text-[rgba(255,255,255,0.20)]" : numColor}`}>
+        <p
+          className={`font-display text-3xl font-bold leading-none ${loading ? "text-[rgba(255,255,255,0.20)]" : numColor}`}
+        >
           {value}
         </p>
         {!loading && delta != null && (
           <span className={`font-mono text-[10px] ${deltaColor}`}>
-            {deltaSign}{delta > 0 ? `+${delta}` : delta} vs May
+            {deltaSign}
+            {delta > 0 ? `+${delta}` : delta} vs May
           </span>
         )}
       </div>
@@ -286,13 +324,18 @@ function HealthCard({ summary }: { summary: ClientHealthSummary }) {
     <Link
       to="/clients/$tenantId"
       params={{ tenantId: summary.tenantId }}
-      className="group block border-b border-r border-[rgba(255,255,255,0.06)] bg-[#161719] p-4 transition hover:bg-[#1E1F22] hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)]"
+      className="glass-tile glass-tile-hover group block rounded-[16px] p-4"
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="truncate font-display text-sm font-semibold text-[#F5F5F5]" title={summary.tenantName}>
+        <p
+          className="truncate font-display text-sm font-semibold text-[#F5F5F5]"
+          title={summary.tenantName}
+        >
           {summary.tenantName}
         </p>
-        <span className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide ${HEALTH_BADGE[summary.health]}`}>
+        <span
+          className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide ${HEALTH_BADGE[summary.health]}`}
+        >
           {summary.health}
         </span>
       </div>
@@ -304,7 +347,7 @@ function HealthCard({ summary }: { summary: ClientHealthSummary }) {
       )}
 
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <Metric label="Leads MTD"  value={String(summary.leadsThisMonth)} />
+        <Metric label="Leads MTD" value={String(summary.leadsThisMonth)} />
         <Metric
           label="Pending"
           value={String(summary.pendingActionCount)}
@@ -315,7 +358,11 @@ function HealthCard({ summary }: { summary: ClientHealthSummary }) {
       <div className="mt-3 flex items-center justify-between border-t border-[rgba(255,255,255,0.04)] pt-3">
         {summary.lastDeliveryAt ? (
           <span className="text-xs text-[rgba(255,255,255,0.30)]">
-            Last delivery {new Date(summary.lastDeliveryAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+            Last delivery{" "}
+            {new Date(summary.lastDeliveryAt).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+            })}
           </span>
         ) : (
           <Link
@@ -342,12 +389,10 @@ function FallbackCard({
     <Link
       to="/clients/$tenantId"
       params={{ tenantId: tenant.id }}
-      className="group block border-b border-r border-[rgba(255,255,255,0.06)] bg-[#161719] p-4 transition hover:bg-[#1E1F22] hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(0,0,0,0.18)]"
+      className="glass-tile glass-tile-hover group block rounded-[16px] p-4"
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="truncate font-display text-sm font-semibold text-[#F5F5F5]">
-          {tenant.name}
-        </p>
+        <p className="truncate font-display text-sm font-semibold text-[#F5F5F5]">{tenant.name}</p>
         <span className="shrink-0 rounded-full bg-[rgba(255,255,255,0.06)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-[rgba(255,255,255,0.40)]">
           pending
         </span>
@@ -380,7 +425,9 @@ function Metric({
       <p className="font-mono text-[10px] uppercase tracking-wide text-[rgba(255,255,255,0.30)]">
         {label}
       </p>
-      <p className={`mt-1 font-display text-2xl font-bold leading-none ${highlight ? "text-[#E8913A]" : "text-[#F5F5F5]"}`}>
+      <p
+        className={`mt-1 font-display text-2xl font-bold leading-none ${highlight ? "text-[#E8913A]" : "text-[#F5F5F5]"}`}
+      >
         {value}
       </p>
     </div>

@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, MapPin, Briefcase, Plus } from "lucide-react";
 import { SkeletonClientCard } from "@/components/ui/Skeletons";
+import { GlassButton } from "@/components/ui/glass-button";
 
 import { listMyTenants } from "@/lib/shared/db/repos/tenants.functions";
 import {
@@ -18,24 +19,27 @@ export const Route = createFileRoute("/_authenticated/clients/")({
 const HEALTH_TOP_BORDER: Record<ClientHealthSummary["health"], string> = {
   green: "border-t-2 border-t-[#27A644]",
   amber: "border-t-2 border-t-[#E8B94A]",
-  red:   "border-t-2 border-t-[#E54D4D]",
+  red: "border-t-2 border-t-[#E54D4D]",
 };
 
 const HEALTH_BADGE: Record<ClientHealthSummary["health"], string> = {
   green: "bg-[rgba(39,166,68,0.12)] text-[#27A644]",
   amber: "bg-[rgba(232,185,74,0.12)] text-[#E8B94A]",
-  red:   "bg-[rgba(229,77,77,0.12)] text-[#E54D4D]",
+  red: "bg-[rgba(229,77,77,0.12)] text-[#E54D4D]",
 };
 
 function ClientsIndexPage() {
   const navigate = useNavigate();
   const fetchTenants = useServerFn(listMyTenants);
-  const fetchHealth  = useServerFn(getClientHealthSummaries);
+  const fetchHealth = useServerFn(getClientHealthSummaries);
 
-  const tenantsQuery = useQuery({ queryKey: ["my-tenants"],    queryFn: () => fetchTenants() });
-  const healthQuery  = useQuery({ queryKey: ["client-health"], queryFn: () => fetchHealth({ data: {} }) });
+  const tenantsQuery = useQuery({ queryKey: ["my-tenants"], queryFn: () => fetchTenants() });
+  const healthQuery = useQuery({
+    queryKey: ["client-health"],
+    queryFn: () => fetchHealth({ data: {} }),
+  });
 
-  const tenants   = tenantsQuery.data?.tenants ?? [];
+  const tenants = tenantsQuery.data?.tenants ?? [];
   const summaries = healthQuery.data?.summaries ?? [];
   const summaryById = new Map(summaries.map((s) => [s.tenantId, s]));
 
@@ -44,7 +48,6 @@ function ClientsIndexPage() {
 
   return (
     <div className="mx-auto max-w-7xl animate-fade-up-in px-6 py-8 lg:px-8">
-
       {/* Page header */}
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -55,21 +58,22 @@ function ClientsIndexPage() {
             Your clients
           </h1>
         </div>
-        <button
+        <GlassButton
           type="button"
+          variant="amber"
+          size="sm"
           onClick={() => navigate({ to: "/onboarding/welcome" })}
-          className="inline-flex items-center gap-2 rounded-[6px] bg-[#E8913A] px-3.5 py-2 font-mono text-[11px] uppercase tracking-wide text-white transition hover:bg-[#F0A050]"
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus />
           Add client
-        </button>
+        </GlassButton>
       </div>
 
       {loading && (
-        <div className="overflow-hidden rounded-[8px] border border-[rgba(255,255,255,0.06)]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {[...Array(4)].map((_, i) => <SkeletonClientCard key={i} />)}
-          </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(4)].map((_, i) => (
+            <SkeletonClientCard key={i} />
+          ))}
         </div>
       )}
 
@@ -87,12 +91,10 @@ function ClientsIndexPage() {
       )}
 
       {tenants.length > 0 && (
-        <section className="overflow-hidden rounded-[8px] border border-[rgba(255,255,255,0.06)]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {tenants.map((t) => (
-              <ClientCard key={t.id} tenant={t} summary={summaryById.get(t.id) ?? null} />
-            ))}
-          </div>
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {tenants.map((t) => (
+            <ClientCard key={t.id} tenant={t} summary={summaryById.get(t.id) ?? null} />
+          ))}
         </section>
       )}
     </div>
@@ -112,7 +114,7 @@ function ClientCard({
     <Link
       to="/clients/$tenantId"
       params={{ tenantId: tenant.id }}
-      className="group block border-b border-r border-[rgba(255,255,255,0.06)] bg-[#161719] p-4 transition hover:bg-[#1E1F22]"
+      className="glass-tile glass-tile-hover group block rounded-[16px] p-4"
     >
       {/* Name + health badge */}
       <div className="flex items-start justify-between gap-2">
@@ -120,7 +122,9 @@ function ClientCard({
           {tenant.name}
         </h3>
         {summary && (
-          <span className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide ${HEALTH_BADGE[summary.health]}`}>
+          <span
+            className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide ${HEALTH_BADGE[summary.health]}`}
+          >
             {summary.health}
           </span>
         )}
@@ -130,12 +134,14 @@ function ClientCard({
       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[rgba(255,255,255,0.30)]">
         {tenant.geo && (
           <span className="inline-flex items-center gap-1">
-            <MapPin className="h-3 w-3" />{tenant.geo}
+            <MapPin className="h-3 w-3" />
+            {tenant.geo}
           </span>
         )}
         {tenant.vertical && (
           <span className="inline-flex items-center gap-1">
-            <Briefcase className="h-3 w-3" />{tenant.vertical}
+            <Briefcase className="h-3 w-3" />
+            {tenant.vertical}
           </span>
         )}
       </div>
@@ -157,7 +163,9 @@ function ClientCard({
         <span className="text-xs text-[rgba(255,255,255,0.30)]">
           {lastActivity
             ? `Last activity ${new Date(lastActivity).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}`
-            : summary ? "No activity yet" : "Health pending"}
+            : summary
+              ? "No activity yet"
+              : "Health pending"}
         </span>
         <ArrowRight className="h-3.5 w-3.5 text-[rgba(255,255,255,0.20)] transition group-hover:text-[#E8913A]" />
       </div>
@@ -179,7 +187,9 @@ function Metric({
       <p className="font-mono text-[10px] uppercase tracking-wide text-[rgba(255,255,255,0.30)]">
         {label}
       </p>
-      <p className={`mt-1 font-display text-2xl font-bold leading-none ${highlight ? "text-[#E8913A]" : "text-[#F5F5F5]"}`}>
+      <p
+        className={`mt-1 font-display text-2xl font-bold leading-none ${highlight ? "text-[#E8913A]" : "text-[#F5F5F5]"}`}
+      >
         {value}
       </p>
     </div>
